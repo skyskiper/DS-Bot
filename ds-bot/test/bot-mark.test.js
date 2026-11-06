@@ -51,10 +51,14 @@ test('a group with its own photo wears it at every size, the inline sizes includ
   for (const size of [112, 36, 16]) {
     const mark = RoomAvatar({ room, roster, size })
     assert.deepEqual([mark.props.style.width, mark.props.style.height], [size, size])
+    // Idle, so the photo states that follow a Bot never animate a group icon.
+    assert.equal(mark.props['data-state'], 'idle')
     const img = mark.children[0]
     assert.equal(img.type, 'img')
     assert.equal(img.props.src, photo)
     assert.equal(img.props.className, 'bt-mark-img')
+    // A photo that does not load falls back to the members, as a Bot's does.
+    assert.equal(typeof img.props.onError, 'function')
   }
   // Without one the members make the icon, and the inline sizes line them up.
   const filled = { byId: { a: { id: 'a' }, b: { id: 'b' } } }

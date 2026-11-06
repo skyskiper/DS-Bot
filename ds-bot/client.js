@@ -3958,11 +3958,13 @@ function clusterSeats(count, frame) {
   return [[0, 0, half], [half, 0, half], [0, half, half], [half, half, half]];
 }
 function RoomAvatar({ room: room2, roster, size = 36 }) {
-  if (typeof room2.avatar === "string" && room2.avatar !== "") {
+  const photo = typeof room2.avatar === "string" && room2.avatar !== "" ? room2.avatar : void 0;
+  const [broken, setBroken] = (0, import_react2.useState)("");
+  if (photo !== void 0 && photo !== broken) {
     return (0, import_react2.createElement)(
       "span",
-      { className: "bt-mark", "data-shape": "image", style: { width: size, height: size }, "aria-hidden": true },
-      (0, import_react2.createElement)("img", { className: "bt-mark-img", src: room2.avatar, alt: "", draggable: false })
+      { className: "bt-mark", "data-shape": "image", "data-state": "idle", style: { width: size, height: size }, "aria-hidden": true },
+      (0, import_react2.createElement)("img", { className: "bt-mark-img", src: photo, alt: "", draggable: false, onError: () => setBroken(photo) })
     );
   }
   const members = room2.members.map((id) => roster.byId[id]).filter(Boolean);

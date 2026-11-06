@@ -136,11 +136,17 @@ function clusterSeats(count, frame) {
 }
 
 export function RoomAvatar({ room, roster, size = 36 }) {
+  const photo = typeof room.avatar === 'string' && room.avatar !== '' ? room.avatar : undefined
+  // A photo that does not load falls back to the members, as a Bot's falls back to its
+  // character.
+  const [broken, setBroken] = useState('')
   // A group with its own photo shows it at every size, the inline ones included; the
-  // cluster below is what a group without one looks like.
-  if (typeof room.avatar === 'string' && room.avatar !== '') {
-    return h('span', { className: 'bt-mark', 'data-shape': 'image', style: { width: size, height: size }, 'aria-hidden': true },
-      h('img', { className: 'bt-mark-img', src: room.avatar, alt: '', draggable: false }))
+  // cluster below is what a group without one looks like. `data-state` is idle on
+  // purpose: without it the photo states that follow (bt-bob and the rest) would
+  // animate a group icon that is doing nothing.
+  if (photo !== undefined && photo !== broken) {
+    return h('span', { className: 'bt-mark', 'data-shape': 'image', 'data-state': 'idle', style: { width: size, height: size }, 'aria-hidden': true },
+      h('img', { className: 'bt-mark-img', src: photo, alt: '', draggable: false, onError: () => setBroken(photo) }))
   }
   const members = room.members.map(id => roster.byId[id]).filter(Boolean)
   // A group with one Bot left shows the user beside it.
