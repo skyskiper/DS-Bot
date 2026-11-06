@@ -1380,3 +1380,20 @@ test('a model-less create-bot starts the Bot on the saved team default model', a
   const plain = (await call('create-bot', { name: 'Plain' })).value
   assert.equal(plain.model, 'deepseek/deepseek-v4-flash')
 })
+
+test('a group photo survives a change that sends none, and an empty string takes it away', async (t) => {
+  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const chief = (await call('state', {})).value.mainBotId
+  const writer = (await call('create-bot', { name: 'Writer' })).value
+  const room = (await call('create-room', { members: [chief, writer.id], admin: chief })).value
+  const photo = 'data:image/png;base64,iVBORw0KGgo='
+  assert.equal((await call('update-room', { id: room.id, avatar: photo })).ok, true)
+  // The settings panel saves each field on its own: a name must not clear the photo.
+  assert.equal((await call('update-room', { id: room.id, name: 'Studio' })).ok, true)
+  const shown = (await call('state', {})).value.rooms.find(entry => entry.id === room.id)
+  assert.equal(shown.name, 'Studio')
+  assert.equal(shown.avatar, photo)
+  assert.equal((await call('update-room', { id: room.id, avatar: '' })).ok, true)
+  assert.equal((await call('state', {})).value.rooms.find(entry => entry.id === room.id).avatar, undefined)
+})

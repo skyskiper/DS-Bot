@@ -1,4 +1,4 @@
-import { createElement as h, useEffect, useState } from 'react'
+import { createElement as h, useEffect, useRef, useState } from 'react'
 import { isMainOf } from './sources.js'
 import { PlusIcon, ChevronRightIcon } from './icons.js'
 import { AdminStar, BotAvatar, BotMark, RoomAvatar } from './mark.js'
@@ -7,6 +7,7 @@ import { Segmented } from './motion.js'
 import { FolderMenu } from './folder-menu.js'
 import { PermissionPicker } from './permission-picker.js'
 import { t } from './i18n.js'
+import { avatarImage } from './avatar-library.js'
 
 export const ROOM_MODES = [
   ['admin', 'Admin leads', 'Plain messages go to the admin, who calls others with @Name.'],
@@ -33,6 +34,29 @@ function GroupPermission({ room, catalog, update }) {
     }),
     shared ? h('div', { className: 'bt-set-row bt-bs-row bt-bs-stack bt-gs-perm bt-veil' },
       h(PermissionPicker, { catalog, saved: room.permission, onPick: permission => update({ permission }) })) : null)
+}
+
+// A group's own photo, taken like a Bot's: the same square crop, so state.json stays
+// light. Without one, RoomAvatar seats the members' characters instead.
+function GroupPhoto({ room, run, update }) {
+  const fileRef = useRef(null)
+  const photo = typeof room.avatar === 'string' && room.avatar !== '' ? room.avatar : undefined
+  const upload = (file) => {
+    if (!file) return
+    void run(avatarImage(file).then(image => update({ avatar: image })))
+  }
+  return h('div', { className: 'bt-set-row bt-bs-row' },
+    h('span', { className: 'bt-set-copy' },
+      h('span', { className: 'bt-bs-label' }, t('Photo')),
+      h('span', { className: 'bt-set-hint' }, t("Without one, the members' characters make the group icon."))),
+    h('div', { className: 'bt-actions' },
+      photo ? h('span', { className: 'bt-mark', style: { width: 32, height: 32 }, 'aria-hidden': true }, h('img', { className: 'bt-mark-img', src: photo, alt: '', draggable: false })) : null,
+      h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => fileRef.current?.click() }, photo ? t('Replace') : t('Upload photo')),
+      photo ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => void update({ avatar: null }) }, t('Remove photo')) : null,
+      h('input', {
+        ref: fileRef, type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', hidden: true,
+        onChange: (event) => { const file = event.target.files?.[0]; event.target.value = ''; upload(file) },
+      })))
 }
 
 // A group chat's settings as grouped cards: its name and notice, who answers, its
@@ -67,7 +91,8 @@ export function GroupSettingsForm({ room, roster, actions, run, onDeleted }) {
       h(Row, { label: t('Name'), hint: t('Leave it empty to name the group after its members.') },
         h(InlineText, { label: t('Group name'), value: room.named ? room.name : '', placeholder: t('Name after members'), maxLength: 60, onSave: name => update({ name }) })),
       h(Row, { label: t('Notice'), hint: t('Every member reads it before speaking in this group.'), stack: true },
-        h(InlineText, { label: t('Group notice'), value: room.notice, multiline: true, maxLength: 2000, placeholder: t('Shared instructions every member reads before speaking…'), onSave: notice => update({ notice }) }))),
+        h(InlineText, { label: t('Group notice'), value: room.notice, multiline: true, maxLength: 2000, placeholder: t('Shared instructions every member reads before speaking…'), onSave: notice => update({ notice }) })),
+      h(GroupPhoto, { room, run, update })),
     h(Card, { title: t('Who answers') },
       h('div', { className: 'bt-set-row bt-bs-row bt-bs-stack' },
         h(Segmented, { label: t('Who answers'), value: mode }, ROOM_MODES.map(([id, label]) => h('button', {

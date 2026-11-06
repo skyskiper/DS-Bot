@@ -97,15 +97,19 @@ export function install(rt) {
     return sessionId
   }
 
+  // An avatar photo is a data URL, for a Bot and for a group alike: the same four
+  // formats, and the same ceiling on what a state.json entry may hold.
+  function cleanAvatarImage(value) {
+    if (typeof value !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) throw new Error('Avatar images must be PNG, JPEG, WebP, or GIF')
+    if (value.length > MAX_AVATAR_IMAGE) throw new Error('Avatar image is too large')
+    return value
+  }
+
   function cleanAvatar(input) {
     if (input === null || typeof input !== 'object') return undefined
     const avatar = {}
     if (typeof input.shape === 'string' && /^[a-z][\w-]{0,31}$/.test(input.shape)) avatar.shape = input.shape
-    if (typeof input.image === 'string') {
-      if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(input.image)) throw new Error('Avatar images must be PNG, JPEG, WebP, or GIF')
-      if (input.image.length > MAX_AVATAR_IMAGE) throw new Error('Avatar image is too large')
-      avatar.image = input.image
-    }
+    if (typeof input.image === 'string') avatar.image = cleanAvatarImage(input.image)
     return Object.keys(avatar).length > 0 ? avatar : undefined
   }
 
@@ -557,10 +561,18 @@ export function install(rt) {
     // A Bot's own permissions are the user's to set, so a group's are too.
     if (patch.permission !== undefined && actorId !== undefined) throw new Error(`Only the user can set the permissions of "${room.name}"`)
     const permission = patch.permission === undefined ? undefined : rt.cleanRoomPermission(patch.permission)
+    // A group's photo is one data URL like a Bot's; null or an empty string goes back to
+    // the members' characters. This only reads the patch: updateRoom plans twice, and the
+    // second plan must see the group the first one saw.
+    let avatar
+    if (patch.avatar !== undefined) {
+      const wanted = typeof patch.avatar === 'string' ? patch.avatar.trim() : patch.avatar
+      avatar = wanted === null || wanted === '' ? null : cleanAvatarImage(wanted)
+    }
     // The second run is the last check before the change is written, so no other change
     // can take the name in between.
     const name = patch.name === undefined ? undefined : cleanRoomName(patch.name, room.id)
-    return { members, admin, name, notice, permission }
+    return { members, admin, name, notice, permission, avatar }
   }
 
   // `actorId` is the Bot asking, or undefined for the user. Returns what changed, in words.
@@ -575,7 +587,7 @@ export function install(rt) {
     // No await from here until every change is written.
     const room = rt.roomOf(id)
     if (room === undefined) throw new Error('Unknown group chat')
-    const { members, admin, name, notice, permission } = planRoomChange(room, patch, actorId)
+    const { members, admin, name, notice, permission, avatar } = planRoomChange(room, patch, actorId)
 
     const changes = []
     const names = ids => ids.map(member => rt.botOf(member)?.name).filter(Boolean).join(', ')
@@ -599,6 +611,11 @@ export function install(rt) {
     if (notice !== undefined && notice !== (room.notice ?? '')) {
       room.notice = notice
       changes.push(notice ? 'updated the notice' : 'cleared the notice')
+    }
+    if (avatar !== undefined && avatar !== (room.avatar ?? null)) {
+      if (avatar === null) delete room.avatar
+      else room.avatar = avatar
+      changes.push(avatar ? 'updated the photo' : 'removed the photo')
     }
     // Members' group conversations move on to the folder at their next turn there;
     // the group's own Session moves the same way, now when it is idle.

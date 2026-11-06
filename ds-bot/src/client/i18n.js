@@ -286,6 +286,8 @@ const ZH = {
   Notice: '群公告',
   'Shared instructions every member reads before speaking…': '每位成员发言前都会读到的共同说明…',
   'Group notice': '群公告',
+  Photo: '头像',
+  "Without one, the members' characters make the group icon.": '不设时用成员头像拼成群图标。',
   'Back to details': '返回详情',
   'Close details': '关闭详情',
   'Copied conversation': '已复制对话',

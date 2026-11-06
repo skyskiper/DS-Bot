@@ -507,7 +507,7 @@ export function install(rt) {
 
   rt.teamTools.push(defineTool({
     name: 'update_group',
-    description: 'Change a group chat: rename it, set its notice, add or remove members, change its admin or reply mode. Main Bots may change any group; a group\'s admin may change its own group.',
+    description: 'Change a group chat: rename it, set its notice, set or clear its photo, add or remove members, change its admin or reply mode. Main Bots may change any group; a group\'s admin may change its own group.',
     parameters: {
       group: GROUP_REF,
       name: { type: 'string', description: 'New group name; an empty string names it after its members again' },
@@ -517,6 +517,7 @@ export function install(rt) {
       admin: { type: 'string', description: 'Member to make the admin; "none" leaves the group without one (Main Bots only)' },
       mode: MODE_PARAM,
       work_dir: { ...WORK_DIR_PARAM, description: `${WORK_DIR_PARAM.description}. Every member works there in this group; an empty string lets each member work in its own folder again (Main Bots only)` },
+      avatar: { ...AVATAR_PARAM, description: `${AVATAR_PARAM.description} An empty string shows the members' characters again instead.` },
     },
     output,
     async execute(args, exec) {
@@ -541,6 +542,10 @@ export function install(rt) {
       }
       try {
         const workDir = moving ? await rt.cleanWorkDir(args.work_dir) : undefined
+        // The photo is read as a Bot's is: a data URL or a local image path.
+        const avatar = args.avatar === undefined ? undefined
+          : typeof args.avatar === 'string' && args.avatar.trim() === '' ? null
+            : await readAvatar(String(args.avatar).trim(), { baseDir: rt.sessionFolder?.(exec.agent?.session ?? exec.agent), isData: rt.inData })
         // A Bot that joins a group with a folder works there from its first turn.
         const joining = add.bots.filter(bot => !room.members.includes(bot.id))
         if (moving && workDir !== room.workDir) {
@@ -558,6 +563,7 @@ export function install(rt) {
           add: add.bots.map(bot => bot.id),
           remove: remove.bots.map(bot => bot.id),
           ...(moving ? { workDir: workDir ?? '' } : {}),
+          ...(avatar !== undefined ? { avatar } : {}),
         }, self)
         return changes.length === 0 ? `Nothing changed in "${next.name}".` : `Updated "${next.name}": ${changes.join('; ')}.`
       } catch (failure) {

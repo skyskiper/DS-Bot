@@ -321,6 +321,8 @@ export function install(rt) {
             remove: Array.isArray(body.remove) ? body.remove : undefined,
             workDir: body.workDir,
             permission: body.permission,
+            // Saving the name alone sends no avatar, and must keep the group's photo.
+            ...('avatar' in body ? { avatar: body.avatar } : {}),
           })
           return ok({ room: view().rooms.find(entry => entry.id === room.id), changes })
         }

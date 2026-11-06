@@ -319,6 +319,8 @@ var ZH = {
   Notice: "群公告",
   "Shared instructions every member reads before speaking…": "每位成员发言前都会读到的共同说明…",
   "Group notice": "群公告",
+  Photo: "头像",
+  "Without one, the members' characters make the group icon.": "不设时用成员头像拼成群图标。",
   "Back to details": "返回详情",
   "Close details": "关闭详情",
   "Copied conversation": "已复制对话",
@@ -3956,6 +3958,13 @@ function clusterSeats(count, frame) {
   return [[0, 0, half], [half, 0, half], [0, half, half], [half, half, half]];
 }
 function RoomAvatar({ room: room2, roster, size = 36 }) {
+  if (typeof room2.avatar === "string" && room2.avatar !== "") {
+    return (0, import_react2.createElement)(
+      "span",
+      { className: "bt-mark", "data-shape": "image", style: { width: size, height: size }, "aria-hidden": true },
+      (0, import_react2.createElement)("img", { className: "bt-mark-img", src: room2.avatar, alt: "", draggable: false })
+    );
+  }
   const members = room2.members.map((id) => roster.byId[id]).filter(Boolean);
   const people = members.length === 1 ? [members[0], null] : members;
   const seat = (bot, seatSize, key) => bot ? (0, import_react2.createElement)(BotMark, { key, bot, size: seatSize }) : (0, import_react2.createElement)("span", { key, className: "bt-cluster-you", style: { width: seatSize * 0.92, height: seatSize * 0.92, margin: seatSize * 0.04 } });
@@ -15929,6 +15938,42 @@ function GroupPermission({ room: room2, catalog, update }) {
     ) : null
   );
 }
+function GroupPhoto({ room: room2, run: run2, update }) {
+  const fileRef = (0, import_react39.useRef)(null);
+  const photo = typeof room2.avatar === "string" && room2.avatar !== "" ? room2.avatar : void 0;
+  const upload = (file) => {
+    if (!file) return;
+    void run2(avatarImage(file).then((image) => update({ avatar: image })));
+  };
+  return (0, import_react39.createElement)(
+    "div",
+    { className: "bt-set-row bt-bs-row" },
+    (0, import_react39.createElement)(
+      "span",
+      { className: "bt-set-copy" },
+      (0, import_react39.createElement)("span", { className: "bt-bs-label" }, t("Photo")),
+      (0, import_react39.createElement)("span", { className: "bt-set-hint" }, t("Without one, the members' characters make the group icon."))
+    ),
+    (0, import_react39.createElement)(
+      "div",
+      { className: "bt-actions" },
+      photo ? (0, import_react39.createElement)("span", { className: "bt-mark", style: { width: 32, height: 32 }, "aria-hidden": true }, (0, import_react39.createElement)("img", { className: "bt-mark-img", src: photo, alt: "", draggable: false })) : null,
+      (0, import_react39.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => fileRef.current?.click() }, photo ? t("Replace") : t("Upload photo")),
+      photo ? (0, import_react39.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => void update({ avatar: null }) }, t("Remove photo")) : null,
+      (0, import_react39.createElement)("input", {
+        ref: fileRef,
+        type: "file",
+        accept: "image/png,image/jpeg,image/webp,image/gif",
+        hidden: true,
+        onChange: (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          upload(file);
+        }
+      })
+    )
+  );
+}
 function GroupSettingsForm({ room: room2, roster, actions, run: run2, onDeleted }) {
   const [adding, setAdding] = (0, import_react39.useState)(false);
   const [confirming, setConfirming] = (0, import_react39.useState)(false);
@@ -15982,7 +16027,8 @@ function GroupSettingsForm({ room: room2, roster, actions, run: run2, onDeleted 
         Row,
         { label: t("Notice"), hint: t("Every member reads it before speaking in this group."), stack: true },
         (0, import_react39.createElement)(InlineText, { label: t("Group notice"), value: room2.notice, multiline: true, maxLength: 2e3, placeholder: t("Shared instructions every member reads before speaking…"), onSave: (notice) => update({ notice }) })
-      )
+      ),
+      (0, import_react39.createElement)(GroupPhoto, { room: room2, run: run2, update })
     ),
     (0, import_react39.createElement)(
       Card2,

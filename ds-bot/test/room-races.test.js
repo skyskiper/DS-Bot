@@ -148,3 +148,20 @@ test('a team saved with a deleted Bot in a group, even as its admin, loads witho
   assert.deepEqual([rt.state.rooms.r1.members, rt.state.rooms.r1.admin], [['a', 'b'], null])
   assert.deepEqual([saved().rooms.r1.members, saved().rooms.r1.admin], [['a', 'b'], null])
 })
+
+test('a group photo is a data URL, and a change that says nothing about it keeps it', async (t) => {
+  const { rt, saved, stop } = await start()
+  t.after(stop)
+  const photo = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/vuUAAA='
+  assert.deepEqual((await rt.updateRoom('r1', { avatar: photo })).changes, ['updated the photo'])
+  assert.equal(saved().rooms.r1.avatar, photo)
+  // The plan runs twice before the write: the second plan must read the same group.
+  assert.deepEqual((await rt.updateRoom('r1', { name: 'Ops 2' })).changes, ['renamed it "Ops 2"'])
+  assert.equal(saved().rooms.r1.avatar, photo)
+  await assert.rejects(rt.updateRoom('r1', { avatar: 'data:text/plain;base64,aGk=' }), /PNG, JPEG, WebP, or GIF/)
+  await assert.rejects(rt.updateRoom('r1', { avatar: `data:image/webp;base64,${'A'.repeat(200000)}` }), /too large/)
+  assert.equal(saved().rooms.r1.avatar, photo)
+  assert.deepEqual((await rt.updateRoom('r1', { avatar: '' })).changes, ['removed the photo'])
+  assert.equal(saved().rooms.r1.avatar, undefined)
+  assert.deepEqual((await rt.updateRoom('r1', { avatar: null })).changes, [])
+})
