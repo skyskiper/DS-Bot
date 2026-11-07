@@ -1381,19 +1381,56 @@ test('a model-less create-bot starts the Bot on the saved team default model', a
   assert.equal(plain.model, 'deepseek/deepseek-v4-flash')
 })
 
-test('a group photo survives a change that sends none, and an empty string takes it away', async (t) => {
-  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
-  t.after(stop)
+// The group settings panel talks to the host through this endpoint, not through the
+// runtime: a name and a photo are saved as separate requests.
+async function panelRoom(call) {
   const chief = (await call('state', {})).value.mainBotId
   const writer = (await call('create-bot', { name: 'Writer' })).value
-  const room = (await call('create-room', { members: [chief, writer.id], admin: chief })).value
+  return (await call('create-room', { members: [chief, writer.id], admin: chief })).value
+}
+
+test('the settings panel saves a group photo through update-room', async (t) => {
+  const { call, stop, home } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const room = await panelRoom(call)
+  const photo = 'data:image/png;base64,iVBORw0KGgo='
+  const saved = await call('update-room', { id: room.id, avatar: photo })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.changes, ['updated the photo'])
+  assert.equal(saved.value.room.avatar, photo)
+  assert.equal(JSON.parse(readFileSync(join(home, 'state.json'), 'utf8')).rooms[room.id].avatar, photo)
+})
+
+test('a group change that sends no photo key keeps the photo', async (t) => {
+  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const room = await panelRoom(call)
   const photo = 'data:image/png;base64,iVBORw0KGgo='
   assert.equal((await call('update-room', { id: room.id, avatar: photo })).ok, true)
-  // The settings panel saves each field on its own: a name must not clear the photo.
-  assert.equal((await call('update-room', { id: room.id, name: 'Studio' })).ok, true)
+  // The name field saves on its own: this body carries no avatar key, and neither may
+  // the patch the endpoint hands the host — a host that read the key would clear the photo.
+  const patches = []
+  const updateRoom = rt.updateRoom
+  rt.updateRoom = async (id, patch) => { patches.push(patch); return updateRoom(id, patch) }
+  t.after(() => { rt.updateRoom = updateRoom })
+  const renamed = await call('update-room', { id: room.id, name: 'Studio' })
+  assert.equal(renamed.ok, true)
+  assert.equal('avatar' in patches.at(-1), false)
   const shown = (await call('state', {})).value.rooms.find(entry => entry.id === room.id)
   assert.equal(shown.name, 'Studio')
   assert.equal(shown.avatar, photo)
-  assert.equal((await call('update-room', { id: room.id, avatar: '' })).ok, true)
+})
+
+test('an empty photo from the settings panel removes the group photo', async (t) => {
+  const { call, stop, home } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const room = await panelRoom(call)
+  const photo = 'data:image/png;base64,iVBORw0KGgo='
+  assert.equal((await call('update-room', { id: room.id, avatar: photo })).ok, true)
+  const removed = await call('update-room', { id: room.id, avatar: '' })
+  assert.equal(removed.ok, true)
+  assert.deepEqual(removed.value.changes, ['removed the photo'])
   assert.equal((await call('state', {})).value.rooms.find(entry => entry.id === room.id).avatar, undefined)
+  // The field is deleted, not stored empty.
+  assert.equal('avatar' in JSON.parse(readFileSync(join(home, 'state.json'), 'utf8')).rooms[room.id], false)
 })
