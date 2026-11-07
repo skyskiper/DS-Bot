@@ -158,7 +158,7 @@ test('a group photo is a data URL, and a change that says nothing about it keeps
   // The plan runs twice before the write: the second plan must read the same group.
   assert.deepEqual((await rt.updateRoom('r1', { name: 'Ops 2' })).changes, ['renamed it "Ops 2"'])
   assert.equal(saved().rooms.r1.avatar, photo)
-  await assert.rejects(rt.updateRoom('r1', { avatar: 'data:text/plain;base64,aGk=' }), /PNG, JPEG, WebP, or GIF/)
+  await assert.rejects(rt.updateRoom('r1', { avatar: 'data:text/plain;base64,aGk=' }), /PNG, JPEG, WebP, GIF, or SVG/)
   await assert.rejects(rt.updateRoom('r1', { avatar: `data:image/webp;base64,${'A'.repeat(200000)}` }), /too large/)
   assert.equal(saved().rooms.r1.avatar, photo)
   assert.deepEqual((await rt.updateRoom('r1', { avatar: '' })).changes, ['removed the photo'])

@@ -2,7 +2,7 @@
 // the first Main Bot of a new team.
 import { mkdir } from 'node:fs/promises'
 import { MAX_AVATAR_IMAGE, ROOM_MAX_MEMBERS, ROOM_MODES, ROOM_NAME_MAX, ROOM_NOTICE_MAX } from './constants.js'
-import { currentColor, isColor, normalize, unquote } from './text.js'
+import { currentColor, isColor, normalize, splitRef, unquote } from './text.js'
 import { nameProblem } from '../shared/mentions.js'
 
 const BROWSER_GRANT_KINDS = new Set(['post', 'upload', 'download', 'delete', '*'])
@@ -97,10 +97,10 @@ export function install(rt) {
     return sessionId
   }
 
-  // An avatar photo is a data URL, for a Bot and for a group alike: the same four
+  // An avatar photo is a data URL, for a Bot and for a group alike: the same five
   // formats, and the same ceiling on what a state.json entry may hold.
   function cleanAvatarImage(value) {
-    if (typeof value !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) throw new Error('Avatar images must be PNG, JPEG, WebP, or GIF')
+    if (typeof value !== 'string' || !/^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(value)) throw new Error('Avatar images must be PNG, JPEG, WebP, GIF, or SVG')
     if (value.length > MAX_AVATAR_IMAGE) throw new Error('Avatar image is too large')
     return value
   }
@@ -374,6 +374,7 @@ export function install(rt) {
       if (avatar) bot.avatar = avatar
       else delete bot.avatar
     }
+    const providerBefore = patch.model !== undefined ? splitRef(bot.appliedModel ?? bot.model)?.provider : undefined
     if (patch.model !== undefined) {
       // A failure that blocked the Bot was its old model's (turns.js).
       if ((modelRef ?? undefined) !== bot.model) delete bot.blocked
@@ -417,6 +418,17 @@ export function install(rt) {
         .catch(error => rt.warn('ds-bot: profile update for %s not delivered: %s', bot.name, error?.message ?? error))
     }
     if (modelChanged) await rt.applyModel(bot, { force: true })
+    // A different engine cannot share the conversation's CLI session: to or
+    // from a local agent route, or between two different local agents, the
+    // chat opens in a fresh part.
+    if (patch.model !== undefined) {
+      const providerAfter = splitRef(bot.appliedModel ?? bot.model)?.provider
+      const wasLocal = rt.isLocalAgentRoute?.(providerBefore) === true
+      const isLocal = rt.isLocalAgentRoute?.(providerAfter) === true
+      if ((wasLocal !== isLocal || (isLocal && providerBefore !== providerAfter)) && providerBefore !== providerAfter) {
+        void rt.newPart?.(rt.chatOf(bot.id)).catch(error => rt.warn('ds-bot: fresh part after the engine change of %s failed: %s', bot.name, error))
+      }
+    }
     if (moved) void rt.followFolder({ botId: bot.id })
     // A new model lifted what blocked the Bot; a new thinking level alone fixes nothing.
     // releaseKickoff itself leaves when the Bot still lacks a model or holds no greeting.
@@ -730,6 +742,7 @@ export function install(rt) {
     for (const part of parts) {
       delete state.questions[part]
       if (state.views !== undefined) delete state.views[part]
+      if (state.closedCards !== undefined) delete state.closedCards[part]
       delete state.exchangeTurns[part]
       delete state.switching[part]
     }
