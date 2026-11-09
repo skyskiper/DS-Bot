@@ -95,6 +95,26 @@ leaves both sides broken.
    changes the new version brings.
 4. Link again (`ds-bot/dev/self-host.sh`) and restart the app.
 
+## Replacing the desktop app
+
+`app/` packs into `app/dist-pack/mac-arm64/DS Bot.app` with `npm run pack` (run it with
+Node 22: electron-builder 26 never settles under Node 26). `app/scripts/swap-app.sh`
+installs such a bundle over the running app:
+
+```sh
+app/scripts/swap-app.sh "app/dist-pack/mac-arm64/DS Bot.app" --check   # verify only
+
+# replace it from a job that is NOT a child of the app it replaces:
+launchctl submit -l ds-bot-swap -- /bin/bash -c \
+  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" "/Applications/DS Bot.app"'
+```
+
+The script verifies the new bundle (executable, signature, version) before the old one
+moves, keeps the old app as `DS Bot.app.bak-YYYYmmdd-HHMMSS` (the newest three),
+rolls back and reopens it when the copy fails verification, refuses a fourth swap of
+the same bundle within ten minutes, and logs to `/tmp/ds-bot-swap.log`. `DS_BOT_SWAP_TARGET`
+overrides the installed app path.
+
 ## Notes
 
 - While the app links the development checkout, `npm run build` rebuilds the
