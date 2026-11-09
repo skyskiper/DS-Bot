@@ -1051,11 +1051,21 @@ export function FooterAccount(props) {
 
 // The only entry registered in every mode: in Agent mode the whole Bot surface is
 // withdrawn, and this button in the shell's own footer is the way back.
+const BackArrow = () => h('svg', { width: 16, height: 16, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+  h('path', { d: 'M12.5 4.5 7 10l5.5 5.5M7 10h9' }))
+
 export function BotReturn({ wide, useSurface, useRoster, actions }) {
   const mode = useSurface(value => value.mode)
+  const plain = useSurface(value => value.plain === true)
   const ready = useRoster(value => value.ready)
-  // Agent mode draws no team sidebar; there this button is the team interface.
-  useReportReady(mode === 'agent' && ready)
+  // A plain Session shows the shell's own conversation inside the Bot shell, and
+  // Agent mode draws no team sidebar; in both this button is the team interface.
+  useReportReady(mode === 'agent' || (mode === 'bot' && plain) ? ready : false)
+  if (mode === 'bot' && plain) {
+    return h('button', { type: 'button', className: 'bt-return', 'aria-label': t('Back to Bot'), title: t('Back to Bot'), onClick: () => actions.returnFromRaw?.() },
+      h('span', { className: 'bt-map-return-ico' }, h(BackArrow)),
+      wide ? h('span', { className: 'bt-return-name' }, t('Back to Bot')) : null)
+  }
   if (mode !== 'agent') return null
   return h('button', { type: 'button', className: 'bt-return', 'aria-label': t('DS Bot'), title: t('DS Bot'), onClick: () => actions.setSurface('bot') },
     h(BotMark, { look: MAIN_LOOK, size: 20 }),

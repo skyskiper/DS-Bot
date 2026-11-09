@@ -1565,6 +1565,27 @@ const HOST_ZH = {
   'Stop {name}': '停止 {name}',
   '{name} · foreground': '{name} · 前台',
   '{name} waits for the computer': '{name} 等你停手',
+  // Session map
+  'Session map': '会话地图',
+  'Private chat': '私聊',
+  'Member sessions in groups': '群里的成员会话',
+  'Group sessions': '群会话',
+  'Group session': '群自身会话',
+  'Member in this group': '本群成员会话',
+  'Members in this group': '本群成员',
+  'DSH Agent': 'DSH 子代理',
+  'DSH Agent session': 'DSH 子代理会话',
+  'Open in DSH': '在 DSH 中打开',
+  'Copy id': '复制 id',
+  'Running': '进行中',
+  'Archived': '已归档',
+  'Current part': '当前这段',
+  '{count} parts': '{count} 段',
+  '1 session': '1 个会话',
+  '{count} sessions': '{count} 个会话',
+  'Back to Bot': '返回 Bot',
+  'Every session this group runs in. Open one in DeepSeek Harness.': '这个群背后的所有会话，点开可以看 DeepSeek Harness 的原生会话。',
+  'Opening a session shows the DeepSeek Harness view. Use Back to Bot to return.': '打开后是 DeepSeek Harness 的原生会话视图，用「返回 Bot」回到团队界面。',
 }
 Object.assign(ZH, HOST_ZH)
 

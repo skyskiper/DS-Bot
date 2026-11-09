@@ -93,6 +93,12 @@ export function GroupSettingsForm({ room, roster, actions, run, onDeleted }) {
       h(Row, { label: t('Notice'), hint: t('Every member reads it before speaking in this group.'), stack: true },
         h(InlineText, { label: t('Group notice'), value: room.notice, multiline: true, maxLength: 2000, placeholder: t('Shared instructions every member reads before speaking…'), onSave: notice => update({ notice }) })),
       h(GroupPhoto, { room, run, update })),
+    h(Card, { title: t('Sessions') },
+      h('button', { type: 'button', className: 'bt-set-row bt-bs-row bt-gs-map', onClick: () => actions.openMap(room.id) },
+        h('span', { className: 'bt-set-copy' },
+          h('span', { className: 'bt-bs-label' }, t('Session map')),
+          h('span', { className: 'bt-set-hint' }, t('Every session this group runs in. Open one in DeepSeek Harness.'))),
+        h('span', { className: 'bt-chevron' }, h(ChevronRightIcon)))),
     h(Card, { title: t('Who answers') },
       h('div', { className: 'bt-set-row bt-bs-row bt-bs-stack' },
         h(Segmented, { label: t('Who answers'), value: mode }, ROOM_MODES.map(([id, label]) => h('button', {

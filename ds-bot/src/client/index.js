@@ -35,6 +35,7 @@ import { MODEL_CSS, ModelChoiceDock, DeepSeekSignIn } from './model-menu.js'
 import { BOT_SETTINGS_CSS } from './bot-settings.js'
 import { AVATAR_LIBRARY_CSS } from './avatar-library.js'
 import { GROUP_SETTINGS_CSS } from './group-settings.js'
+import { SESSION_MAP_CSS } from './session-map.js'
 import { FOLDER_CSS } from './folder-menu.js'
 import { USAGE_CSS } from './usage-page.js'
 import { SCHEDULE_CSS } from './schedules.js'
@@ -73,7 +74,7 @@ export function apply(ctx) {
   let seenAt = seenStore.read()
   // `details` is the panel's subject (a Session id); `view` picks details or the
   // subject Bot's browser inside it.
-  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, side: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {}, panelYield: false, leftDrawer: false, bootFailed: false, goalCompose: null, goalOpen: null })
+  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, side: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, map: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {}, panelYield: false, leftDrawer: false, bootFailed: false, goalCompose: null, goalOpen: null })
   // The left column's kept preference, and the frame geometry the layout rules
   // in frame-layout.js read: the window and the shell's collapsed track come from
   // installFrameWatch, the open column's width is the user's own.
@@ -100,6 +101,11 @@ export function apply(ctx) {
   }
   // A navigation this plugin started: the surface effect trusts the id it lands on.
   let expected = null
+  // A Session opened from the Session map as the shell's own view: the surface stays
+  // plain while the main view holds it, and `rawSeen` keeps that until the view leaves.
+  let rawSession = null
+  let rawReturn = null
+  let rawSeen = false
   const setPlain = (plain) => surface.set(state => (state.plain === plain ? state : { ...state, plain }))
   // A DSH Agent Session shows the plain conversation: the Bot details and browser
   // panels would follow it and report it is not on the team, so they close.
@@ -475,6 +481,9 @@ export function apply(ctx) {
     openSession: (id) => {
       // A DSH Agent Session id lands on the plain surface, not the Bot skin.
       if (isAgentSessionId(id)) return actions.openAgentSession(id)
+      rawSession = null
+      rawReturn = null
+      rawSeen = false
       ui.set(state => (state.newChat || state.exchange || state.menu || state.palette ? { ...state, newChat: null, exchange: null, menu: null, palette: null } : state))
       setPlain(false)
       const target = partFor(id)
@@ -486,6 +495,30 @@ export function apply(ctx) {
       ui.set(state => ({ ...state, newChat: null, exchange: null, menu: null, palette: null, details: null, view: 'details', renaming: false, tab: null }))
       setPlain(true)
       show(sessionId)
+    },
+    // The Session map behind a Bot or a group: every Session it works in, with a jump
+    // to the shell's own view of any of them.
+    openMap: (id) => ui.set(state => ({ ...state, map: id, newChat: null, exchange: null, menu: null, palette: null })),
+    closeMap: () => ui.set(state => (state.map ? { ...state, map: null } : state)),
+    openRawSession: (sessionId) => {
+      rawReturn = ui.getSnapshot().map ?? null
+      rawSeen = false
+      rawSession = sessionId
+      ui.set(state => ({ ...state, map: null, newChat: null, exchange: null, menu: null, palette: null, details: null, view: 'details', renaming: false, tab: null }))
+      setPlain(true)
+      show(sessionId)
+    },
+    // The shell's view of a Session is not a team surface: this goes back to the chat
+    // the map was opened from, or to the Main Bot when that is gone.
+    returnFromRaw: () => {
+      const to = rawReturn ?? roster.getSnapshot().mainBotId
+      if (to !== undefined && to !== null) actions.openSession(to)
+      else {
+        rawSession = null
+        rawReturn = null
+        rawSeen = false
+        setPlain(false)
+      }
     },
     addAgent: async () => {
       const agent = await after(call('add-agent'))
@@ -1023,6 +1056,7 @@ export function apply(ctx) {
     () => installCompiledStyles(SECRET_CSS + CONNECTOR_CSS + CONNECTORS_PAGE_CSS, 'secrets'),
     () => installCompiledStyles(LEARNING_CSS, 'learning'),
     () => installCompiledStyles(MODEL_CSS + FOLDER_CSS + BOT_SETTINGS_CSS + GROUP_SETTINGS_CSS + AVATAR_LIBRARY_CSS, 'models'),
+    () => installCompiledStyles(SESSION_MAP_CSS, 'session-map'),
     () => installCompiledStyles(USAGE_CSS, 'usage'),
     () => installCompiledStyles(SCHEDULE_CSS, 'schedules'),
     () => installCompiledStyles(FEEDBACK_CSS, 'feedback'),
@@ -1125,7 +1159,16 @@ export function apply(ctx) {
     const sync = () => {
       const list = ctx.sessions.list.getSnapshot()
       const main = Object.values(list.byId ?? {}).find(session => (session?.retainedBy?.mainView ?? 0) > 0)?.id
-      const plain = isAgentSessionId(main)
+      if (rawSession !== null && main === rawSession) rawSeen = true
+      const raw = rawSession !== null && (main === rawSession || expected === rawSession)
+      const plain = isAgentSessionId(main) || raw
+      // A plain Session opened from the map keeps the Bot shell but not its
+      // conversation; leaving it puts the Bot surface back.
+      if (rawSession !== null && !raw && rawSeen && main !== undefined) {
+        rawSession = null
+        rawReturn = null
+        rawSeen = false
+      }
       setPlain(plain)
       if (plain) dropPanels()
       if (main === previous) return

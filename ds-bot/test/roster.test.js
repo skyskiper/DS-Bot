@@ -1421,6 +1421,29 @@ test('a group change that sends no photo key keeps the photo', async (t) => {
   assert.equal(shown.avatar, photo)
 })
 
+test('a group view carries the member Sessions it holds', async (t) => {
+  const team = {
+    version: 1,
+    mainBotIds: ['chief'],
+    workspaceId: 'w1',
+    bots: {
+      chief: { id: 'chief', name: 'Chief', role: 'Boss', sessionId: 'session-chief', createdAt: 1 },
+      writer: { id: 'writer', name: 'Writer', role: 'Write', sessionId: 'session-writer', createdAt: 2 },
+    },
+    rooms: { r1: { id: 'r1', name: 'Ops', named: true, members: ['chief', 'writer'], admin: 'chief', mode: 'admin', notice: '', sessions: { chief: 'session-ops-chief', writer: 'session-ops-writer' } } },
+    agents: {},
+    exchanges: [],
+    exchangeTurns: {},
+    questions: {},
+    prefs: {},
+    revision: 0,
+  }
+  const { call, stop } = start(team, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const shown = (await call('state', {})).value.rooms.find(entry => entry.id === 'r1')
+  assert.deepEqual(shown.memberSessions, { chief: 'session-ops-chief', writer: 'session-ops-writer' })
+})
+
 test('an empty photo from the settings panel removes the group photo', async (t) => {
   const { call, stop, home } = start(undefined, { models: ['deepseek-v4-flash'] })
   t.after(stop)

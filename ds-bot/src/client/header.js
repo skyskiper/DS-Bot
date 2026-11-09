@@ -16,6 +16,13 @@ import { t } from './i18n.js'
 // The pill's tail: a → that springs in on hover, flipping to ← while details are open.
 const GoArrow = () => h('svg', { width: 14, height: 14, viewBox: '-12 -12 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }, h('path', { d: 'M-7 0H7M2 -5L7 0L2 5' }))
 
+// The Sessions behind this chat: one node joined to two below it.
+const MapIcon = () => h('svg', { width: 17, height: 17, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+  h('circle', { cx: 10, cy: 4.4, r: 2.2 }),
+  h('circle', { cx: 4.6, cy: 15.2, r: 2.2 }),
+  h('circle', { cx: 15.4, cy: 15.2, r: 2.2 }),
+  h('path', { d: 'M10 6.6v3.1M10 9.7 5.8 13.2M10 9.7l4.2 3.5' }))
+
 // How long the pill says "Memory updated" after the change reaches this window.
 const MEMORY_NOTICE_MS = 3_200
 const noNews = select => select({})
@@ -133,6 +140,10 @@ export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus
     h('span', { className: 'bt-pill-go', 'aria-hidden': true }, h(GoArrow)))
   return h('div', { className: 'bt-head' },
     showGoal ? h(GoalIsland, { room, goal, view, open: goalOpen, composing: goalCompose, roomWork, roster, actions, pill }) : pill,
+    !away && (bot || room) ? h('button', {
+      type: 'button', className: 'bt-map-open', 'aria-label': t('Session map'), title: t('Session map'),
+      onClick: () => actions.openMap(bot ? bot.id : room.id),
+    }, h(MapIcon)) : null,
     h('span', { className: 'bt-sr', role: 'status' }, memoryNotice ? t('Memory updated') : ''),
     h(NewMessagePills, { key: sessionId, sessionId, useSessions, useUi, useTurnClock }),
     h(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, useWork, actions }))
