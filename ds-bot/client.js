@@ -4584,6 +4584,15 @@ function ShareIcon() {
     (0, import_react3.createElement)("path", { d: "M10 12.5V3M6.5 6.5L10 3l3.5 3.5M4 11v4.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V11" })
   );
 }
+function LayersIcon() {
+  return (0, import_react3.createElement)(
+    "svg",
+    { width: 16, height: 16, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
+    (0, import_react3.createElement)("path", { d: "M10 3.5 3.6 6.8 10 10.1l6.4-3.3z" }),
+    (0, import_react3.createElement)("path", { d: "M3.6 10.3 10 13.6l6.4-3.3" }),
+    (0, import_react3.createElement)("path", { d: "M3.6 13.8 10 17.1l6.4-3.3" })
+  );
+}
 function CloseIcon() {
   return (0, import_react3.createElement)("svg", { width: 16, height: 16, viewBox: "0 0 20 20", "aria-hidden": true }, (0, import_react3.createElement)("path", { d: "M5 5l10 10M15 5L5 15", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" }));
 }
@@ -8603,7 +8612,7 @@ var viewT = (key, params) => key === "Send" ? t("Send to Bot") : t(key, params);
 var VIEW_UI = { t: viewT, Markdown: import_dsh_client_ui_primitives.MarkdownText };
 var Card = (props) => (0, import_react16.createElement)(ViewUi.Provider, { value: VIEW_UI }, (0, import_react16.createElement)(WidgetCard, props));
 var ViewCard = Card;
-var withUi = (Component2) => (props) => (0, import_react16.createElement)(ViewUi.Provider, { value: VIEW_UI }, (0, import_react16.createElement)(Component2, props));
+var withUi = (Component3) => (props) => (0, import_react16.createElement)(ViewUi.Provider, { value: VIEW_UI }, (0, import_react16.createElement)(Component3, props));
 var WidgetView2 = withUi(WidgetView);
 var ViewMenuList2 = withUi(ViewMenuList);
 function PendingView({ sessionId, view, actions, inline }) {
@@ -15849,14 +15858,6 @@ var SIDEBAR_CSS = `
 var import_react34 = require("react");
 var import_react_dom6 = require("react-dom");
 var GoArrow = () => (0, import_react34.createElement)("svg", { width: 14, height: 14, viewBox: "-12 -12 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true }, (0, import_react34.createElement)("path", { d: "M-7 0H7M2 -5L7 0L2 5" }));
-var MapIcon = () => (0, import_react34.createElement)(
-  "svg",
-  { width: 17, height: 17, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
-  (0, import_react34.createElement)("circle", { cx: 10, cy: 4.4, r: 2.2 }),
-  (0, import_react34.createElement)("circle", { cx: 4.6, cy: 15.2, r: 2.2 }),
-  (0, import_react34.createElement)("circle", { cx: 15.4, cy: 15.2, r: 2.2 }),
-  (0, import_react34.createElement)("path", { d: "M10 6.6v3.1M10 9.7 5.8 13.2M10 9.7l4.2 3.5" })
-);
 var MEMORY_NOTICE_MS = 3200;
 var noNews = (select) => select({});
 function useMemoryNotice(ids, useMemoryNews) {
@@ -15884,7 +15885,38 @@ function MemoryNotice({ shown }) {
     (0, import_react34.createElement)("span", { className: "bt-pill-mem-in", ref: inner }, (0, import_react34.createElement)("span", { className: "bt-pill-mem-ico" }, (0, import_react34.createElement)(MemoryIcon)), label)
   );
 }
-function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions }) {
+var BoundaryBase = import_react34.Component ?? class {
+  constructor(props) {
+    this.props = props;
+  }
+  render() {
+    return this.props.children;
+  }
+};
+var HeaderUtilitiesBoundary = class extends BoundaryBase {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+};
+function HeaderUtilities({ renderSlot }) {
+  if (typeof renderSlot !== "function") return null;
+  let row = null;
+  try {
+    row = renderSlot("conversation.session.header.utilities", {});
+  } catch (error) {
+    console.warn("[ds-bot] header utilities", error);
+    return null;
+  }
+  return (0, import_react34.createElement)("div", { className: "bt-head-utils" }, (0, import_react34.createElement)(HeaderUtilitiesBoundary, null, row));
+}
+function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions, renderSlot }) {
   const roster = useRoster((value) => value);
   const selectedView = useStore?.((state) => state.view);
   const away = useConversationViews?.((views) => views.some((view2) => view2.id === selectedView && view2.id !== "chat")) === true && typeof selectView === "function";
@@ -15974,13 +16006,7 @@ function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSe
     "div",
     { className: "bt-head" },
     showGoal ? (0, import_react34.createElement)(GoalIsland, { room: room2, goal, view, open: goalOpen, composing: goalCompose, roomWork, roster, actions, pill }) : pill,
-    !away && (bot || room2) ? (0, import_react34.createElement)("button", {
-      type: "button",
-      className: "bt-map-open",
-      "aria-label": t("Session map"),
-      title: t("Session map"),
-      onClick: () => actions.openMap(bot ? bot.id : room2.id)
-    }, (0, import_react34.createElement)(MapIcon)) : null,
+    (0, import_react34.createElement)(HeaderUtilities, { renderSlot }),
     (0, import_react34.createElement)("span", { className: "bt-sr", role: "status" }, memoryNotice ? t("Memory updated") : ""),
     (0, import_react34.createElement)(NewMessagePills, { key: sessionId, sessionId, useSessions, useUi, useTurnClock }),
     (0, import_react34.createElement)(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, useWork, actions })
@@ -25456,6 +25482,21 @@ function MapRow({ row, state, at, copied, onCopy, onOpen }) {
     )
   );
 }
+function SessionMapButton({ sessionId, useRoster, useSessions, actions }) {
+  const roster = useRoster?.((value) => value);
+  const main = useSessions?.((list) => Object.values(list?.byId ?? {}).find((session) => (session?.retainedBy?.mainView ?? 0) > 0)?.id);
+  const id = sessionId ?? main;
+  const bot = roster?.byId?.[id];
+  const room2 = roster?.roomsById?.[id];
+  if (!bot && !room2) return null;
+  return (0, import_react59.createElement)("button", {
+    type: "button",
+    className: "bt-map-util",
+    "aria-label": t("Session map"),
+    title: t("Session map"),
+    onClick: () => actions.openMap(bot ? bot.id : room2.id)
+  }, (0, import_react59.createElement)(LayersIcon));
+}
 function SessionMapDialog({ target, roster, actions, useSessions, useSessionStatus, leaving = false }) {
   const close = () => actions.closeMap();
   useEscape(close);
@@ -25551,9 +25592,11 @@ var SESSION_MAP_CSS = `
 .bt-map-actions{display:flex;gap:6px;flex:none}
 .bt-map-foot{margin:0;padding:10px 18px 14px;border-top:1px solid var(--bt-line);font-size:12px;line-height:18px;color:var(--bt-ink-2)}
 @media (max-width:560px){.bt-map-state{display:none}.bt-map-actions{flex-direction:column}}
-.bt-map-open{position:absolute;right:0;pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:0;border-radius:999px;background:var(--bt-glass-bg);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);border:.5px solid var(--bt-glass-rim);box-shadow:var(--bt-glass-shadow);color:var(--bt-ink-2);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
-.bt-map-open:hover{color:var(--bt-ink);background:var(--bt-hover)}
-.bt-map-open:active{transform:scale(.94)}
+/* The header's utilities seat: the same 36px circles as the shell's header controls. */
+.bt-head-utils{position:absolute;right:0;top:2px;display:flex;align-items:center;gap:8px;pointer-events:auto}
+.bt-map-util{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:50%;background:var(--bt-tag-bg);color:var(--bt-ink-2);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
+.bt-map-util:hover{background:var(--bt-hover);color:var(--bt-ink)}
+.bt-map-util:active{transform:scale(.94)}
 .bt-map-return-ico{flex:none;line-height:0}
 `;
 
@@ -28152,6 +28195,7 @@ function apply(ctx) {
     ...options.priority === void 0 ? {} : { priority: freePriority(ctx.slots.entries(name), options) }
   }, component));
   const installHeader = () => ctx.slots.inject("conversation.session.header", () => installHeaderNavigation(ctx.slots, face, HeaderPill, BOT_PRIORITY));
+  const installHeaderUtilities = () => ctx.slots.inject("conversation.session.header.utilities", () => shadow("conversation.session.header.utilities", { id: "session-map", order: 10, inject: face }, SessionMapButton));
   let atMenu = null;
   const installAtMenu = () => {
     const fiber = ctx.inject(["inputTriggers"], (scope) => {
@@ -28244,6 +28288,7 @@ function apply(ctx) {
     () => installMentions(),
     () => installAtMenu(),
     installHeader,
+    installHeaderUtilities,
     () => shadow("conversation.chat.node", { key: "assistant-step", priority: BOT_PRIORITY, locale: "chat", inject: assistantFace }, AssistantCell),
     () => shadow("conversation.chat.node", { key: "turn-trigger", priority: BOT_PRIORITY, locale: "chat", inject: face }, TriggerCell),
     () => shadow("conversation.chat.node", { key: "tool-call", priority: BOT_PRIORITY, locale: "chat", inject: face }, ToolCell),

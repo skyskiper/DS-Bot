@@ -1,6 +1,26 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { runInNewContext } from 'node:vm'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { build } from 'esbuild'
 import { sessionSections } from '../src/client/session-map-data.js'
+
+// The header seat is a React component; bundle it with React external, as the other
+// client tests do, and call it with plain hooks and props.
+const bundle = await build({
+  stdin: { contents: "export { SessionMapButton } from './src/client/session-map.js'", resolveDir: dirname(dirname(fileURLToPath(import.meta.url))) },
+  bundle: true, format: 'cjs', platform: 'node', write: false, logLevel: 'silent',
+  external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
+})
+const componentModule = { exports: {} }
+const react = {
+  createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity) }),
+  useState: initial => [initial, () => {}], useEffect: () => {}, useRef: current => ({ current }), useLayoutEffect: () => {},
+  createContext: initial => ({ value: initial }), useContext: ctx => ctx.value,
+}
+runInNewContext(bundle.outputFiles[0].text, { module: componentModule, exports: componentModule.exports, require: name => (name === 'react' ? react : {}) })
+const { SessionMapButton } = componentModule.exports
 
 const chief = { id: 'chief', name: 'Chief', sessionId: 'session-chief-2', parts: ['session-chief-1'] }
 const writer = { id: 'writer', name: 'Writer', sessionId: 'session-writer' }
@@ -50,4 +70,21 @@ test('a group\'s map lists its own Session and its members\' Sessions', () => {
 
 test('a plain DSH Session has no map', () => {
   assert.equal(sessionSections('session-not-in-the-team', roster), null)
+})
+
+
+test('the header seat opens the map for a Bot and a group, and shows nothing for a plain Session', () => {
+  const opened = []
+  const actions = { openMap: id => opened.push(id) }
+  const roster = { byId: { chief: { id: 'chief', name: 'Chief' } }, roomsById: { r1: { id: 'r1', name: 'Ops' } } }
+  const useRoster = selector => selector(roster)
+  const sessions = { byId: { 'session-plain': { id: 'session-plain' } } }
+  const useSessions = selector => selector(sessions)
+  assert.equal(SessionMapButton({ sessionId: 'session-plain', useRoster, useSessions, actions }), null)
+  const botButton = SessionMapButton({ sessionId: 'chief', useRoster, useSessions, actions })
+  assert.equal(botButton.type, 'button')
+  assert.equal(botButton.props['aria-label'], 'Session map')
+  botButton.props.onClick()
+  SessionMapButton({ sessionId: 'r1', useRoster, useSessions, actions }).props.onClick()
+  assert.deepEqual(opened, ['chief', 'r1'])
 })

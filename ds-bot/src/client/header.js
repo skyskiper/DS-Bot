@@ -1,4 +1,4 @@
-import { createElement as h, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Component, createElement as h, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { currentPart, latestMemoryChange } from './text.js'
 import { ArrowUpIcon, CloseIcon, ArrowDownIcon, GoalIcon, MemoryIcon } from './icons.js'
@@ -15,13 +15,6 @@ import { t } from './i18n.js'
 
 // The pill's tail: a → that springs in on hover, flipping to ← while details are open.
 const GoArrow = () => h('svg', { width: 14, height: 14, viewBox: '-12 -12 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }, h('path', { d: 'M-7 0H7M2 -5L7 0L2 5' }))
-
-// The Sessions behind this chat: one node joined to two below it.
-const MapIcon = () => h('svg', { width: 17, height: 17, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
-  h('circle', { cx: 10, cy: 4.4, r: 2.2 }),
-  h('circle', { cx: 4.6, cy: 15.2, r: 2.2 }),
-  h('circle', { cx: 15.4, cy: 15.2, r: 2.2 }),
-  h('path', { d: 'M10 6.6v3.1M10 9.7 5.8 13.2M10 9.7l4.2 3.5' }))
 
 // How long the pill says "Memory updated" after the change reaches this window.
 const MEMORY_NOTICE_MS = 3_200
@@ -52,7 +45,42 @@ function MemoryNotice({ shown }) {
     h('span', { className: 'bt-pill-mem-in', ref: inner }, h('span', { className: 'bt-pill-mem-ico' }, h(MemoryIcon)), label))
 }
 
-export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions }) {
+// The conversation header's utilities seat (the shell's own row is part of the header
+// component the Bot skin replaces). A failing entry is dropped, not the header.
+// The client tests bundle this file with a stubbed React; one without `Component`
+// still draws the row, just without the boundary.
+const BoundaryBase = Component ?? class {
+  constructor(props) { this.props = props }
+  render() { return this.props.children }
+}
+class HeaderUtilitiesBoundary extends BoundaryBase {
+  constructor(props) {
+    super(props)
+    this.state = { failed: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children
+  }
+}
+
+function HeaderUtilities({ renderSlot }) {
+  if (typeof renderSlot !== 'function') return null
+  let row = null
+  try {
+    row = renderSlot('conversation.session.header.utilities', {})
+  } catch (error) {
+    console.warn('[ds-bot] header utilities', error)
+    return null
+  }
+  return h('div', { className: 'bt-head-utils' }, h(HeaderUtilitiesBoundary, null, row))
+}
+
+export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions, renderSlot }) {
   const roster = useRoster(value => value)
   const selectedView = useStore?.(state => state.view)
   const away = useConversationViews?.(views => views.some(view => view.id === selectedView && view.id !== 'chat')) === true
@@ -140,10 +168,7 @@ export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus
     h('span', { className: 'bt-pill-go', 'aria-hidden': true }, h(GoArrow)))
   return h('div', { className: 'bt-head' },
     showGoal ? h(GoalIsland, { room, goal, view, open: goalOpen, composing: goalCompose, roomWork, roster, actions, pill }) : pill,
-    !away && (bot || room) ? h('button', {
-      type: 'button', className: 'bt-map-open', 'aria-label': t('Session map'), title: t('Session map'),
-      onClick: () => actions.openMap(bot ? bot.id : room.id),
-    }, h(MapIcon)) : null,
+    h(HeaderUtilities, { renderSlot }),
     h('span', { className: 'bt-sr', role: 'status' }, memoryNotice ? t('Memory updated') : ''),
     h(NewMessagePills, { key: sessionId, sessionId, useSessions, useUi, useTurnClock }),
     h(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, useWork, actions }))

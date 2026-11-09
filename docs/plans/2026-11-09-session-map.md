@@ -20,7 +20,8 @@
 
 ## 界面
 
-- Bot 聊天页标题右侧一个节点图标按钮；群设置的「Sessions」卡里一行。两者打开同一个面板。
+- Bot 聊天页标题栏右侧的 `conversation.session.header.utilities` 座位上一个层叠图标按钮（和 shell 其它圆形按钮同一排）；群设置的「Sessions」卡里一行。两者打开同一个面板。
+- 这一排本来由 shell 的 header 组件渲染，而 Bot 皮肤替换的正是那个组件，所以 `HeaderPill` 自己把 `utilities` 槽渲染出来（带错误边界：某个条目坏了只丢它，不影响 header）。
 - 面板按上面的四组分节（群的地图只有「群自身会话」和「本群成员会话」两节）；每行显示名称、来源、短 session id、段数、最近活动时间、状态，以及 `Open in DSH`、`Copy id` 两个操作。
 - 不在 roster 里的普通 DSH Agent 会话没有入口，保持现状。
 

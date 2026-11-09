@@ -1,5 +1,5 @@
 import { createElement as h, useState } from 'react'
-import { CloseIcon } from './icons.js'
+import { CloseIcon, LayersIcon } from './icons.js'
 import { relativeShort } from './text.js'
 import { useEscape } from './overlay-hooks.js'
 import { t } from './i18n.js'
@@ -25,6 +25,22 @@ function MapRow({ row, state, at, copied, onCopy, onOpen }) {
     h('div', { className: 'bt-map-actions' },
       h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => onOpen(row.sessionId) }, t('Open in DSH')),
       h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-map-copyid', onClick: () => onCopy(row.sessionId) }, copied === row.sessionId ? t('Copied') : t('Copy id'))))
+}
+
+// The header entry: the shell's utilities seat, drawn in the Bot header. Only a Bot
+// chat or a group has a map; a plain DSH Session keeps the shell's own header.
+export function SessionMapButton({ sessionId, useRoster, useSessions, actions }) {
+  const roster = useRoster?.(value => value)
+  // The seat's scope names the Session; the main view answers when it does not.
+  const main = useSessions?.(list => Object.values(list?.byId ?? {}).find(session => (session?.retainedBy?.mainView ?? 0) > 0)?.id)
+  const id = sessionId ?? main
+  const bot = roster?.byId?.[id]
+  const room = roster?.roomsById?.[id]
+  if (!bot && !room) return null
+  return h('button', {
+    type: 'button', className: 'bt-map-util', 'aria-label': t('Session map'), title: t('Session map'),
+    onClick: () => actions.openMap(bot ? bot.id : room.id),
+  }, h(LayersIcon))
 }
 
 // Every Session behind one Bot or one group: a row opens in the shell's own Session
@@ -104,8 +120,10 @@ export const SESSION_MAP_CSS = `
 .bt-map-actions{display:flex;gap:6px;flex:none}
 .bt-map-foot{margin:0;padding:10px 18px 14px;border-top:1px solid var(--bt-line);font-size:12px;line-height:18px;color:var(--bt-ink-2)}
 @media (max-width:560px){.bt-map-state{display:none}.bt-map-actions{flex-direction:column}}
-.bt-map-open{position:absolute;right:0;pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:0;border-radius:999px;background:var(--bt-glass-bg);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);border:.5px solid var(--bt-glass-rim);box-shadow:var(--bt-glass-shadow);color:var(--bt-ink-2);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
-.bt-map-open:hover{color:var(--bt-ink);background:var(--bt-hover)}
-.bt-map-open:active{transform:scale(.94)}
+/* The header's utilities seat: the same 36px circles as the shell's header controls. */
+.bt-head-utils{position:absolute;right:0;top:2px;display:flex;align-items:center;gap:8px;pointer-events:auto}
+.bt-map-util{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:50%;background:var(--bt-tag-bg);color:var(--bt-ink-2);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
+.bt-map-util:hover{background:var(--bt-hover);color:var(--bt-ink)}
+.bt-map-util:active{transform:scale(.94)}
 .bt-map-return-ico{flex:none;line-height:0}
 `
