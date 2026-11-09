@@ -1,4 +1,4 @@
-import { Component, createElement as h, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createElement as h, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { currentPart, latestMemoryChange } from './text.js'
 import { ArrowUpIcon, CloseIcon, ArrowDownIcon, GoalIcon, MemoryIcon } from './icons.js'
@@ -9,6 +9,7 @@ import { clockLabel, openingTurn, unseenSince } from './cells.js'
 import { GoalIsland, goalView } from './goal.js'
 import { viewBottom } from './motion.js'
 import { t } from './i18n.js'
+import { SessionMapButton } from './session-map.js'
 
 // -------------------------------------------------------------------------
 // Conversation header
@@ -45,42 +46,7 @@ function MemoryNotice({ shown }) {
     h('span', { className: 'bt-pill-mem-in', ref: inner }, h('span', { className: 'bt-pill-mem-ico' }, h(MemoryIcon)), label))
 }
 
-// The conversation header's utilities seat (the shell's own row is part of the header
-// component the Bot skin replaces). A failing entry is dropped, not the header.
-// The client tests bundle this file with a stubbed React; one without `Component`
-// still draws the row, just without the boundary.
-const BoundaryBase = Component ?? class {
-  constructor(props) { this.props = props }
-  render() { return this.props.children }
-}
-class HeaderUtilitiesBoundary extends BoundaryBase {
-  constructor(props) {
-    super(props)
-    this.state = { failed: false }
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-
-  render() {
-    return this.state.failed ? null : this.props.children
-  }
-}
-
-function HeaderUtilities({ renderSlot }) {
-  if (typeof renderSlot !== 'function') return null
-  let row = null
-  try {
-    row = renderSlot('conversation.session.header.utilities', {})
-  } catch (error) {
-    console.warn('[ds-bot] header utilities', error)
-    return null
-  }
-  return h('div', { className: 'bt-head-utils' }, h(HeaderUtilitiesBoundary, null, row))
-}
-
-export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions, renderSlot }) {
+export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, useWork, useStore, useConversationViews, selectView, actions }) {
   const roster = useRoster(value => value)
   const selectedView = useStore?.(state => state.view)
   const away = useConversationViews?.(views => views.some(view => view.id === selectedView && view.id !== 'chat')) === true
@@ -168,7 +134,7 @@ export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus
     h('span', { className: 'bt-pill-go', 'aria-hidden': true }, h(GoArrow)))
   return h('div', { className: 'bt-head' },
     showGoal ? h(GoalIsland, { room, goal, view, open: goalOpen, composing: goalCompose, roomWork, roster, actions, pill }) : pill,
-    h(HeaderUtilities, { renderSlot }),
+    h('div', { className: 'bt-head-utils' }, h(SessionMapButton, { sessionId, useRoster, useSessions, actions })),
     h('span', { className: 'bt-sr', role: 'status' }, memoryNotice ? t('Memory updated') : ''),
     h(NewMessagePills, { key: sessionId, sessionId, useSessions, useUi, useTurnClock }),
     h(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, useWork, actions }))

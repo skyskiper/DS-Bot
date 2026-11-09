@@ -4,6 +4,7 @@ import { runInNewContext } from 'node:vm'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
+import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 import { sessionSections } from '../src/client/session-map-data.js'
 
 // The header seat is a React component; bundle it with React external, as the other
@@ -87,4 +88,19 @@ test('the header seat opens the map for a Bot and a group, and shows nothing for
   botButton.props.onClick()
   SessionMapButton({ sessionId: 'r1', useRoster, useSessions, actions }).props.onClick()
   assert.deepEqual(opened, ['chief', 'r1'])
+})
+
+
+test('the shell header owns the utilities seat, so the Bot header draws it itself', () => {
+  const core = new SlotCore()
+  const Comp = () => null
+  core.register({ name: 'root', children: { 'conversation.session.header': { kind: 'single', scope: 'session' } } }, Comp)
+  // ui-conversation registers its header with the four child slots, the utilities seat among them.
+  core.register({ name: 'conversation.session.header', priority: 0, children: { 'conversation.session.header.utilities': { kind: 'list', scope: 'session' } } }, Comp)
+  // A plugin header shadows that entry at a lower priority. The runtime refuses a
+  // second declaration of the seat, so the shadow cannot ask for the shell's row...
+  assert.throws(() => core.register({ name: 'conversation.session.header', priority: -1, children: { 'conversation.session.header.utilities': { kind: 'list', scope: 'session' } } }, Comp), /already declared/)
+  // ...and registers without children, drawing the seat in its own header instead.
+  core.register({ name: 'conversation.session.header', priority: -1 }, Comp)
+  assert.deepEqual(core.entriesOfSlot('conversation.session.header').map(entry => entry.options.priority), [-1])
 })

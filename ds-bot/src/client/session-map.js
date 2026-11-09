@@ -27,8 +27,9 @@ function MapRow({ row, state, at, copied, onCopy, onOpen }) {
       h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-map-copyid', onClick: () => onCopy(row.sessionId) }, copied === row.sessionId ? t('Copied') : t('Copy id'))))
 }
 
-// The header entry: the shell's utilities seat, drawn in the Bot header. Only a Bot
-// chat or a group has a map; a plain DSH Session keeps the shell's own header.
+// The header entry, drawn in the Bot header's right seat: the shell's utilities slot
+// cannot be shadowed with its children declared (see the design note). Only a Bot chat
+// or a group has a map; a plain DSH Session keeps the shell's own header.
 export function SessionMapButton({ sessionId, useRoster, useSessions, actions }) {
   const roster = useRoster?.(value => value)
   // The seat's scope names the Session; the main view answers when it does not.
