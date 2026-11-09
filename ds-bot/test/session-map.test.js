@@ -10,7 +10,7 @@ import { sessionSections } from '../src/client/session-map-data.js'
 // The header seat is a React component; bundle it with React external, as the other
 // client tests do, and call it with plain hooks and props.
 const bundle = await build({
-  stdin: { contents: "export { SessionMapButton } from './src/client/session-map.js'", resolveDir: dirname(dirname(fileURLToPath(import.meta.url))) },
+  stdin: { contents: "export { MapEntry, SessionMapDialog } from './src/client/session-map.js'", resolveDir: dirname(dirname(fileURLToPath(import.meta.url))) },
   bundle: true, format: 'cjs', platform: 'node', write: false, logLevel: 'silent',
   external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
 })
@@ -21,7 +21,7 @@ const react = {
   createContext: initial => ({ value: initial }), useContext: ctx => ctx.value,
 }
 runInNewContext(bundle.outputFiles[0].text, { module: componentModule, exports: componentModule.exports, require: name => (name === 'react' ? react : {}) })
-const { SessionMapButton } = componentModule.exports
+const { MapEntry, SessionMapDialog } = componentModule.exports
 
 const chief = { id: 'chief', name: 'Chief', sessionId: 'session-chief-2', parts: ['session-chief-1'] }
 const writer = { id: 'writer', name: 'Writer', sessionId: 'session-writer' }
@@ -74,22 +74,55 @@ test('a plain DSH Session has no map', () => {
 })
 
 
-test('the header seat opens the map for a Bot and a group, and shows nothing for a plain Session', () => {
+const textsIn = (node) => {
+  const out = []
+  const walk = (value) => {
+    if (value === null || value === undefined || typeof value === 'boolean') return
+    if (typeof value === 'string' || typeof value === 'number') { out.push(String(value)); return }
+    if (Array.isArray(value)) { for (const entry of value) walk(entry); return }
+    if (typeof value === 'object') {
+      // The stub's createElement keeps function components as types; render them.
+      if (typeof value.type === 'function') { walk(value.type(value.props)); return }
+      walk(value.children)
+      walk(value.props?.children)
+    }
+  }
+  walk(node)
+  return out
+}
+
+test('the drawer entry shows the map only when the host wires openMap', () => {
   const opened = []
-  const actions = { openMap: id => opened.push(id) }
-  const roster = { byId: { chief: { id: 'chief', name: 'Chief' } }, roomsById: { r1: { id: 'r1', name: 'Ops' } } }
-  const useRoster = selector => selector(roster)
-  const sessions = { byId: { 'session-plain': { id: 'session-plain' } } }
-  const useSessions = selector => selector(sessions)
-  assert.equal(SessionMapButton({ sessionId: 'session-plain', useRoster, useSessions, actions }), null)
-  const botButton = SessionMapButton({ sessionId: 'chief', useRoster, useSessions, actions })
-  assert.equal(botButton.type, 'button')
-  assert.equal(botButton.props['aria-label'], 'Session map')
-  botButton.props.onClick()
-  SessionMapButton({ sessionId: 'r1', useRoster, useSessions, actions }).props.onClick()
+  const bot = { id: 'chief', name: 'Chief' }
+  // A host without the action (an older window, or a page that has not wired it) has no entry.
+  assert.equal(MapEntry({ bot, actions: {} }), null)
+  assert.equal(MapEntry({ actions: { openMap () {} } }), null)
+  const button = MapEntry({ bot, actions: { openMap: id => opened.push(id) } })
+  assert.equal(button.type, 'button')
+  assert.equal(button.props.className, 'bt-round')
+  assert.equal(button.props['aria-label'], 'Session map')
+  button.props.onClick()
+  MapEntry({ room: { id: 'r1', name: 'Ops' }, actions: { openMap: id => opened.push(id) } }).props.onClick()
   assert.deepEqual(opened, ['chief', 'r1'])
 })
 
+test('Open in DSH follows the capability, not the environment', () => {
+  const roster = {
+    byId: { chief: { id: 'chief', name: 'Chief', sessionId: 'session-chief', parts: [] } },
+    roomsById: {}, rooms: [], agents: [],
+  }
+  const actions = { closeMap () {}, openRawSession () {} }
+  const hooks = {
+    useSessions: selector => selector({ ids: ['session-chief'], byId: { 'session-chief': { id: 'session-chief' } } }),
+    useSessionStatus: selector => selector(new Map()),
+    actions, roster,
+  }
+  const withDsh = textsIn(SessionMapDialog({ ...hooks, target: 'chief', canOpenInDsh: true }))
+  assert.ok(withDsh.includes('Open in DSH'))
+  const withoutDsh = textsIn(SessionMapDialog({ ...hooks, target: 'chief', canOpenInDsh: false }))
+  assert.equal(withoutDsh.includes('Open in DSH'), false)
+  assert.ok(withoutDsh.includes('Copy id'))
+})
 
 test('the shell header owns the utilities seat, so the Bot header draws it itself', () => {
   const core = new SlotCore()

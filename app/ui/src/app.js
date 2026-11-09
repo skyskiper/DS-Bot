@@ -45,7 +45,8 @@ export function App() {
   const team = useMemo(createTeam, [])
   useEffect(() => team.start(), [team])
   const { hooks, actions } = team
-  const views = { ...hooks, actions }
+  // The app has no DSH conversation view: the map keeps Copy id, not Open in DSH.
+  const views = { ...hooks, actions, canOpenInDsh: false }
   const wide = hooks.useLayout(state => state.wide)
   const shown = hooks.useShown(id => id)
   useTheme(hooks.useRoster(value => value.prefs))

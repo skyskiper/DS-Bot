@@ -55,7 +55,7 @@ export function createTeam() {
   const seenStore = sharedMap(STORAGE.seen)
   let seenAt = seenStore.read()
   const roster = createSource(EMPTY_ROSTER)
-  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {} })
+  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, map: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {} })
   const activity = createSource({})
   const work = createSource(NO_WORK)
   const memoryNews = createSource({})
@@ -140,6 +140,9 @@ export function createTeam() {
 
   const actions = {
     ...teamActions({ call, after, partFor, roster, ui, live, cards, turnClock }),
+    // The details drawer's Session map: the same shape as the DSH plugin's action.
+    openMap: (id) => ui.set(state => ({ ...state, map: id, newChat: null, exchange: null, menu: null, palette: null })),
+    closeMap: () => ui.set(state => (state.map ? { ...state, map: null } : state)),
     // The full-pane overlays sit above the conversation, so opening one dismisses them.
     openSession: (id) => {
       ui.set(state => (state.newChat || state.exchange || state.menu || state.palette ? { ...state, newChat: null, exchange: null, menu: null, palette: null } : state))

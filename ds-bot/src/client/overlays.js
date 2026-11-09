@@ -16,7 +16,7 @@ import { useLinger } from './motion.js'
 const DIALOG_EXIT_MS = 160
 const MENU_EXIT_MS = 120
 
-export function Overlays({ useRoster, useUi, useSessions, useSessionStatus, useActivity, useWork, useRegistry, useBrowserPages, useBrowserTabs, useBrowserHolds, useUpdate, useFrame, useSidebarPref, actions }) {
+export function Overlays({ useRoster, useUi, useSessions, useSessionStatus, useActivity, useWork, useRegistry, useBrowserPages, useBrowserTabs, useBrowserHolds, useUpdate, useFrame, useSidebarPref, canOpenInDsh = true, actions }) {
   const roster = useRoster(value => value)
   const ui = useUi(value => value)
   useRegistry(value => value)
@@ -68,6 +68,6 @@ export function Overlays({ useRoster, useUi, useSessions, useSessionStatus, useA
     ui.voice ? createPortal(h(VoiceMode, { key: ui.voice, sessionId: ui.voice, roster, actions, useSessions, useSessionStatus }), document.body) : null,
     menu ? createPortal(h(ContextMenu, { key: `${menu.kind ?? ''}:${menu.id}:${menu.x}:${menu.y}`, menu, roster, actions, leaving: menuLeaving }), document.body) : null,
     settings ? createPortal(h(SettingsDialog, { page: settings.page, id: settings.id, roster, actions, useUpdate, leaving: settingsLeaving }), document.body) : null,
-    map ? createPortal(h(SessionMapDialog, { key: map, target: map, roster, actions, useSessions, useSessionStatus, leaving: mapLeaving }), document.body) : null,
+    map ? createPortal(h(SessionMapDialog, { key: map, target: map, roster, actions, useSessions, useSessionStatus, canOpenInDsh, leaving: mapLeaving }), document.body) : null,
     owner ? createPortal(h(MemoryDialog, { key: owner.id, owner, actions, leaving: memoryLeaving }), document.body) : null)
 }

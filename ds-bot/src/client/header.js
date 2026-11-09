@@ -9,7 +9,6 @@ import { clockLabel, openingTurn, unseenSince } from './cells.js'
 import { GoalIsland, goalView } from './goal.js'
 import { viewBottom } from './motion.js'
 import { t } from './i18n.js'
-import { SessionMapButton } from './session-map.js'
 
 // -------------------------------------------------------------------------
 // Conversation header
@@ -134,7 +133,6 @@ export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus
     h('span', { className: 'bt-pill-go', 'aria-hidden': true }, h(GoArrow)))
   return h('div', { className: 'bt-head' },
     showGoal ? h(GoalIsland, { room, goal, view, open: goalOpen, composing: goalCompose, roomWork, roster, actions, pill }) : pill,
-    h('div', { className: 'bt-head-utils' }, h(SessionMapButton, { sessionId, useRoster, useSessions, actions })),
     h('span', { className: 'bt-sr', role: 'status' }, memoryNotice ? t('Memory updated') : ''),
     h(NewMessagePills, { key: sessionId, sessionId, useSessions, useUi, useTurnClock }),
     h(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, useWork, actions }))

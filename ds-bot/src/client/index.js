@@ -1083,7 +1083,7 @@ export function apply(ctx) {
     () => shadow('settings.launcher', { priority: BOT_PRIORITY, inject: face }, AccountLauncher),
     () => shadow('settings.onboarding', { id: MODELS_STEP, order: MODELS_STEP_ORDER }, OpenModelsStep),
     () => shadow('shell.overlay', { id: 'bot-computer', order: 40, inject: face }, ComputerIndicator),
-    () => shadow('shell.overlay', { id: 'bot', order: 50, inject: face }, Overlays),
+    () => shadow('shell.overlay', { id: 'bot', order: 50, inject: () => ({ ...face(), canOpenInDsh: true }) }, Overlays),
     () => shadow('shell.overlay', { id: 'bot-signin', order: 55, inject: face }, DeepSeekSignIn),
     () => shadow('shell.overlay', { id: 'bot-toast', order: 60, inject: face }, ErrorToast),
   ]

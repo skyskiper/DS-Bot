@@ -12,7 +12,7 @@ const shortId = (id) => {
   return id.length > 18 ? `${id.slice(0, 10)}…${id.slice(-6)}` : id
 }
 
-function MapRow({ row, state, at, copied, onCopy, onOpen }) {
+function MapRow({ row, state, at, copied, canOpen, onCopy, onOpen }) {
   return h('div', { className: 'bt-map-row', 'data-state': state },
     h('div', { className: 'bt-map-copy' },
       h('span', { className: 'bt-map-name' }, row.label),
@@ -23,30 +23,24 @@ function MapRow({ row, state, at, copied, onCopy, onOpen }) {
         at > 0 ? h('span', { className: 'bt-map-time' }, relativeShort(at)) : null)),
     h('span', { className: 'bt-map-state' }, h('span', { className: 'bt-map-dot', 'aria-hidden': true }), t(state === 'running' ? 'Running' : state === 'idle' ? 'Idle' : 'Archived')),
     h('div', { className: 'bt-map-actions' },
-      h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => onOpen(row.sessionId) }, t('Open in DSH')),
+      canOpen ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => onOpen(row.sessionId) }, t('Open in DSH')) : null,
       h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-map-copyid', onClick: () => onCopy(row.sessionId) }, copied === row.sessionId ? t('Copied') : t('Copy id'))))
 }
 
-// The header entry, drawn in the Bot header's right seat: the shell's utilities slot
-// cannot be shadowed with its children declared (see the design note). Only a Bot chat
-// or a group has a map; a plain DSH Session keeps the shell's own header.
-export function SessionMapButton({ sessionId, useRoster, useSessions, actions }) {
-  const roster = useRoster?.(value => value)
-  // The seat's scope names the Session; the main view answers when it does not.
-  const main = useSessions?.(list => Object.values(list?.byId ?? {}).find(session => (session?.retainedBy?.mainView ?? 0) > 0)?.id)
-  const id = sessionId ?? main
-  const bot = roster?.byId?.[id]
-  const room = roster?.roomsById?.[id]
-  if (!bot && !room) return null
+// The details drawer's round-button row: the map sits beside settings and ⋯.
+// Without the action (a host that has not wired the map) there is no button.
+export function MapEntry({ bot, room, actions }) {
+  if ((!bot && !room) || typeof actions?.openMap !== 'function') return null
   return h('button', {
-    type: 'button', className: 'bt-map-util', 'aria-label': t('Session map'), title: t('Session map'),
+    type: 'button', className: 'bt-round', 'data-info-row': 'map',
+    'aria-label': t('Session map'), title: t('Session map'),
     onClick: () => actions.openMap(bot ? bot.id : room.id),
   }, h(LayersIcon))
 }
 
 // Every Session behind one Bot or one group: a row opens in the shell's own Session
 // view, which is what DSH shows for any Session; the Bot skin comes back with Back to Bot.
-export function SessionMapDialog({ target, roster, actions, useSessions, useSessionStatus, leaving = false }) {
+export function SessionMapDialog({ target, roster, actions, useSessions, useSessionStatus, canOpenInDsh = true, leaving = false }) {
   const close = () => actions.closeMap()
   useEscape(close)
   const list = useSessions(state => state)
@@ -78,7 +72,7 @@ export function SessionMapDialog({ target, roster, actions, useSessions, useSess
     h('h3', null, section.title),
     section.rows.map(row => h(MapRow, {
       key: row.sessionId, row, state: stateOf(row.sessionId), at: atOf(row.sessionId),
-      copied, onCopy: copy, onOpen: open,
+      copied, canOpen: canOpenInDsh, onCopy: copy, onOpen: open,
     }))))
   return h('div', { className: 'bt-map-layer', 'data-leaving': leaving || undefined },
     h('div', { className: 'bt-scrim', onMouseDown: close }),
@@ -90,7 +84,9 @@ export function SessionMapDialog({ target, roster, actions, useSessions, useSess
           h('span', { className: 'bt-map-sub' }, rows === 1 ? t('1 session') : t('{count} sessions', { count: rows }))),
         h('button', { type: 'button', className: 'bt-icon-btn', 'aria-label': t('Close'), title: t('Close'), onClick: close }, h(CloseIcon))),
       h('div', { className: 'bt-map-body' }, body),
-      h('p', { className: 'bt-map-foot' }, t('Opening a session shows the DeepSeek Harness view. Use Back to Bot to return.'))))
+      h('p', { className: 'bt-map-foot' }, canOpenInDsh
+        ? t('Opening a session shows the DeepSeek Harness view. Use Back to Bot to return.')
+        : t('Copy a session id to look it up in DeepSeek Harness.'))))
 }
 
 export const SESSION_MAP_CSS = `
@@ -122,9 +118,5 @@ export const SESSION_MAP_CSS = `
 .bt-map-foot{margin:0;padding:10px 18px 14px;border-top:1px solid var(--bt-line);font-size:12px;line-height:18px;color:var(--bt-ink-2)}
 @media (max-width:560px){.bt-map-state{display:none}.bt-map-actions{flex-direction:column}}
 /* The header's utilities seat: the same 36px circles as the shell's header controls. */
-.bt-head-utils{position:absolute;right:0;top:2px;display:flex;align-items:center;gap:8px;pointer-events:auto}
-.bt-map-util{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:50%;background:var(--bt-tag-bg);color:var(--bt-ink-2);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
-.bt-map-util:hover{background:var(--bt-hover);color:var(--bt-ink)}
-.bt-map-util:active{transform:scale(.94)}
 .bt-map-return-ico{flex:none;line-height:0}
 `

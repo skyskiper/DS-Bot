@@ -20,8 +20,10 @@
 
 ## 界面
 
-- Bot 聊天页标题栏右侧一个层叠图标按钮（36px 圆形，和 shell 其它圆形按钮同风格）；群设置的「Sessions」卡里一行。两者打开同一个面板。
-- 按钮本可以挂到 `conversation.session.header.utilities`，但那个座位由 shell 的 header 条目在注册时声明；shadow 它的条目再声明同一个子槽会被 runtime 拒绝（`slot "…utilities" is already declared`），因此也拿不到 `renderSlot`。所以按钮由 `HeaderPill` 自己画在标题栏右侧（不再注册 `utilities`，不出现双入口）。
+- 入口在**详情抽屉顶部那排圆按钮**里（齿轮 / 会话地图 / ⋯ / 分享 / ×），`details-drawer.js` 的 `top` 行，用同样的 `bt-round` 尺寸和 `LayersIcon`；群设置的「Sessions」卡里另有一行。
+- 这排按钮是插件和桌面 App 共用的组件（App 的 `app/ui/src/app.js` 直接渲染插件的 `Overlays`/`HeaderPill`），所以改一处两边同时生效。App 的 actions 从 `teamActions()` 拼出，`openMap`/`closeMap` 要在 `app/ui/src/team.js` 里补上，否则按钮按约定不渲染。
+- 「在 DSH 中打开」由能力开关 `canOpenInDsh` 控制：DSH 侧为 true，App 侧为 false（App 没有 DSH 原生会话视图），App 里只留「复制 id」。开关由宿主显式传入，不嗅探环境。
+- 标题栏那个自绘座位已删除（避免双入口），`utilities` 插槽也不再注册：shadow 条目无法再声明 shell 已经声明的子槽（runtime 会拒绝）。
 - 面板按上面的四组分节（群的地图只有「群自身会话」和「本群成员会话」两节）；每行显示名称、来源、短 session id、段数、最近活动时间、状态，以及 `Open in DSH`、`Copy id` 两个操作。
 - 不在 roster 里的普通 DSH Agent 会话没有入口，保持现状。
 
