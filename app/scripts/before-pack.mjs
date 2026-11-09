@@ -2,8 +2,9 @@
 // (npmRebuild: false), so they fit only the architecture of the Node that ran npm. An app built for
 // another architecture would carry them and not start, so such a build stops here.
 import { Arch } from 'electron-builder'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { preparePrimaryRuntime, runtimeTarget } from './prepare-runtime.mjs'
 
 const WHERE = {
@@ -41,11 +42,29 @@ export function officeRuntimeRequest(context) {
   }
 }
 
+// The app carries the plugin from app/node_modules/ds-bot. Copying a node_modules tree
+// (the fast way to avoid an install) keeps the plugin of the day it was installed, so
+// the app would ship a client.js older than this checkout. Compare the two builds.
+export function pluginProblem(appDir) {
+  // A made-up directory (a test) has no package.json; a real build always has one.
+  if (!existsSync(join(appDir, 'package.json'))) return undefined
+  const installed = join(appDir, 'node_modules', 'ds-bot', 'client.js')
+  if (!existsSync(installed)) return `node_modules/ds-bot is missing in ${appDir}; run npm install there`
+  const checkout = join(dirname(appDir), 'ds-bot', 'client.js')
+  if (!existsSync(checkout)) return `the plugin checkout is missing: ${checkout}`
+  const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex')
+  return hash(installed) === hash(checkout)
+    ? undefined
+    : `node_modules/ds-bot is stale: its client.js differs from ${checkout}; run npm install ../ds-bot in ${appDir}`
+}
+
 export async function beforePack(context, prepare = preparePrimaryRuntime) {
   const targets = []
   for (const archToNames of context.packager?.packagerOptions?.targets?.values() ?? [])
     for (const arch of archToNames.keys()) targets.push(Arch[arch])
   const problem = archProblem({ target: Arch[context.arch], platform: context.electronPlatformName, targets })
   if (problem !== undefined) throw new Error(problem)
+  const stale = pluginProblem(context.packager.appDir ?? context.packager.projectDir)
+  if (stale !== undefined) throw new Error(stale)
   await prepare(officeRuntimeRequest(context))
 }

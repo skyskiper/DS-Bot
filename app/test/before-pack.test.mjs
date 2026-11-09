@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { Arch } from 'electron-builder'
-import { archProblem, beforePack, officeRuntimeRequest } from '../scripts/before-pack.mjs'
+import { archProblem, beforePack, officeRuntimeRequest, pluginProblem } from '../scripts/before-pack.mjs'
 import { runtimeTarget } from '../scripts/prepare-runtime.mjs'
 
 test('a build for the architecture of this Node goes on', async () => {
@@ -46,4 +47,27 @@ test('the Office payload goes next to the asar for a platform the lock pins', ()
   assert.equal(request.output, join('app-dir', 'build', 'runtime'))
   assert.throws(() => officeRuntimeRequest({ arch: Arch.arm64, electronPlatformName: 'win32', packager: { projectDir: 'app-dir' } }), /No Office runtime payload for win32 arm64/)
   assert.match(readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8'), /from: build\/runtime\/primary-runtime\r?\n\s+to: primary-runtime/u)
+})
+
+
+test('a copied node_modules carrying an older plugin stops the build', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ds-bot-pack-'))
+  try {
+    const appDir = join(root, 'app')
+    mkdirSync(join(appDir, 'node_modules', 'ds-bot'), { recursive: true })
+    mkdirSync(join(root, 'ds-bot'), { recursive: true })
+    writeFileSync(join(appDir, 'package.json'), '{}')
+    writeFileSync(join(appDir, 'node_modules', 'ds-bot', 'client.js'), '// old plugin\n')
+    writeFileSync(join(root, 'ds-bot', 'client.js'), '// new plugin\n')
+    // The app would ship the old client.js: the build must stop and say how to refresh it.
+    assert.match(pluginProblem(appDir), /node_modules\/ds-bot is stale/)
+    // With the plugin reinstalled from the checkout the build goes on.
+    writeFileSync(join(appDir, 'node_modules', 'ds-bot', 'client.js'), '// new plugin\n')
+    assert.equal(pluginProblem(appDir), undefined)
+    // A missing install is named as such.
+    rmSync(join(appDir, 'node_modules', 'ds-bot'), { recursive: true })
+    assert.match(pluginProblem(appDir), /node_modules\/ds-bot is missing/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

@@ -22,6 +22,7 @@ import { captureStdio, LogFile } from './logs.mjs'
 import { Pickers } from './picker-host.mjs'
 import { currentRootOf, driveOf, formatBytes, freeSpace, isEmptyTree, pickFrom, placeOf, rootOf, runningLow } from './place.mjs'
 import { createShell, SHELL_TEXT } from './shell.mjs'
+import { dropStaleCache } from './stale-cache.mjs'
 import { readStartFrame, writeStartFrame } from './start-frame.mjs'
 import { explainOf, StartWindow } from './start-window.mjs'
 import { langOf } from './start/text.mjs'
@@ -425,6 +426,7 @@ async function boot(mine) {
   launchUrl = engine.url
   tokenSpent = true
   hostReady = false
+  await dropStaleCache(win.webContents.session)
   bootstrap = win.loadURL(engine.url).then(() => {
     if (mine === attempt) hostReady = true
     return true

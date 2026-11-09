@@ -98,8 +98,23 @@ leaves both sides broken.
 ## Replacing the desktop app
 
 `app/` packs into `app/dist-pack/mac-arm64/DS Bot.app` with `npm run pack` (run it with
-Node 22: electron-builder 26 never settles under Node 26). `app/scripts/swap-app.sh`
-installs such a bundle over the running app:
+Node 22: electron-builder 26 never settles under Node 26).
+
+The app carries the plugin from `app/node_modules/ds-bot`, and a copied `node_modules`
+keeps the plugin of the day it was installed. Refresh it before packing, or the app ships
+an older `client.js`:
+
+```sh
+(cd ds-bot && npm pack --pack-destination /tmp)
+rm -rf app/node_modules/ds-bot
+mkdir app/node_modules/ds-bot && tar -xzf /tmp/ds-bot-*.tgz -C app/node_modules/ds-bot --strip-components=1
+```
+
+The `before-pack` hook stops the build when the two `client.js` files differ. On start the
+app also drops its HTTP caches, so an updated `client.js` is never served from the old
+build's cache.
+
+`app/scripts/swap-app.sh` installs such a bundle over the running app:
 
 ```sh
 app/scripts/swap-app.sh "app/dist-pack/mac-arm64/DS Bot.app" --check   # verify only
