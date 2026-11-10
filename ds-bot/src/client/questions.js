@@ -56,7 +56,7 @@ export function useOptionKeys(count, onPick, ownRef) {
 
 // A question shows two ways: as a bubble in the transcript, and raised when it
 // sits in the dock above the composer.
-function QuestionView({ question, onAnswer, onDismiss, onInteract, busy = false, ownAnswer = false, raised = false, enterToSend = true }) {
+export function QuestionView({ question, onAnswer, onDismiss, onInteract, busy = false, ownAnswer = false, raised = false, enterToSend = true }) {
   const [own, setOwn] = useState('')
   const [picked, setPicked] = useState([])
   const ownRef = useRef(null)

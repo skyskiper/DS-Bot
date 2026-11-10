@@ -19,6 +19,7 @@ import { call } from './api.js'
 import { failureLabel } from './diagnostics.js'
 import { turnReasoning, thinkingStep, opensReply, stepActivity } from './turn-reasoning.js'
 import { parseReplies, stackReplies } from '../shared/group-replies.js'
+import { GroupCard } from './group-card.js'
 import { FOLD_AT, FOLD_HUGE, stripLongNote, useFold } from './fold.js'
 import { noHover, useViewport, viewBottom } from './motion.js'
 import { heldCardKey } from './sources.js'
@@ -1009,6 +1010,11 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
           h('div', { className: 'bt-ububble' }, h(MarkdownText, { text: reply.text, labels: mdLabels(), variant: 'compact' })),
           (reply.via !== undefined || Number.isFinite(time)) ? h('div', { className: 'bt-utime', title: clockLabel(time) }, ...(reply.via !== undefined ? [h(ViaTag, { key: 'via', via: reply.via })] : []), Number.isFinite(time) ? messageClock(time) : null) : null)
       }
+      if (reply.kind === 'card') {
+        return h(GroupCard, { key: `card-${reply.card?.id ?? index}`, reply, room, roster, actions })
+      }
+      // The answer line rides on its card (room.answers); a separate row would double it.
+      if (reply.kind === 'answer') return null
       if (reply.kind !== undefined) {
         return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions })
       }

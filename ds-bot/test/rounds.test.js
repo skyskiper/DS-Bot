@@ -1076,4 +1076,13 @@ test('a member\'s ask_user card joins the round and waits for the user', async (
   const follow = sent.find(entry => entry.sessionId === first.sessionId && entry.message.content?.[0]?.text?.includes('现在编译'))
   assert.ok(follow, 'the answer is a message in the asking Session')
   assert.match(rt.state.rooms[room.id].log.at(-1).text, /The user answered: 现在编译/)
+  // The client reads the answer from the room view, not just from the log.
+  const roomView = (await call('state', {})).value.rooms.find(entry => entry.id === room.id)
+  const recorded = roomView.answers.find(entry => entry.questionId === card.id)
+  assert.equal(recorded.sessionId, first.sessionId)
+  assert.deepEqual(recorded.answer.selected, ['现在编译'])
+  assert.equal(recorded.answer.text, '现在编译')
+  // A display-only view says it does not wait, so the group card stays read-only.
+  const displayView = result.replies.find(reply => reply.tool === 'show_view')
+  assert.equal(displayView?.card.awaitReply, false)
 })

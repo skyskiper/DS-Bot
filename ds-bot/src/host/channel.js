@@ -56,7 +56,8 @@ export function install(rt) {
       const last = (log ?? []).filter(line => line.kind === undefined).at(-1)
       // Each member's current Session in this group, by Bot id: the Session map
       // opens them, and they are hidden from the room record the client indexes.
-      return { ...room, sessionId: rt.sessionOfRoom(room), ownParts: (ownParts ?? []).map(segment => segment.sessionId), memberSessions: sessions ?? {}, parts, ...(last ? { preview: last.who === 'User' ? last.text : `${last.who}：${last.text}` } : {}) }
+      const answers = (log ?? []).filter(line => line.kind === 'card-answer').slice(-30).map(({ who: _who, kind: _kind, text, ...answer }) => answer)
+      return { ...room, sessionId: rt.sessionOfRoom(room), ownParts: (ownParts ?? []).map(segment => segment.sessionId), memberSessions: sessions ?? {}, parts, answers, ...(last ? { preview: last.who === 'User' ? last.text : `${last.who}：${last.text}` } : {}) }
     }),
     // Deleted private Bots whose folder, memory and chats stay closed to the others.
     privateArchives: rt.archivesView(),
@@ -500,8 +501,8 @@ export function install(rt) {
           await rt.save()
           // A group card: the group records what the user submitted.
           if (rt.groupOwners.get(sessionId) !== undefined) {
-            const values = body.values === undefined || body.values === null ? '' : ` ${JSON.stringify(body.values)}`
-            await rt.postGroupAnswer?.(sessionId, 'show_view', pending, `${body.action}${values}`)
+            const shown = body.values === undefined || body.values === null ? '' : ` ${JSON.stringify(body.values)}`
+            await rt.postGroupAnswer?.(sessionId, 'show_view', pending, { text: `${body.action}${shown}`, action: body.action, values: body.values ?? null })
               .catch(error => rt.warn('ds-bot: the group view answer was not recorded: %s', error))
           }
           return ok(true)
@@ -716,8 +717,10 @@ export function install(rt) {
     await rt.save()
     // A group card: the group records what the user chose, or only the asker knows.
     if (rt.groupOwners.get(sessionId) !== undefined) {
-      const values = [...(answer?.selected ?? []), ...(answer?.custom ? [answer.custom] : [])]
-      await rt.postGroupAnswer?.(sessionId, 'ask_user', question, values.length > 0 ? values.join(', ') : '(skipped)')
+      const selected = Array.isArray(answer?.selected) ? answer.selected : []
+      const custom = typeof answer?.custom === 'string' ? answer.custom : ''
+      const values = [...selected, ...(custom !== '' ? [custom] : [])]
+      await rt.postGroupAnswer?.(sessionId, 'ask_user', question, { text: values.length > 0 ? values.join(', ') : '(skipped)', selected, custom })
         .catch(error => rt.warn('ds-bot: the group answer line was not recorded: %s', error))
     }
     return true

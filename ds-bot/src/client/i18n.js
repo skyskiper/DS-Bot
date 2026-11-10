@@ -1587,6 +1587,9 @@ const HOST_ZH = {
   'Every session this group runs in. Open one in DeepSeek Harness.': '这个群背后的所有会话，点开可以看 DeepSeek Harness 的原生会话。',
   'Opening a session shows the DeepSeek Harness view. Use Back to Bot to return.': '打开后是 DeepSeek Harness 的原生会话视图，用「返回 Bot」回到团队界面。',
   'Copy a session id to look it up in DeepSeek Harness.': '复制 session id，可在 DeepSeek Harness 里查看。',
+  'The user answered: {answer}': '用户回答：{answer}',
+  'Could not send the answer: {error}': '答案没发出去：{error}',
+  '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)
 

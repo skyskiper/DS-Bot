@@ -1306,15 +1306,20 @@ export function install(rt) {
   // The user's answer to a group card: the asking member's Session takes the followup
   // (answerQuestion/view-reply), and the group records what the user chose, so the other
   // members read it in the room and the answer is not only in the asker's head.
-  const postGroupAnswer = async (sessionId, tool, card, answerText) => {
+  const postGroupAnswer = async (sessionId, tool, card, answer) => {
     const owner = rt.groupOwners.get(sessionId)
     const room = rt.roomOf(owner?.roomId)
     const member = rt.botOf(owner?.botId)
     if (room === undefined || member === undefined) return
     const title = typeof card?.question === 'string' ? card.question : String(card?.title ?? '')
-    appendRoom(room, { who: 'User', kind: 'card-answer', text: `${member.name} asked: ${title}\nThe user answered: ${answerText}` })
+    const line = {
+      who: 'User', kind: 'card-answer', tool, sessionId, botId: member.id, questionId: card?.id,
+      text: `${member.name} asked: ${title}\nThe user answered: ${answer.text}`,
+      answer, time: Date.now(),
+    }
+    appendRoom(room, line)
     const running = [...rt.roomProgress.values()].find(round => round.roomId === room.id)
-    running?.replies.push({ kind: 'answer', tool, botId: member.id, name: member.name, color: member.color, sessionId, questionId: card?.id, text: answerText, time: Date.now() })
+    running?.replies.push({ kind: 'answer', tool, botId: member.id, name: member.name, color: member.color, sessionId, questionId: card?.id, text: answer.text, time: Date.now() })
     await rt.save()
   }
   rt.postGroupAnswer = postGroupAnswer

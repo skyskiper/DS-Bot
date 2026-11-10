@@ -753,7 +753,7 @@ export function install(rt) {
         title,
         view,
         askedAt: Date.now(),
-        ...(roomOwner === undefined ? {} : { roomId: roomOwner.roomId, sessionId: id, botId: roomOwner.botId }),
+        ...(roomOwner === undefined ? {} : { roomId: roomOwner.roomId, sessionId: id, botId: roomOwner.botId, awaitReply }),
       }
       if (roomOwner !== undefined) {
         if (rt.groupCardAsked?.(id, 'show_view', card, { waits: awaitReply }) !== true) {
