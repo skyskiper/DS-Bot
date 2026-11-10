@@ -82,13 +82,13 @@ async function start() {
 
 const text = value => [{ type: 'text', text: value }]
 
-test('show_view registers an interactive card, refuses a group and a display-only wait, and leaves a display-only card unregistered', async (t) => {
+test('show_view registers an interactive card, refuses a group card outside its round and a display-only wait, and leaves a display-only card unregistered', async (t) => {
   const { emit, show, team, stop } = await start()
   t.after(stop)
   await rt.teamTools.find(d => d.name === 'list_bots').execute({}, { agent: { id: 'chief' } })
 
   const group = await show('writer-group', { title: 'Pick', view: CHOICES })
-  assert.equal(group.text, 'View cards only work in your own chat. In a group, ask in your message instead.')
+  assert.equal(group.text, 'A view card in a group goes out with its round. Ask in your message instead.')
   assert.equal(group.concluded, false)
   const stranger = await show('outsider', { title: 'Pick', view: CHOICES })
   assert.match(stranger.text, /^Only Bots on the team can use show_view\. Use ask_user_question if it is available in this session, or ask the user in your reply\.$/)

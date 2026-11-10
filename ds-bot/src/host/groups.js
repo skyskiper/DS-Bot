@@ -498,11 +498,13 @@ export function install(rt) {
     const done = new Promise((resolve) => {
       let timer
       let grace
+      let card
       const finish = (value) => {
         clearTimeout(timer)
         clearTimeout(grace)
         rt.roomWaiters.delete(exchangeId)
-        resolve(value)
+        // A turn that ended on a card waits for the user; its text is not a reply.
+        resolve(card === undefined ? value : { waiting: true })
       }
       const touch = () => {
         clearTimeout(timer)
@@ -520,7 +522,11 @@ export function install(rt) {
         heard(step)
       }
       touch()
-      rt.roomWaiters.set(exchangeId, { sessionId, botId: member.id, roomId: room.id, resolve: finish, fail: failure => finish({ failure }), touch, work, say, approval: () => finish({ approval: true }) })
+      rt.roomWaiters.set(exchangeId, {
+        sessionId, botId: member.id, roomId: room.id, resolve: finish, fail: failure => finish({ failure }), touch, work, say, approval: () => finish({ approval: true }),
+        get card() { return card },
+        set card(next) { card = next },
+      })
       signal.addEventListener('abort', () => finish(null), { once: true })
     })
     try {
@@ -765,7 +771,7 @@ export function install(rt) {
     // nothing said. The group says so once, so the user knows to call a member.
     const alone = round.soleAdmin !== undefined && round.slots.find(slot => slot.id === round.soleAdmin.id)?.status === 'passed'
     // An answer that came, or is still coming, means the round is not left silent.
-    const answered = round.slots.some(slot => ['posted', 'working', 'waiting-approval'].includes(slot.status))
+    const answered = round.slots.some(slot => ['posted', 'working', 'waiting-approval', 'waiting-answer'].includes(slot.status))
     if (alone && !answered) {
       appendRoom(room, { who: 'DS Bot', kind: 'notice', reason: 'admin-passed', names: [round.soleAdmin.name] })
       // The round the user watched shows the same notice as one line of its replies.
@@ -835,6 +841,10 @@ export function install(rt) {
       // The member's turn goes on in the background and posts when it ends.
       slot.status = 'waiting-approval'
       round.replies.push({ kind: 'approval', botId: member.id, name: member.name, color: member.color, time: Date.now() })
+    } else if (reply?.waiting) {
+      // The card is already in round.replies (groupCardAsked); the round goes on
+      // without this member's text, and the turn is not counted as a returned reply.
+      slot.status = 'waiting-answer'
     } else if (reply?.working) {
       slot.status = 'working'
       markBatchWorked(room.id, member.id)
@@ -1276,6 +1286,39 @@ export function install(rt) {
     await postToRoom(room, member, done ? '' : text, { late: true, ...(done ? { done: true } : {}), ...(askedBy ? { askedBy } : {}) })
       .catch(error => rt.warn('ds-bot: late group reply from %s failed: %s', member.name, error))
   }
+  // A card a member asks while its group turn runs: it joins the round's replies (the
+  // group's conversation), and the turn waits for the user instead of counting as a
+  // returned reply. With no running round there is no conversation line for it, so the
+  // caller is told to ask in its message.
+  const groupCardAsked = (sessionId, tool, card, { waits = true } = {}) => {
+    const owner = rt.groupOwners.get(sessionId)
+    const room = rt.roomOf(owner?.roomId)
+    const member = rt.botOf(owner?.botId)
+    if (room === undefined || member === undefined) return false
+    const running = [...rt.roomProgress.values()].find(round => round.roomId === room.id)
+    if (running === undefined) return false
+    running.replies.push({ kind: 'card', tool, botId: member.id, name: member.name, color: member.color, sessionId, card, time: Date.now() })
+    if (waits) for (const waiter of waitersOf(sessionId)) if (waiter.roomId === room.id) waiter.card = card
+    return true
+  }
+  rt.groupCardAsked = groupCardAsked
+
+  // The user's answer to a group card: the asking member's Session takes the followup
+  // (answerQuestion/view-reply), and the group records what the user chose, so the other
+  // members read it in the room and the answer is not only in the asker's head.
+  const postGroupAnswer = async (sessionId, tool, card, answerText) => {
+    const owner = rt.groupOwners.get(sessionId)
+    const room = rt.roomOf(owner?.roomId)
+    const member = rt.botOf(owner?.botId)
+    if (room === undefined || member === undefined) return
+    const title = typeof card?.question === 'string' ? card.question : String(card?.title ?? '')
+    appendRoom(room, { who: 'User', kind: 'card-answer', text: `${member.name} asked: ${title}\nThe user answered: ${answerText}` })
+    const running = [...rt.roomProgress.values()].find(round => round.roomId === room.id)
+    running?.replies.push({ kind: 'answer', tool, botId: member.id, name: member.name, color: member.color, sessionId, questionId: card?.id, text: answerText, time: Date.now() })
+    await rt.save()
+  }
+  rt.postGroupAnswer = postGroupAnswer
+
   rt.lateRoomReply = lateRoomReply
 
   const memberIn = (sessionId, info) => {

@@ -1020,3 +1020,60 @@ test('a plain message in a group where everyone answers still goes one member at
   const result = JSON.parse(await running)
   assert.deepEqual(result.replies.map(reply => reply.text), ['one', 'two', 'three'])
 })
+
+test('a member\'s ask_user card joins the round and waits for the user', async (t) => {
+  const { call, emit, userMessage, relay, answer, stop, sent, rt } = start()
+  t.after(stop)
+  const room = await team(call, sent)
+  await emit(room.id, userMessage('现在能编译吗'))
+  const running = relay(room.id, 'relay')
+  const first = await turnFor(sent)
+  assert.ok(first, 'the first member gets a turn')
+  const memberId = rt.groupOwners.get(first.sessionId)?.botId
+  assert.ok(memberId)
+  const ask = rt.teamTools.find(d => d.name === 'ask_user')
+
+  const asked = await ask.execute(
+    { question: '现在编译吗？', options: [{ label: '现在编译' }, { label: '先不编译' }] },
+    { agent: { id: first.sessionId }, callId: 'card-1', concludeTurn() {} },
+  )
+  assert.match(asked, /card is in the group/)
+  const card = rt.state.questions[first.sessionId]
+  assert.equal(card.roomId, room.id)
+  assert.equal(card.sessionId, first.sessionId)
+  // A display view rides the same seat without waiting for an answer.
+  const shown = await rt.teamTools.find(d => d.name === 'show_view').execute(
+    { title: 'Pick', view: { type: 'text', text: 'hello' }, await_reply: false },
+    { agent: { id: first.sessionId } },
+  )
+  assert.equal(shown, 'The view is in the group.')
+
+  // The turn ends on the card, with no text of its own.
+  await emit(first.sessionId, { type: 'turn/start', data: { turn: 7 } })
+  await emit(first.sessionId, { type: 'user/message', data: { source: { kind: 'bot', role: 'room', exchangeId: first.message.source.exchangeId }, content: [{ type: 'text', text: 'your turn' }] } })
+  await emit(first.sessionId, { type: 'turn/end', data: { reason: { kind: 'stop' } } })
+
+  // The round goes on to the other member.
+  const second = await turnFor(sent, first)
+  assert.ok(second, 'the other member still gets its turn')
+  await answer(second.sessionId, second.message.source.exchangeId, '我先起一遍', 8)
+  const result = JSON.parse(await running)
+  const cardReply = result.replies.find(reply => reply.kind === 'card')
+  assert.equal(cardReply?.sessionId, first.sessionId)
+  assert.equal(cardReply?.tool, 'ask_user')
+  // Waiting for the user is not a returned reply: no text from that member, not passed.
+  assert.deepEqual(result.replies.filter(reply => reply.botId === memberId && typeof reply.text === 'string' && reply.text !== ''), [])
+  assert.equal(result.passed.includes(rt.botOf(memberId).name), false)
+
+  // The group's own Session still has no cards.
+  const refused = await ask.execute({ question: 'q', options: [{ label: 'a' }] }, { agent: { id: room.id }, concludeTurn() {} })
+  assert.match(refused, /Only Bots on the team can use ask_user/)
+
+  // The answer goes to the member's Session and the group records it.
+  const answered = await call('answer-question', { sessionId: first.sessionId, questionId: card.id, answer: { selected: ['现在编译'] } })
+  assert.equal(answered.ok, true)
+  assert.equal(rt.state.questions[first.sessionId], undefined)
+  const follow = sent.find(entry => entry.sessionId === first.sessionId && entry.message.content?.[0]?.text?.includes('现在编译'))
+  assert.ok(follow, 'the answer is a message in the asking Session')
+  assert.match(rt.state.rooms[room.id].log.at(-1).text, /The user answered: 现在编译/)
+})

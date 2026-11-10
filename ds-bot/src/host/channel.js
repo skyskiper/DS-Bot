@@ -498,6 +498,12 @@ export function install(rt) {
             throw error
           }
           await rt.save()
+          // A group card: the group records what the user submitted.
+          if (rt.groupOwners.get(sessionId) !== undefined) {
+            const values = body.values === undefined || body.values === null ? '' : ` ${JSON.stringify(body.values)}`
+            await rt.postGroupAnswer?.(sessionId, 'show_view', pending, `${body.action}${values}`)
+              .catch(error => rt.warn('ds-bot: the group view answer was not recorded: %s', error))
+          }
           return ok(true)
         }
         case 'send': {
@@ -708,6 +714,12 @@ export function install(rt) {
       throw error
     }
     await rt.save()
+    // A group card: the group records what the user chose, or only the asker knows.
+    if (rt.groupOwners.get(sessionId) !== undefined) {
+      const values = [...(answer?.selected ?? []), ...(answer?.custom ? [answer.custom] : [])]
+      await rt.postGroupAnswer?.(sessionId, 'ask_user', question, values.length > 0 ? values.join(', ') : '(skipped)')
+        .catch(error => rt.warn('ds-bot: the group answer line was not recorded: %s', error))
+    }
     return true
   }
 

@@ -685,8 +685,11 @@ export function install(rt) {
     async execute(args, exec) {
       await rt.load()
       const id = exec.agent?.id
-      if (rt.groupOwners.has(id)) return 'Question cards only work in your own chat. In a group, ask in your message instead.'
-      if (!rt.chatOwners.has(id)) return `Only Bots on the team can use ask_user. Use ${BLOCKING_QUESTION_TOOL} if it is available in this session, or ask the user in your reply.`
+      // A member's group Session may ask too: the card joins the group's round and the
+      // user's answer comes back to this Session. The group's own Session has no such
+      // tools, and a Session ds-bot does not own is refused as before.
+      const roomOwner = rt.groupOwners.get(id)
+      if (roomOwner === undefined && !rt.chatOwners.has(id)) return `Only Bots on the team can use ask_user. Use ${BLOCKING_QUESTION_TOOL} if it is available in this session, or ask the user in your reply.`
       const options = (Array.isArray(args.options) ? args.options : [])
         .map(option => (typeof option === 'string' ? { label: option } : option ?? {}))
         .map(option => ({
@@ -700,7 +703,7 @@ export function install(rt) {
       // composer dock, which takes questions without a call.
       const turn = rt.live.get(id)?.turn
       const hidden = turn !== undefined && (state.exchangeTurns[id] ?? []).includes(turn)
-      state.questions[id] = {
+      const card = {
         id: randomUUID(),
         ...(exec.callId && !hidden ? { callId: exec.callId } : {}),
         question: String(args.question ?? '').trim(),
@@ -709,10 +712,19 @@ export function install(rt) {
         multiSelect: args.multiSelect === true,
         ...(args.allowCustom === true ? { allowCustom: true } : {}),
         askedAt: Date.now(),
+        ...(roomOwner === undefined ? {} : { roomId: roomOwner.roomId, sessionId: id, botId: roomOwner.botId }),
       }
+      // A group card belongs to its running round; with no round there is no
+      // conversation line for it, so the member is asked to say it in its message.
+      if (roomOwner !== undefined && rt.groupCardAsked?.(id, 'ask_user', card) !== true) {
+        return 'A question card in a group goes out with its round. Ask in your message instead.'
+      }
+      state.questions[id] = card
       await rt.save()
       exec.concludeTurn?.()
-      return 'The card is on screen; the user\'s answer arrives as their next message.'
+      return roomOwner === undefined
+        ? 'The card is on screen; the user\'s answer arrives as their next message.'
+        : 'The card is in the group; the user\'s answer comes back to you as their next message.'
     },
   }))
 
@@ -726,8 +738,9 @@ export function install(rt) {
     async execute(args, exec) {
       await rt.load()
       const id = exec.agent?.id
-      if (rt.groupOwners.has(id)) return 'View cards only work in your own chat. In a group, ask in your message instead.'
-      if (!rt.chatOwners.has(id)) return `Only Bots on the team can use show_view. Use ${BLOCKING_QUESTION_TOOL} if it is available in this session, or ask the user in your reply.`
+      // As with ask_user: a member's group Session may show a card in its round.
+      const roomOwner = rt.groupOwners.get(id)
+      if (roomOwner === undefined && !rt.chatOwners.has(id)) return `Only Bots on the team can use show_view. Use ${BLOCKING_QUESTION_TOOL} if it is available in this session, or ask the user in your reply.`
       const checked = checkShownView(args.title, args.view)
       if (checked.error !== undefined) return checked.error
       const title = checked.title
@@ -735,21 +748,32 @@ export function install(rt) {
       if (!checked.interactive && args.await_reply === true) return 'This view has nothing to submit; call show_view with await_reply: false.'
       if (checked.interactive && args.await_reply === false) return 'This view has controls to submit, so it waits for the user\'s answer; call show_view without await_reply: false.'
       const awaitReply = args.await_reply ?? checked.interactive
-      if (!awaitReply) return 'The view is on screen.'
+      const card = {
+        id: randomUUID(),
+        title,
+        view,
+        askedAt: Date.now(),
+        ...(roomOwner === undefined ? {} : { roomId: roomOwner.roomId, sessionId: id, botId: roomOwner.botId }),
+      }
+      if (roomOwner !== undefined) {
+        if (rt.groupCardAsked?.(id, 'show_view', card, { waits: awaitReply }) !== true) {
+          return 'A view card in a group goes out with its round. Ask in your message instead.'
+        }
+        if (!awaitReply) return 'The view is in the group.'
+        card.callId = exec.callId
+      } else if (!awaitReply) return 'The view is on screen.'
       // A hidden Bot-to-Bot turn shows none of its calls, so its card goes to the
       // composer dock, which takes a card without a call.
       const turn = rt.live.get(id)?.turn
       const hidden = turn !== undefined && (state.exchangeTurns[id] ?? []).includes(turn)
-      state.views[id] = {
-        id: randomUUID(),
-        ...(exec.callId && !hidden ? { callId: exec.callId } : {}),
-        title,
-        view,
-        askedAt: Date.now(),
-      }
+      state.views[id] = roomOwner === undefined
+        ? { ...card, ...(exec.callId && !hidden ? { callId: exec.callId } : {}) }
+        : card
       await rt.save()
       exec.concludeTurn?.()
-      return 'The view is on screen; the user\'s answer arrives as their next message.'
+      return roomOwner === undefined
+        ? 'The view is on screen; the user\'s answer arrives as their next message.'
+        : 'The view is in the group; the user\'s answer comes back to you as their next message.'
     },
   }))
 
