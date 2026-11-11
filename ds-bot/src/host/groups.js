@@ -22,6 +22,7 @@ import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { recordCardAnswer } from './card-answers.js'
 import { GROUP_LINE_READ, ROOM_IDLE_RELAY_LIMIT, ROOM_REPLY_TIMEOUT_MS, ROOM_STEP_GAP_MS, ROOM_WORK_GRACE_MS, SOURCE_KIND, TEAM_TOOLS, TEXT_KEPT } from './constants.js'
 import { escapeRegExp, headOf, splitRef, textOf } from './text.js'
 import { viaOf } from '../shared/im-platforms.js'
@@ -1318,6 +1319,9 @@ export function install(rt) {
       answer, time: Date.now(),
     }
     appendRoom(room, line)
+    // The answer also lives with the room: the log keeps only its latest lines, and the
+    // card would read back as one nothing was recorded for soon after.
+    recordCardAnswer(room, { tool, sessionId, botId: member.id, questionId: card?.id, text: line.text, answer, time: line.time })
     const running = [...rt.roomProgress.values()].find(round => round.roomId === room.id)
     running?.replies.push({ kind: 'answer', tool, botId: member.id, name: member.name, color: member.color, sessionId, questionId: card?.id, text: answer.text, time: Date.now() })
     await rt.save()
