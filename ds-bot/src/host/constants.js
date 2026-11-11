@@ -112,8 +112,13 @@ export const ROLE_DEPARTMENTS = [
   ['pd', ['产品', 'ui', '设计']],
   ['sup', ['对接人', '支持']],
 ]
+// An English word matches whole, so "ui" is 产品设计部 while "guide", "build" and
+// "purpose" are nothing; a Chinese word matches anywhere, as Chinese has no spaces.
+const ASCII_WORD = /^[a-z]+$/
+const inWord = (text, word) => new RegExp(`(^|[^a-z])${word}([^a-z]|$)`).test(text)
+const mentions = (text, word) => (ASCII_WORD.test(word) ? inWord(text, word) : text.includes(word))
 export const departmentOfRole = (role) => {
   const text = String(role ?? '').toLowerCase()
-  const found = ROLE_DEPARTMENTS.find(([, words]) => words.some(word => text.includes(word)))
+  const found = ROLE_DEPARTMENTS.find(([, words]) => words.some(word => mentions(text, word)))
   return found === undefined ? null : found[0]
 }
