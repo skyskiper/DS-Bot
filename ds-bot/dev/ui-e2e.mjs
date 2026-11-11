@@ -4,10 +4,16 @@
 // like the user does, assert the DOM, and save screenshots. Nothing here reads or writes
 // ~/.dsh, restarts the running DSH, or touches the desktop app's own data.
 //
-//   node dev/ui-e2e.mjs image-paging [--keep] [--plugin <checkout>]
+//   node dev/ui-e2e.mjs serve [--plugin <checkout>] [--keep]
+//   node dev/ui-e2e.mjs image-paging --attach <url> [--plugin <checkout>]
+//
+// `serve` starts the isolated instance and prints its token URL, then waits for Ctrl-C.
+// `--attach` drives an instance that already runs: it reads no DSH home at all, starts
+// no instance, and only opens Chrome. A run without `--attach` boots and drives one in
+// place, and says so at once when the instance sits on an empty session.
 //
 // Environment overrides: DSH_APP (the DeepSeek Harness.app), DSH_CHROME (Chrome), and
-// DSH_E2E_SOURCE (the DSH home to copy the team from, default ~/.dsh).
+// DSH_E2E_SOURCE (the DSH home the serve copy comes from, default ~/.dsh).
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { spawn } from 'node:child_process'
@@ -20,13 +26,15 @@ const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const APP = process.env.DSH_APP ?? '/Applications/DeepSeek Harness.app'
 const CHROME = process.env.DSH_CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const SOURCE = process.env.DSH_E2E_SOURCE ?? join(homedir(), '.dsh')
-const SHOTS = process.env.DSH_E2E_SHOTS ?? tmpdir()
+const SHOTS = process.env.DSH_E2E_SHOTS ?? '/tmp'
 const args = process.argv.slice(2)
 const scenario = args.find(argument => !argument.startsWith('--')) ?? 'image-paging'
 const keep = args.includes('--keep')
 const pluginAt = args.includes('--plugin') ? resolve(args[args.indexOf('--plugin') + 1]) : PLUGIN
+const attached = args.includes('--attach') ? args[args.indexOf('--attach') + 1] : undefined
 
 const children = []
+const sockets = []
 let home = ''
 let chromeHome = ''
 let failed = 0
@@ -38,16 +46,28 @@ const check = (name, ok, detail = '') => {
   log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === '' ? '' : ` — ${detail}`}`)
   return ok
 }
+let cleaned = false
 const cleanup = () => {
+  if (cleaned) return
+  cleaned = true
+  for (const socket of sockets.splice(0)) {
+    // An open CDP WebSocket is a live handle: without closing it the event loop never
+    // empties and the process sits there long after the assertions printed.
+    try { socket.ws.close() } catch {}
+  }
   for (const child of children.splice(0)) {
-    try { child.kill('SIGTERM') } catch {}
+    // Chrome starts helpers of its own; a polite signal sometimes leaves them and the
+    // headless window running, so this is the last thing the script does to them.
+    try { child.kill('SIGKILL') } catch {}
   }
   if (!keep) {
     for (const path of [home, chromeHome]) if (path !== '') rmSync(path, { recursive: true, force: true })
   }
 }
 process.on('exit', cleanup)
-process.on('SIGINT', () => { cleanup(); process.exit(130) })
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => { cleanup(); process.exit(130) })
+process.on('uncaughtException', (error) => { log(`FAIL ${error?.stack ?? error}`); cleanup(); process.exit(1) })
+process.on('unhandledRejection', (error) => { log(`FAIL ${error?.stack ?? error}`); cleanup(); process.exit(1) })
 
 const freePort = () => new Promise((done, fail) => {
   const server = net.createServer()
@@ -80,15 +100,6 @@ function copyTree(from, to) {
   return true
 }
 
-function readMainBotId(where) {
-  try {
-    const state = JSON.parse(readFileSync(join(where, 'bot', 'state.json'), 'utf8'))
-    return state.mainBotIds?.[0]
-  } catch {
-    return undefined
-  }
-}
-
 function prepareHome() {
   home = mkdtempSync(join(tmpdir(), 'ds-bot-e2e-'))
   for (const part of ['bot', 'sessions', 'storages', 'profiles']) copyTree(join(SOURCE, part), join(home, part))
@@ -97,6 +108,16 @@ function prepareHome() {
   const settings = [join(SOURCE, 'settings.yaml'), join(SOURCE, 'settings.yaml.imported')].find(path => existsSync(path))
   if (settings !== undefined) copyTree(settings, join(home, 'settings.yaml'))
   if (existsSync(join(SOURCE, 'attachments'))) symlinkSync(join(SOURCE, 'attachments'), join(home, 'attachments'))
+  // The copied workspace records keep absolute paths from the source home; pointing
+  // them at this home keeps the isolated instance inside it, and lets DSH restore the
+  // workspace and its last session instead of opening a new one.
+  const workspace = join(home, 'storages', 'workspace.json')
+  if (existsSync(workspace)) {
+    // The copied workspace records keep absolute paths from the source home; pointing
+    // them at this home keeps the isolated instance inside it instead of reading the
+    // team's real folder.
+    writeFileSync(workspace, readFileSync(workspace, 'utf8').split(SOURCE).join(home))
+  }
   const source = join(home, 'profiles', 'desktop')
   const profile = join(home, 'profiles', 'e2e')
   if (!existsSync(source)) throw new Error(`no desktop profile under ${SOURCE}/profiles`)
@@ -172,7 +193,9 @@ class Cdp {
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?url=${encodeURIComponent('about:blank')}`, { method: 'PUT' })).json()
     const ws = new WebSocket(target.webSocketDebuggerUrl)
     await new Promise((done, fail) => { ws.onopen = done; ws.onerror = fail })
-    return new Cdp(ws)
+    const cdp = new Cdp(ws)
+    sockets.push(cdp)
+    return cdp
   }
   send(method, params = {}) {
     return new Promise((done) => {
@@ -195,6 +218,28 @@ class Cdp {
 }
 
 // --- scenarios --------------------------------------------------------------------------
+// A picture is drawn once its bytes decoded and it has a box: the viewer sets the src
+// before the browser has painted it, so reading naturalWidth immediately is a race.
+async function drawnPicture(cdp) {
+  const read = async () => {
+    const value = await cdp.evaluate(`(() => {
+      const node = document.querySelector('.bt-imgview-img')
+      if (node === null) return 'null'
+      if (node.decode) node.decode().catch(() => {})
+      const rect = node.getBoundingClientRect()
+      const src = (node.currentSrc || node.src) || ''
+      return JSON.stringify({ naturalWidth: node.naturalWidth, width: Math.round(rect.width), height: Math.round(rect.height), complete: node.complete, src: src.slice(0, 48), data: src.startsWith('data:') })
+    })()`)
+    return value === 'null' ? null : JSON.parse(value)
+  }
+  return waitFor(async () => {
+    const value = await read()
+    return value !== null && value.naturalWidth > 0 && value.width > 0 && value.height > 0 ? value : undefined
+  }, 5000)
+}
+const checkDrawn = (drawn, which) => check(`the picture itself is drawn (${which})`, drawn !== undefined,
+  drawn === undefined ? 'still 0×0 after 5 s' : `naturalWidth ${drawn.naturalWidth}, ${drawn.width}×${drawn.height}, src ${drawn.data ? 'data:' : drawn.src}`)
+
 async function imagePaging(cdp) {
   await cdp.send('Page.enable')
   const url = await cdp.evaluate('location.href').catch(() => '')
@@ -231,19 +276,18 @@ async function imagePaging(cdp) {
     count: document.querySelector('.bt-imgview-count')?.textContent ?? '',
     prevDisabled: document.querySelector('[data-side=prev]')?.disabled,
     nextDisabled: document.querySelector('[data-side=next]')?.disabled,
-    img: (() => { const node = document.querySelector('.bt-imgview-img'); if (node === null) return null; const rect = node.getBoundingClientRect(); return { naturalWidth: node.naturalWidth, width: Math.round(rect.width), height: Math.round(rect.height) } })(),
   })`))
   const total = Number((/\/\s*(\d+)/.exec(first.count) ?? [])[1] ?? 0)
   check('the first image is 1 / N', /^1\s*\/\s*\d+$/.test(first.count.trim()), first.count)
   check('the previous arrow is disabled on the first image', first.prevDisabled === true)
-  check('the picture itself is drawn', first.img !== null && first.img.naturalWidth > 0 && first.img.width > 0 && first.img.height > 0, JSON.stringify(first.img))
+  checkDrawn(await drawnPicture(cdp), 'the first image')
   log(`saved ${await cdp.shot(join(SHOTS, 'e2e-image-paging-1.png'))}`)
   if (total < 2) { check('the conversation has more than one image to page', false, `${total}`); return }
   await cdp.evaluate("document.querySelector('[data-side=next]')?.click(); true")
-  await sleep(700)
-  const second = JSON.parse(await cdp.evaluate(`JSON.stringify({ count: document.querySelector('.bt-imgview-count')?.textContent ?? '', img: (() => { const node = document.querySelector('.bt-imgview-img'); return node === null ? null : { naturalWidth: node.naturalWidth } })() })`))
+  await sleep(300)
+  const second = JSON.parse(await cdp.evaluate(`JSON.stringify({ count: document.querySelector('.bt-imgview-count')?.textContent ?? '' })`))
   check('the next image is 2 / N', /^2\s*\/\s*\d+$/.test(second.count.trim()), second.count)
-  check('the second picture is drawn', second.img !== null && second.img.naturalWidth > 0)
+  checkDrawn(await drawnPicture(cdp), 'the second image')
   log(`saved ${await cdp.shot(join(SHOTS, 'e2e-image-paging-2.png'))}`)
   for (let step = 2; step < total; step += 1) {
     await cdp.evaluate("document.querySelector('[data-side=next]')?.click(); true")
@@ -257,46 +301,95 @@ async function imagePaging(cdp) {
 
 const scenarios = { 'image-paging': imagePaging }
 
+// Start the isolated instance and stay with it: this is the warm side of --attach.
+async function serve() {
+  log('ds-bot ui-e2e: serve')
+  log(`  plugin  ${pluginAt}`)
+  log(`  home    ${prepareHome()}`)
+  const url = await startHost()
+  // Warm the instance now: a fresh home opens its first page on an empty session, and
+  // the driver would have nothing to prove. One page, sometimes two, makes it hold the
+  // team's own session; Chrome then goes away and only the instance stays.
+  const debugPort = await freePort()
+  const chrome = startChrome(debugPort)
+  const up = await waitFor(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/version`).then(r => r.ok, () => false)), 20_000)
+  if (up === true) {
+    let warmed = false
+    for (let attempt = 0; attempt < 2 && !warmed; attempt += 1) {
+      const page = await Cdp.open(debugPort)
+      await page.send('Page.enable')
+      await page.send('Page.navigate', { url })
+      warmed = (await waitFor(() => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false), 15_000)) === true
+      await page.send('Page.close').catch(() => {})
+    }
+    log(warmed ? '  warm: the team session is open' : '  warm: still an empty session (the driver will say so)')
+  }
+  children.splice(children.indexOf(chrome), 1)
+  try { chrome.kill('SIGKILL') } catch {}
+  log('')
+  log(`serving ${url}`)
+  log('drive it with: node dev/ui-e2e.mjs image-paging --attach <url>')
+  log('Ctrl-C stops it and removes the copy.')
+  await new Promise(() => {})
+}
+
 async function main() {
   const run = scenarios[scenario]
   if (run === undefined) throw new Error(`unknown scenario "${scenario}"; try: ${Object.keys(scenarios).join(', ')}`)
   log(`ds-bot ui-e2e: ${scenario}`)
   log(`  plugin  ${pluginAt}`)
-  log(`  home    ${prepareHome()}`)
-  const url = await startHost()
-  check('an isolated DSH boots', true, process.env.DSH_E2E_DEBUG === '1' ? url : url.replace(/token=\S+/, 'token=…'))
-  const mainBotId = readMainBotId(home)
-  const [debugPort, chromePort] = await Promise.all([freePort(), freePort()])
+  let url = attached
+  if (attached === undefined) {
+    log(`  home    ${prepareHome()}`)
+    url = await startHost()
+    check('an isolated DSH boots', true, process.env.DSH_E2E_DEBUG === '1' ? url : url.replace(/token=\S+/, 'token=…'))
+  } else {
+    log(`  attach  ${attached.replace(/token=\S+/, 'token=…')}`)
+    check('driving an attached instance', true)
+  }
+  const debugPort = await freePort()
   startChrome(debugPort)
   const up = await waitFor(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/version`).then(r => r.ok, () => false)), 20_000)
   if (!check('headless Chrome answers CDP', up === true)) return
-  const cdp = await Cdp.open(debugPort)
-  await cdp.send('Runtime.enable')
-  await cdp.send('Log.enable')
-  await cdp.send('Page.enable')
-  // A cold browser profile has no last session, and without one the team surface never
-  // receives its roster: open the Main Bot's own Session directly, then let the page
-  // settle. A reload covers the one cold boot that races the session registry.
-  const target = typeof mainBotId === 'string' ? `${url}&session=${encodeURIComponent(mainBotId)}` : url
-  await cdp.send('Page.navigate', { url: target })
-  await sleep(4000)
-  const ready = async () => cdp.evaluate("!document.body.innerText.includes('正在设置')").catch(() => false)
-  if (!(await ready())) {
-    // The first client on a fresh home lands in an empty session; once the server has
-    // registered one, opening the page again restores the last session.
-    await sleep(3000)
-    await cdp.send('Page.navigate', { url: target })
-    await sleep(5000)
+  // The team surface needs a session: on a fresh home the first client lands in an empty
+  // one, and driving that instance would prove nothing. Say so at once instead of waiting.
+  const openPage = async () => {
+    const page = await Cdp.open(debugPort)
+    await page.send('Runtime.enable')
+    await page.send('Log.enable')
+    await page.send('Page.enable')
+    await page.send('Page.navigate', { url })
+    return page
+  }
+  // The Main Bot's tile exists only once the roster has loaded, so it is the one signal
+  // that the team surface is really up; page text alone can read empty for a moment.
+  const readyOn = page => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false)
+  let cdp = await openPage()
+  const warm = await waitFor(() => readyOn(cdp), 3_000)
+  if (warm !== true) {
+    // A second page is what warms a fresh instance by hand; try it once, then fail fast.
+    await cdp.send('Page.close').catch(() => {})
+    cdp = await openPage()
+    if (await waitFor(() => readyOn(cdp), 3_000) !== true) {
+      check('the instance holds a session', false, attached === undefined ? 'empty session on a fresh home: start the instance with `serve`, open its UI once, then drive it with --attach <url>' : 'this instance is on an empty session: open its team workspace once, then attach again')
+      return
+    }
   }
   await run(cdp)
-  void chromePort
 }
 
-main().then(() => {
+const entry = scenario === 'serve' ? serve() : main()
+entry.then(() => {
   log('')
   log(`${results.filter(r => r.ok).length} passed, ${failed} failed`)
-  process.exitCode = failed === 0 ? 0 : 1
+  // serve runs until Ctrl-C; a scenario is done once its results are printed, so close
+  // the sockets and children and leave instead of waiting for the loop to drain.
+  if (scenario !== 'serve') {
+    cleanup()
+    process.exit(failed === 0 ? 0 : 1)
+  }
 }, (error) => {
   log(`FAIL ${error?.message ?? error}`)
-  process.exitCode = 1
+  cleanup()
+  process.exit(1)
 })
