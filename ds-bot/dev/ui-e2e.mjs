@@ -38,16 +38,23 @@ const check = (name, ok, detail = '') => {
   log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === '' ? '' : ` — ${detail}`}`)
   return ok
 }
+let cleaned = false
 const cleanup = () => {
+  if (cleaned) return
+  cleaned = true
   for (const child of children.splice(0)) {
-    try { child.kill('SIGTERM') } catch {}
+    // Chrome starts helpers of its own; a polite signal sometimes leaves them and the
+    // headless window running, so this is the last thing the script does to them.
+    try { child.kill('SIGKILL') } catch {}
   }
   if (!keep) {
     for (const path of [home, chromeHome]) if (path !== '') rmSync(path, { recursive: true, force: true })
   }
 }
 process.on('exit', cleanup)
-process.on('SIGINT', () => { cleanup(); process.exit(130) })
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => { cleanup(); process.exit(130) })
+process.on('uncaughtException', (error) => { log(`FAIL ${error?.stack ?? error}`); cleanup(); process.exit(1) })
+process.on('unhandledRejection', (error) => { log(`FAIL ${error?.stack ?? error}`); cleanup(); process.exit(1) })
 
 const freePort = () => new Promise((done, fail) => {
   const server = net.createServer()
@@ -97,6 +104,16 @@ function prepareHome() {
   const settings = [join(SOURCE, 'settings.yaml'), join(SOURCE, 'settings.yaml.imported')].find(path => existsSync(path))
   if (settings !== undefined) copyTree(settings, join(home, 'settings.yaml'))
   if (existsSync(join(SOURCE, 'attachments'))) symlinkSync(join(SOURCE, 'attachments'), join(home, 'attachments'))
+  // The copied workspace records keep absolute paths from the source home; pointing
+  // them at this home keeps the isolated instance inside it, and lets DSH restore the
+  // workspace and its last session instead of opening a new one.
+  const workspace = join(home, 'storages', 'workspace.json')
+  if (existsSync(workspace)) {
+    // The copied workspace records keep absolute paths from the source home; pointing
+    // them at this home keeps the isolated instance inside it instead of reading the
+    // team's real folder.
+    writeFileSync(workspace, readFileSync(workspace, 'utf8').split(SOURCE).join(home))
+  }
   const source = join(home, 'profiles', 'desktop')
   const profile = join(home, 'profiles', 'e2e')
   if (!existsSync(source)) throw new Error(`no desktop profile under ${SOURCE}/profiles`)
@@ -195,6 +212,28 @@ class Cdp {
 }
 
 // --- scenarios --------------------------------------------------------------------------
+// A picture is drawn once its bytes decoded and it has a box: the viewer sets the src
+// before the browser has painted it, so reading naturalWidth immediately is a race.
+async function drawnPicture(cdp) {
+  const read = async () => {
+    const value = await cdp.evaluate(`(() => {
+      const node = document.querySelector('.bt-imgview-img')
+      if (node === null) return 'null'
+      if (node.decode) node.decode().catch(() => {})
+      const rect = node.getBoundingClientRect()
+      const src = (node.currentSrc || node.src) || ''
+      return JSON.stringify({ naturalWidth: node.naturalWidth, width: Math.round(rect.width), height: Math.round(rect.height), complete: node.complete, src: src.slice(0, 48), data: src.startsWith('data:') })
+    })()`)
+    return value === 'null' ? null : JSON.parse(value)
+  }
+  return waitFor(async () => {
+    const value = await read()
+    return value !== null && value.naturalWidth > 0 && value.width > 0 && value.height > 0 ? value : undefined
+  }, 5000)
+}
+const checkDrawn = (drawn, which) => check(`the picture itself is drawn (${which})`, drawn !== undefined,
+  drawn === undefined ? 'still 0×0 after 5 s' : `naturalWidth ${drawn.naturalWidth}, ${drawn.width}×${drawn.height}, src ${drawn.data ? 'data:' : drawn.src}`)
+
 async function imagePaging(cdp) {
   await cdp.send('Page.enable')
   const url = await cdp.evaluate('location.href').catch(() => '')
@@ -231,19 +270,18 @@ async function imagePaging(cdp) {
     count: document.querySelector('.bt-imgview-count')?.textContent ?? '',
     prevDisabled: document.querySelector('[data-side=prev]')?.disabled,
     nextDisabled: document.querySelector('[data-side=next]')?.disabled,
-    img: (() => { const node = document.querySelector('.bt-imgview-img'); if (node === null) return null; const rect = node.getBoundingClientRect(); return { naturalWidth: node.naturalWidth, width: Math.round(rect.width), height: Math.round(rect.height) } })(),
   })`))
   const total = Number((/\/\s*(\d+)/.exec(first.count) ?? [])[1] ?? 0)
   check('the first image is 1 / N', /^1\s*\/\s*\d+$/.test(first.count.trim()), first.count)
   check('the previous arrow is disabled on the first image', first.prevDisabled === true)
-  check('the picture itself is drawn', first.img !== null && first.img.naturalWidth > 0 && first.img.width > 0 && first.img.height > 0, JSON.stringify(first.img))
+  checkDrawn(await drawnPicture(cdp), 'the first image')
   log(`saved ${await cdp.shot(join(SHOTS, 'e2e-image-paging-1.png'))}`)
   if (total < 2) { check('the conversation has more than one image to page', false, `${total}`); return }
   await cdp.evaluate("document.querySelector('[data-side=next]')?.click(); true")
-  await sleep(700)
-  const second = JSON.parse(await cdp.evaluate(`JSON.stringify({ count: document.querySelector('.bt-imgview-count')?.textContent ?? '', img: (() => { const node = document.querySelector('.bt-imgview-img'); return node === null ? null : { naturalWidth: node.naturalWidth } })() })`))
+  await sleep(300)
+  const second = JSON.parse(await cdp.evaluate(`JSON.stringify({ count: document.querySelector('.bt-imgview-count')?.textContent ?? '' })`))
   check('the next image is 2 / N', /^2\s*\/\s*\d+$/.test(second.count.trim()), second.count)
-  check('the second picture is drawn', second.img !== null && second.img.naturalWidth > 0)
+  checkDrawn(await drawnPicture(cdp), 'the second image')
   log(`saved ${await cdp.shot(join(SHOTS, 'e2e-image-paging-2.png'))}`)
   for (let step = 2; step < total; step += 1) {
     await cdp.evaluate("document.querySelector('[data-side=next]')?.click(); true")
@@ -270,23 +308,25 @@ async function main() {
   startChrome(debugPort)
   const up = await waitFor(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/version`).then(r => r.ok, () => false)), 20_000)
   if (!check('headless Chrome answers CDP', up === true)) return
-  const cdp = await Cdp.open(debugPort)
-  await cdp.send('Runtime.enable')
-  await cdp.send('Log.enable')
-  await cdp.send('Page.enable')
-  // A cold browser profile has no last session, and without one the team surface never
-  // receives its roster: open the Main Bot's own Session directly, then let the page
-  // settle. A reload covers the one cold boot that races the session registry.
+  // The first client on a freshly copied home lands in an empty session and the team
+  // surface has no session to sit in. Opening one page, letting it settle and closing
+  // it registers that client, and the next page restores the last session.
   const target = typeof mainBotId === 'string' ? `${url}&session=${encodeURIComponent(mainBotId)}` : url
-  await cdp.send('Page.navigate', { url: target })
-  await sleep(4000)
-  const ready = async () => cdp.evaluate("!document.body.innerText.includes('正在设置')").catch(() => false)
-  if (!(await ready())) {
-    // The first client on a fresh home lands in an empty session; once the server has
-    // registered one, opening the page again restores the last session.
-    await sleep(3000)
-    await cdp.send('Page.navigate', { url: target })
-    await sleep(5000)
+  const openPage = async () => {
+    const page = await Cdp.open(debugPort)
+    await page.send('Runtime.enable')
+    await page.send('Log.enable')
+    await page.send('Page.enable')
+    await page.send('Page.navigate', { url: target })
+    return page
+  }
+  const readyOn = page => page.evaluate("!document.body.innerText.includes('正在设置')").catch(() => false)
+  let cdp = await openPage()
+  const warm = await waitFor(() => readyOn(cdp), 20_000)
+  if (warm !== true) {
+    await cdp.send('Page.close').catch(() => {})
+    cdp = await openPage()
+    await sleep(4000)
   }
   await run(cdp)
   void chromePort
