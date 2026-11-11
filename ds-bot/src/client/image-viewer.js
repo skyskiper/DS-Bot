@@ -146,6 +146,11 @@ export function MessageImages({ sessionId, seq, blocks, actions }) {
     entries.map(entry => h(Thumb, { key: entry.key, image: entry, single, actions })))
 }
 
+// What the viewer is opened with: the conversation's images in order, and which one was
+// clicked. One shape, so the action that stores it and the component that reads it cannot
+// drift apart.
+export const viewerFor = (images, index) => ({ images: Array.isArray(images) ? images : [], index: Number.isInteger(index) && index >= 0 ? index : 0 })
+
 // The opened image: the conversation's images before and after it, the count, and the
 // way back to the chat. The dialog holds focus, so the arrows never reach the composer.
 export function ImageViewer({ viewer, actions, leaving = false }) {

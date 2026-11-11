@@ -37,7 +37,7 @@ import { AVATAR_LIBRARY_CSS } from './avatar-library.js'
 import { GROUP_SETTINGS_CSS } from './group-settings.js'
 import { SESSION_MAP_CSS } from './session-map.js'
 import { TEAM_DRAWER_CSS } from './team-drawer.js'
-import { IMAGE_VIEWER_CSS } from './image-viewer.js'
+import { IMAGE_VIEWER_CSS, viewerFor } from './image-viewer.js'
 import { GROUP_CARD_CSS } from './group-card.js'
 import { FOLDER_CSS } from './folder-menu.js'
 import { USAGE_CSS } from './usage-page.js'
@@ -502,7 +502,7 @@ export function apply(ctx) {
     // The Session map behind a Bot or a group: every Session it works in, with a jump
     // to the shell's own view of any of them.
     // The image viewer pages through the conversation's own images (image-viewer.js).
-    openImageViewer: (sessionId, key) => ui.set(state => ({ ...state, imageViewer: { sessionId, key }, newChat: null, exchange: null, menu: null, palette: null })),
+    openImageViewer: (images, index) => ui.set(state => ({ ...state, imageViewer: viewerFor(images, index), newChat: null, exchange: null, menu: null, palette: null })),
     closeImageViewer: () => ui.set(state => (state.imageViewer ? { ...state, imageViewer: null } : state)),
     loadImage: (sessionId, attachment) => ctx.uiConversation.imageUrl(sessionId, attachment),
     openTeam: () => ui.set(state => ({ ...state, team: true, newChat: null, exchange: null, menu: null, palette: null })),

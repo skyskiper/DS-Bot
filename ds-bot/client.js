@@ -4972,6 +4972,7 @@ function MessageImages({ sessionId, seq, blocks, actions }) {
     entries2.map((entry) => (0, import_react5.createElement)(Thumb, { key: entry.key, image: entry, single, actions }))
   );
 }
+var viewerFor = (images, index) => ({ images: Array.isArray(images) ? images : [], index: Number.isInteger(index) && index >= 0 ? index : 0 });
 function ImageViewer({ viewer, actions, leaving = false }) {
   const images = viewer.images ?? [];
   const [index, setIndex] = (0, import_react5.useState)(viewer.index ?? 0);
@@ -28846,7 +28847,7 @@ function apply(ctx) {
     // The Session map behind a Bot or a group: every Session it works in, with a jump
     // to the shell's own view of any of them.
     // The image viewer pages through the conversation's own images (image-viewer.js).
-    openImageViewer: (sessionId, key) => ui2.set((state) => ({ ...state, imageViewer: { sessionId, key }, newChat: null, exchange: null, menu: null, palette: null })),
+    openImageViewer: (images, index) => ui2.set((state) => ({ ...state, imageViewer: viewerFor(images, index), newChat: null, exchange: null, menu: null, palette: null })),
     closeImageViewer: () => ui2.set((state) => state.imageViewer ? { ...state, imageViewer: null } : state),
     loadImage: (sessionId, attachment) => ctx.uiConversation.imageUrl(sessionId, attachment),
     openTeam: () => ui2.set((state) => ({ ...state, team: true, newChat: null, exchange: null, menu: null, palette: null })),

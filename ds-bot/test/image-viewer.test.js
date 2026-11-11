@@ -12,7 +12,7 @@ const { JSDOM } = createRequire(join(process.env.DSH_HARNESS ?? join(PLUGIN, '..
 // The viewer draws with React; bundle it with React external and call its decisions and
 // its first render directly (effects need a browser).
 const bundle = await build({
-  stdin: { contents: "export { imagesInView, openImageAt, imageClickHandler, ImageViewer, resolveImage, sourceKind, failureNote, snapshotOf, IMAGE_VIEWER_CSS } from './src/client/image-viewer.js'", resolveDir: PLUGIN },
+  stdin: { contents: "export { imagesInView, openImageAt, imageClickHandler, ImageViewer, resolveImage, sourceKind, failureNote, snapshotOf, viewerFor, IMAGE_VIEWER_CSS } from './src/client/image-viewer.js'", resolveDir: PLUGIN },
   bundle: true, format: 'cjs', platform: 'node', write: false, logLevel: 'silent',
   external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
 })
@@ -29,7 +29,7 @@ runInNewContext(bundle.outputFiles[0].text, {
   module, exports: module.exports, require: name => (name === 'react' ? react : {}),
   document, Element: window.Element, MouseEvent: window.MouseEvent,
 })
-const { imagesInView, openImageAt, imageClickHandler, ImageViewer, resolveImage, sourceKind, failureNote, IMAGE_VIEWER_CSS } = module.exports
+const { imagesInView, openImageAt, imageClickHandler, ImageViewer, resolveImage, sourceKind, failureNote, viewerFor, IMAGE_VIEWER_CSS } = module.exports
 
 // The conversation as the transcript draws it: a Bot's Markdown picture, a user's
 // attachment tile, and a group member's picture, in that order.
@@ -184,4 +184,22 @@ test('the preview keeps a box before the bytes arrive and contains wide or tiny 
   assert.match(IMAGE_VIEWER_CSS, /\.bt-imgview-img\{[^}]*min-width:120px/)
   assert.match(IMAGE_VIEWER_CSS, /\.bt-imgview-img\{[^}]*min-height:120px/)
   assert.match(IMAGE_VIEWER_CSS, /\.bt-imgview-img\{[^}]*object-fit:contain/)
+})
+
+// The action stores what the viewer reads. This drifted once: the action kept the old
+// {sessionId, key} shape while the viewer wanted {images, index}, and every preview
+// opened on an empty box.
+test('the viewer action\'s shape is the one the viewer reads', () => {
+  const images = [{ src: 'https://example.test/a.png' }, { src: 'https://example.test/b.png' }]
+  const viewer = viewerFor(images, 1)
+  assert.deepEqual(JSON.parse(JSON.stringify(viewer)), { images, index: 1 })
+  const found = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.props?.className === 'bt-imgview-count') found.push((node.children ?? []).map(String).join(''))
+    walk(node.children)
+  }
+  walk(ImageViewer({ viewer, actions: { closeImageViewer() {} } }))
+  assert.deepEqual(found, ['2 / 2'])
 })
