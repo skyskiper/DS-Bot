@@ -135,9 +135,11 @@ export function historyEntry(event, group) {
     const text = textOf(event.data?.message?.content)
     return text === '' ? undefined : { answer: true, text }
   }
-  // Cards only show in an own chat. A PTC program's sub-call asks too.
+  // A card is part of the record wherever it was asked, a member's group Session too:
+  // the group timeline draws the card itself, and the Bot's own record keeps what it
+  // asked. A PTC program's sub-call asks too.
   const named = (event.type === 'tool/call' || event.type === 'tool/ptc-dispatch-start') ? event.data?.name : undefined
-  if ((named === 'ask_user' || named === 'show_view') && !group) {
+  if (named === 'ask_user' || named === 'show_view') {
     const text = named === 'ask_user' ? cardText(event.data.arguments) : viewCardText(event.data.arguments)
     return text === '' ? undefined : { answer: true, text }
   }

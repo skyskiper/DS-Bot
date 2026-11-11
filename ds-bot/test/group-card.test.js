@@ -95,3 +95,27 @@ test('the answer is sent to the member group Session, never the group id', () =>
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0][3])), { selected: ['现在编译'], custom: '' })
   assert.deepEqual(JSON.parse(JSON.stringify(calls[1].slice(3))), ['submit', { a: 1 }])
 })
+
+test('a card read back from an earlier part never offers an answer again', () => {
+  const closed = { questions: {}, views: {} }
+  // Nothing recorded for the card: the question shows, with no answer of any kind.
+  const unknown = groupCardMode(questionReply(), room(), closed, { history: true })
+  assert.equal(unknown.mode, 'question-unanswered')
+  // The host's own record of a closed card wins over the unknown state.
+  const dismissed = groupCardMode(
+    questionReply({ card: { id: 'q1', callId: 'card-1', question: 'Q', options: [{ label: 'A' }] } }),
+    room(),
+    { questions: {}, views: {}, closedCards: { 'room-writer': { 'card-1': 'dismissed' } } },
+    { history: true },
+  )
+  assert.equal(dismissed.mode, 'question-closed')
+  // An answer the room still keeps settles it, with the option that was chosen.
+  const answered = groupCardMode(questionReply(), room([
+    { questionId: 'q1', sessionId: 'room-writer', answer: { text: '现在编译', selected: ['现在编译'] } },
+  ]), closed, { history: true })
+  assert.equal(answered.mode, 'question-settled')
+  assert.deepEqual(answered.answer.answer.selected, ['现在编译'])
+  // An earlier view card is a read-only view, whether or not it once waited.
+  assert.equal(groupCardMode(viewReply(true), room(), closed, { history: true }).mode, 'view-readonly')
+  assert.equal(groupCardMode(viewReply(undefined), room(), closed, { history: true }).mode, 'view-readonly')
+})

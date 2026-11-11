@@ -140,7 +140,7 @@ export function QuestionView({ question, onAnswer, onDismiss, onInteract, busy =
 }
 
 // How a card closed without an answer on it reads on its badge.
-export const closedLabel = closed => t(closed === 'replied' ? 'Answered by message' : 'Dismissed')
+export const closedLabel = closed => t(closed === 'replied' ? 'Answered by message' : closed === 'unanswered' ? 'No answer recorded' : 'Dismissed')
 
 // The settled card left in the transcript, read-only and compact: the question,
 // muted, and only what the user chose, each under the letter it had on the card;

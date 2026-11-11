@@ -623,6 +623,16 @@ function chatRow(row, key, { sessionId, selfId, roster, actions, useUi, onBtwDel
       // A round notice from a group_relay result on an earlier part, the row the
       // live chat draws for it.
       const reply = row.reply
+      // A member's card, read back from the part it was asked in.
+      if (reply.kind === 'card') {
+        return reply.card?.id === undefined
+          ? null
+          : h(GroupCard, { key, reply, room: roster.roomsById[sessionId], roster, actions, history: true })
+      }
+      // An answer whose card is on another page still tells what the user chose.
+      if (reply.kind === 'answer') {
+        return h('div', { key, className: 'bt-event' }, t('The user answered: {answer}', { answer: reply.text }))
+      }
       const speaker = roster.byId[reply.botId] ?? { id: reply.botId, name: reply.name ?? t('a Bot'), color: reply.color ?? 'gray' }
       return h(RelayEvent, { key, reply, bot: speaker, sessionId, actions })
     }
@@ -1011,7 +1021,9 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
           (reply.via !== undefined || Number.isFinite(time)) ? h('div', { className: 'bt-utime', title: clockLabel(time) }, ...(reply.via !== undefined ? [h(ViaTag, { key: 'via', via: reply.via })] : []), Number.isFinite(time) ? messageClock(time) : null) : null)
       }
       if (reply.kind === 'card') {
-        return h(GroupCard, { key: `card-${reply.card?.id ?? index}`, reply, room, roster, actions })
+        // A finished round is read back: its card never offers an answer the host no
+        // longer keeps (the dock above the composer answers a card still open).
+        return h(GroupCard, { key: `card-${reply.card?.id ?? index}`, reply, room, roster, actions, history: done })
       }
       // The answer line rides on its card (room.answers); a separate row would double it.
       if (reply.kind === 'answer') return null

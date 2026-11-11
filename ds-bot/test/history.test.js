@@ -46,10 +46,11 @@ test('historyEntry keeps answers, user and Bot messages, and skips setup', () =>
   assert.equal(historyEntry({ type: 'assistant/message', data: { message: { content: [] } } }, false), undefined)
   const ask = { type: 'tool/call', data: { name: 'ask_user', arguments: { question: 'Q', options: [{ label: 'A' }] } } }
   assert.deepEqual(historyEntry(ask, false), { answer: true, text: '[Question card] Q\nOptions: A' })
-  assert.equal(historyEntry(ask, true), undefined)
+  // A member's group Session keeps the card it asked in its own record too.
+  assert.deepEqual(historyEntry(ask, true), { answer: true, text: '[Question card] Q\nOptions: A' })
   const asked = { type: 'tool/ptc-dispatch-start', data: { parentCallId: 'k1', subCallId: 'k1:ptc:1', name: 'ask_user', arguments: { question: 'Q', options: [{ label: 'A' }] } } }
   assert.deepEqual(historyEntry(asked, false), { answer: true, text: '[Question card] Q\nOptions: A' })
-  assert.equal(historyEntry(asked, true), undefined)
+  assert.deepEqual(historyEntry(asked, true), { answer: true, text: '[Question card] Q\nOptions: A' })
   assert.equal(historyEntry({ ...asked, type: 'tool/ptc-dispatch' }, false), undefined)
   assert.deepEqual(historyEntry(said('hello', { kind: 'user' }), false), { answer: false, who: 'user', text: 'hello', keepAnswers: true })
   assert.deepEqual(historyEntry(said('[Reply from W]\nok', { kind: 'bot', role: 'reply' }), false), { answer: false, who: 'bot', text: '[Reply from W]\nok', keepAnswers: true })

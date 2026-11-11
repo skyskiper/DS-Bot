@@ -20,22 +20,32 @@ export function groupAnswerFor(cardId, room) {
   return (room?.answers ?? []).find(answer => answer.questionId === cardId)
 }
 
-export function groupCardMode(reply, room, roster) {
+// The host marks a card it closed without an answer on the card itself
+// (state.closedCards, by the asking Session and the card's call id).
+const closedOutcome = (roster, entry) =>
+  entry.card.callId === undefined ? undefined : roster?.closedCards?.[entry.sessionId]?.[entry.card.callId]
+
+// `history` draws a card read back from an earlier part: it never offers an answer
+// the host no longer keeps, and a card with no answer and no close reads as one
+// nothing was recorded for, instead of guessing how it ended.
+export function groupCardMode(reply, room, roster, { history = false } = {}) {
   const entry = groupCardOf(reply, room)
   if (entry === null) return null
   const answer = groupAnswerFor(entry.card.id, room)
   if (answer !== undefined && answer.sessionId === entry.sessionId) {
     return { ...entry, answer, mode: entry.tool === 'ask_user' ? 'question-settled' : 'view-settled' }
   }
-  if (entry.tool === 'ask_user' && roster !== undefined) {
-    // The host keeps a card only while it waits; without it the card was dismissed.
-    return { ...entry, mode: roster.questions?.[entry.sessionId]?.id === entry.card.id ? 'question' : 'question-closed' }
+  if (entry.tool === 'ask_user') {
+    // A roster not yet loaded tells nothing, so the card stays answerable.
+    if (roster === undefined || roster.questions?.[entry.sessionId]?.id === entry.card.id) return { ...entry, mode: 'question' }
+    if (closedOutcome(roster, entry) !== undefined) return { ...entry, mode: 'question-closed' }
+    return { ...entry, mode: history ? 'question-unanswered' : 'question-closed' }
   }
-  if (entry.tool === 'ask_user') return { ...entry, mode: 'question' }
-  if (entry.card.awaitReply === true && roster !== undefined) {
-    return { ...entry, mode: roster.views?.[entry.sessionId]?.id === entry.card.id ? 'view' : 'view-closed' }
+  if (entry.card.awaitReply === true && (roster === undefined || roster.views?.[entry.sessionId]?.id === entry.card.id)) {
+    return { ...entry, mode: 'view' }
   }
-  return { ...entry, mode: entry.card.awaitReply === true ? 'view' : 'view-readonly' }
+  if (!history && entry.card.awaitReply === true) return { ...entry, mode: 'view-closed' }
+  return { ...entry, mode: 'view-readonly' }
 }
 
 // The answer goes to the member's group Session, which the card names.
@@ -67,6 +77,10 @@ function GroupCardBody({ entry, room, actions }) {
   if (entry.mode === 'question-closed' || entry.mode === 'view-closed') {
     return h('div', { className: 'bt-gcard-body' },
       h(SettledQuestion, { question: entry.tool === 'ask_user' ? entry.card : { question: entry.card.title ?? t('View') }, closed: 'dismissed' }))
+  }
+  // An earlier part with nothing recorded for the card: the question, and no answer.
+  if (entry.mode === 'question-unanswered') {
+    return h('div', { className: 'bt-gcard-body' }, h(SettledQuestion, { question: entry.card, closed: 'unanswered' }))
   }
   if (answered !== undefined && answered !== null) {
     // room.answers keeps the log line and, under `answer`, what the user chose.
@@ -107,8 +121,8 @@ function GroupCardBody({ entry, room, actions }) {
 }
 
 // One card under the member that asked it, inside the group timeline.
-export function GroupCard({ reply, room, roster, actions }) {
-  const entry = groupCardMode(reply, room, roster)
+export function GroupCard({ reply, room, roster, actions, history = false }) {
+  const entry = groupCardMode(reply, room, roster, { history })
   if (entry === null) return null
   const bot = roster?.byId?.[entry.botId] ?? { id: entry.botId, name: reply.name ?? '', color: reply.color }
   return h('div', { className: 'bt-gcard', 'data-tool': entry.tool },

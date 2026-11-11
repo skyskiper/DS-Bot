@@ -1589,6 +1589,7 @@ const HOST_ZH = {
   'Copy a session id to look it up in DeepSeek Harness.': '复制 session id，可在 DeepSeek Harness 里查看。',
   'The user answered: {answer}': '用户回答：{answer}',
   'Could not send the answer: {error}': '答案没发出去：{error}',
+  'No answer recorded': '没有记录回答',
   '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)

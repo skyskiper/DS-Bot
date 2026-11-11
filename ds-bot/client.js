@@ -1632,6 +1632,7 @@ var HOST_ZH = {
   "Copy a session id to look it up in DeepSeek Harness.": "复制 session id，可在 DeepSeek Harness 里查看。",
   "The user answered: {answer}": "用户回答：{answer}",
   "Could not send the answer: {error}": "答案没发出去：{error}",
+  "No answer recorded": "没有记录回答",
   "(skipped)": "（跳过）"
 };
 Object.assign(ZH, HOST_ZH);
@@ -5474,7 +5475,7 @@ function QuestionView({ question, onAnswer, onDismiss, onInteract, busy = false,
     foot
   );
 }
-var closedLabel = (closed) => t(closed === "replied" ? "Answered by message" : "Dismissed");
+var closedLabel = (closed) => t(closed === "replied" ? "Answered by message" : closed === "unanswered" ? "No answer recorded" : "Dismissed");
 function SettledQuestion({ question, answer, closed }) {
   const options = optionsOf(question);
   const prompt = question?.question ?? "";
@@ -12576,21 +12577,24 @@ function groupCardOf(reply, room2) {
 function groupAnswerFor(cardId, room2) {
   return (room2?.answers ?? []).find((answer) => answer.questionId === cardId);
 }
-function groupCardMode(reply, room2, roster) {
+var closedOutcome = (roster, entry) => entry.card.callId === void 0 ? void 0 : roster?.closedCards?.[entry.sessionId]?.[entry.card.callId];
+function groupCardMode(reply, room2, roster, { history = false } = {}) {
   const entry = groupCardOf(reply, room2);
   if (entry === null) return null;
   const answer = groupAnswerFor(entry.card.id, room2);
   if (answer !== void 0 && answer.sessionId === entry.sessionId) {
     return { ...entry, answer, mode: entry.tool === "ask_user" ? "question-settled" : "view-settled" };
   }
-  if (entry.tool === "ask_user" && roster !== void 0) {
-    return { ...entry, mode: roster.questions?.[entry.sessionId]?.id === entry.card.id ? "question" : "question-closed" };
+  if (entry.tool === "ask_user") {
+    if (roster === void 0 || roster.questions?.[entry.sessionId]?.id === entry.card.id) return { ...entry, mode: "question" };
+    if (closedOutcome(roster, entry) !== void 0) return { ...entry, mode: "question-closed" };
+    return { ...entry, mode: history ? "question-unanswered" : "question-closed" };
   }
-  if (entry.tool === "ask_user") return { ...entry, mode: "question" };
-  if (entry.card.awaitReply === true && roster !== void 0) {
-    return { ...entry, mode: roster.views?.[entry.sessionId]?.id === entry.card.id ? "view" : "view-closed" };
+  if (entry.card.awaitReply === true && (roster === void 0 || roster.views?.[entry.sessionId]?.id === entry.card.id)) {
+    return { ...entry, mode: "view" };
   }
-  return { ...entry, mode: entry.card.awaitReply === true ? "view" : "view-readonly" };
+  if (!history && entry.card.awaitReply === true) return { ...entry, mode: "view-closed" };
+  return { ...entry, mode: "view-readonly" };
 }
 var submitGroupQuestion = (actions, entry, answer) => actions.answerQuestion(entry.sessionId, entry.card.id, { selected: answer?.selected ?? [], custom: answer?.custom ?? "" });
 var submitGroupView = (actions, entry, action, values) => actions.answerView(entry.sessionId, entry.card.id, action, values);
@@ -12618,6 +12622,9 @@ function GroupCardBody({ entry, room: room2, actions }) {
       { className: "bt-gcard-body" },
       (0, import_react28.createElement)(SettledQuestion, { question: entry.tool === "ask_user" ? entry.card : { question: entry.card.title ?? t("View") }, closed: "dismissed" })
     );
+  }
+  if (entry.mode === "question-unanswered") {
+    return (0, import_react28.createElement)("div", { className: "bt-gcard-body" }, (0, import_react28.createElement)(SettledQuestion, { question: entry.card, closed: "unanswered" }));
   }
   if (answered !== void 0 && answered !== null) {
     const chosen = answered.answer ?? answered;
@@ -12661,8 +12668,8 @@ function GroupCardBody({ entry, room: room2, actions }) {
     error !== "" ? (0, import_react28.createElement)("div", { className: "bt-gcard-error", role: "alert" }, t("Could not send the answer: {error}", { error })) : null
   );
 }
-function GroupCard({ reply, room: room2, roster, actions }) {
-  const entry = groupCardMode(reply, room2, roster);
+function GroupCard({ reply, room: room2, roster, actions, history = false }) {
+  const entry = groupCardMode(reply, room2, roster, { history });
   if (entry === null) return null;
   const bot = roster?.byId?.[entry.botId] ?? { id: entry.botId, name: reply.name ?? "", color: reply.color };
   return (0, import_react28.createElement)(
@@ -13962,6 +13969,12 @@ function chatRow(row, key, { sessionId, selfId, roster, actions, useUi, onBtwDel
     }
     case "relay": {
       const reply = row.reply;
+      if (reply.kind === "card") {
+        return reply.card?.id === void 0 ? null : (0, import_react32.createElement)(GroupCard, { key, reply, room: roster.roomsById[sessionId], roster, actions, history: true });
+      }
+      if (reply.kind === "answer") {
+        return (0, import_react32.createElement)("div", { key, className: "bt-event" }, t("The user answered: {answer}", { answer: reply.text }));
+      }
       const speaker = roster.byId[reply.botId] ?? { id: reply.botId, name: reply.name ?? t("a Bot"), color: reply.color ?? "gray" };
       return (0, import_react32.createElement)(RelayEvent, { key, reply, bot: speaker, sessionId, actions });
     }
@@ -14335,7 +14348,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
         );
       }
       if (reply.kind === "card") {
-        return (0, import_react32.createElement)(GroupCard, { key: `card-${reply.card?.id ?? index}`, reply, room: room2, roster, actions });
+        return (0, import_react32.createElement)(GroupCard, { key: `card-${reply.card?.id ?? index}`, reply, room: room2, roster, actions, history: done });
       }
       if (reply.kind === "answer") return null;
       if (reply.kind !== void 0) {
