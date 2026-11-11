@@ -1,28 +1,38 @@
 import { createElement as h, useEffect, useRef, useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from './icons.js'
-import { createSource } from './sources.js'
 import { t } from './i18n.js'
 
-// Every image the Bot's own views draw, per Session, in the order it appears: the
-// message's seq first, then the image's place inside that message. The viewer pages
-// through this list, so a message of three images and three messages of one page alike.
-const registry = createSource({})
+// The images the conversation shows, in the order it shows them: a Bot's Markdown
+// pictures and the user's attachments alike, read from the transcript itself so paging
+// follows exactly what is on screen (and follows the loaded history too).
+const IN_TRANSCRIPT = '.bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img'
 
-export const imagesSource = registry
+export function imagesInView() {
+  if (typeof document === 'undefined') return []
+  return [...document.querySelectorAll(IN_TRANSCRIPT)].map(img => ({
+    src: img.currentSrc || img.src,
+    label: img.alt ?? '',
+  }))
+}
 
-export const galleryOf = sessionId => (sessionId === undefined ? [] : registry.getSnapshot()[sessionId] ?? [])
+// Open the pager on one of those images. The shell's Markdown opens its own single-image
+// lightbox on the same click; the caller stops that event when this returns true.
+export function openImageAt(img, actions) {
+  const src = img.currentSrc || img.src
+  const images = imagesInView()
+  const index = images.findIndex(entry => entry.src === src)
+  if (index < 0) return false
+  actions.openImageViewer?.(images, index)
+  return true
+}
 
-// A message that leaves the transcript takes its images out of the list; an encrypted
-// history page that comes back registers them again in the same order.
-export function registerImages(sessionId, seq, entries) {
-  const snapshot = registry.getSnapshot()
-  const kept = (snapshot[sessionId] ?? []).filter(entry => entry.seq !== seq)
-  const mine = entries.map((entry, index) => ({ ...entry, seq, index }))
-  registry.set({ ...snapshot, [sessionId]: [...kept, ...mine].sort((a, b) => a.seq - b.seq || a.index - b.index) })
-  return () => {
-    const current = registry.getSnapshot()
-    const rest = (current[sessionId] ?? []).filter(entry => entry.seq !== seq)
-    registry.set({ ...current, [sessionId]: rest })
+// A bubble's images open the pager, not the shell's single-image lightbox.
+export function imageClickHandler(actions) {
+  return (event) => {
+    const img = event.target instanceof Element ? event.target.closest('img') : null
+    if (img === null || !openImageAt(img, actions)) return
+    event.preventDefault()
+    event.stopPropagation()
   }
 }
 
@@ -53,57 +63,40 @@ function Thumb({ image, single, actions }) {
   return h('button', {
     type: 'button', className: single ? 'bt-uimg bt-uimg-single' : 'bt-uimg bt-uimg-tile',
     'aria-label': t('Open image {name}', { name: label }), title: label,
-    onClick: () => actions.openImageViewer?.(image.sessionId, image.key),
+    onClick: (event) => {
+      const img = event.currentTarget.querySelector('img')
+      if (img !== null) openImageAt(img, actions)
+    },
   },
   url === '' ? h('span', { className: 'bt-uimg-wait', 'aria-hidden': true }) : h('img', { src: url, alt: label, draggable: false }),
   h('span', { className: 'bt-uimg-glow', 'aria-hidden': true }))
 }
 
-// The images of one message, in a row: one large, several as tiles. They register here
-// so the viewer knows the conversation's order without asking the host.
+// The images of one message, in a row: one large, several as tiles.
 export function MessageImages({ sessionId, seq, blocks, actions }) {
   const entries = blocks.map((block, index) => ({ key: keyOf(seq, index), attachment: block.attachment, label: block.attachment?.name, sessionId }))
-  const signature = `${sessionId}:${seq}:${blocks.length}`
-  useEffect(() => {
-    const off = registerImages(sessionId, seq, blocks.map((block, index) => ({ key: keyOf(seq, index), attachment: block.attachment, label: block.attachment?.name })))
-    return off
-    // The registration follows the message's identity; a new attachment on the same
-    // message re-registers through the signature.
-  }, [signature])
   const single = entries.length === 1
   return h('div', { className: single ? 'bt-uimgs bt-uimgs-single' : 'bt-uimgs' },
     entries.map(entry => h(Thumb, { key: entry.key, image: entry, single, actions })))
 }
 
-// The opened image: the same conversation's images before and after it, the count, and
-// the way back to the chat. The dialog holds focus, so arrows never reach the composer.
+// The opened image: the conversation's images before and after it, the count, and the
+// way back to the chat. The dialog holds focus, so the arrows never reach the composer.
 export function ImageViewer({ viewer, actions, leaving = false }) {
-  const images = galleryOf(viewer.sessionId)
-  const [key, setKey] = useState(viewer.key)
-  const dialog = useRef(null)
-  const [url, setUrl] = useState('')
+  const images = viewer.images ?? []
+  const [index, setIndex] = useState(viewer.index ?? 0)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const index = Math.max(0, images.findIndex(entry => entry.key === key))
+  const dialog = useRef(null)
   const current = images[index]
   const close = () => actions.closeImageViewer?.()
   useEffect(() => {
     dialog.current?.focus()
   }, [])
-  useEffect(() => {
-    let alive = true
-    setUrl('')
-    setFailed(false)
-    if (current === undefined) return undefined
-    Promise.resolve(actions.loadImage?.(viewer.sessionId, current.attachment)).then((resolved) => {
-      if (alive && typeof resolved === 'string') setUrl(resolved)
-      else if (alive) setFailed(true)
-    }, () => { if (alive) setFailed(true) })
-    return () => { alive = false }
-  }, [viewer.sessionId, current?.attachment, attempt])
+  useEffect(() => { setFailed(false) }, [index, attempt])
   const go = (step) => {
-    const next = images[index + step]
-    if (next !== undefined) setKey(next.key)
+    const next = index + step
+    if (next >= 0 && next < images.length) setIndex(next)
   }
   const atStart = index <= 0
   const atEnd = images.length === 0 || index >= images.length - 1
@@ -131,9 +124,13 @@ export function ImageViewer({ viewer, actions, leaving = false }) {
         ? h('div', { className: 'bt-imgview-failed', role: 'status' },
           h('span', null, t('This image could not be loaded.')),
           h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => setAttempt(value => value + 1) }, t('Try again')))
-        : url === ''
+        : current === undefined
           ? h('div', { className: 'bt-imgview-wait', role: 'status' }, t('Loading image…'))
-          : h('img', { className: 'bt-imgview-img', src: url, alt: current?.label ?? '', draggable: false }),
+          : h('img', {
+            key: `${current.src}:${attempt}`,
+            className: 'bt-imgview-img', src: current.src, alt: current.label ?? '', draggable: false,
+            onError: () => setFailed(true),
+          }),
       h('button', {
         type: 'button', className: 'bt-imgview-nav', 'data-side': 'next', disabled: atEnd,
         'aria-label': t('Next image'), title: t('Next image'), onClick: () => go(1),
