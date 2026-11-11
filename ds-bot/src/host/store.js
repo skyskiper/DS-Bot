@@ -4,7 +4,7 @@
 import { copyFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { LEGACY_THEMES, MAX_EXCHANGES, ROOM_MODES, TEXT_KEPT } from './constants.js'
+import { BUILTIN_DEPARTMENTS, DEPARTMENT_NAME_MAX, LEGACY_THEMES, MAX_EXCHANGES, ROOM_MODES, TEXT_KEPT, departmentOfRole } from './constants.js'
 import { replaceFile } from './files.js'
 import { homeLock } from './home-lock.js'
 import { currentColor, headOf, normalize, unquote } from './text.js'
@@ -19,7 +19,7 @@ export function install(rt) {
   const { ctx, home, statePath } = rt
 
   /** @type {{version:1, workspaceId?:string, mainBotIds:string[], bots:Record<string,any>, privateArchives:any[], rooms:Record<string,any>, agents:Record<string,any>, capabilities:{items:Record<string,any>}, exchanges:any[], exchangeTurns:Record<string,number[]>, revision:number}} */
-  const state = { version: 1, mainBotIds: [], bots: {}, privateArchives: [], rooms: {}, agents: {}, capabilities: { items: {} }, exchanges: [], exchangeTurns: {}, works: {}, requests: {}, questions: {}, views: {}, closedCards: {}, prefs: {}, switching: {}, revision: 0 }
+  const state = { version: 1, mainBotIds: [], bots: {}, privateArchives: [], departments: BUILTIN_DEPARTMENTS.map(entry => ({ ...entry })), rooms: {}, agents: {}, capabilities: { items: {} }, exchanges: [], exchangeTurns: {}, works: {}, requests: {}, questions: {}, views: {}, closedCards: {}, prefs: {}, switching: {}, revision: 0 }
   let loaded = null
   let writing = Promise.resolve()
   const { warn } = rt
@@ -126,7 +126,31 @@ export function install(rt) {
       state.capabilities.items = {}
       migrated = true
     }
+    // Departments group the team in the sidebar. A team saved before they existed gets
+    // the four built-ins, in their fixed order, and the names a saved team chose stay.
+    const previousDepartments = JSON.stringify(state.departments ?? null)
+    const keptDepartments = new Map()
+    for (const entry of Array.isArray(state.departments) ? state.departments : []) {
+      if (typeof entry?.id !== 'string' || entry.id === '' || typeof entry?.name !== 'string') continue
+      const name = entry.name.trim().slice(0, DEPARTMENT_NAME_MAX)
+      if (name === '' || keptDepartments.has(entry.id)) continue
+      keptDepartments.set(entry.id, name)
+    }
+    state.departments = [
+      ...BUILTIN_DEPARTMENTS.map(entry => ({ ...entry, name: keptDepartments.get(entry.id) ?? entry.name })),
+      ...[...keptDepartments].filter(([id]) => !BUILTIN_DEPARTMENTS.some(entry => entry.id === id)).map(([id, name]) => ({ id, name })),
+    ]
+    if (JSON.stringify(state.departments) !== previousDepartments) migrated = true
     for (const bot of Object.values(state.bots)) {
+      // A Bot from before departments had none: its role picks one, once. From then on
+      // the stored department, `null` included, is the answer.
+      if (!Object.hasOwn(bot, 'department')) {
+        bot.department = departmentOfRole(bot.role)
+        migrated = true
+      } else if (bot.department !== null && !state.departments.some(entry => entry.id === bot.department)) {
+        bot.department = null
+        migrated = true
+      }
       if (!Array.isArray(bot.capabilities)) {
         bot.capabilities = []
         migrated = true

@@ -578,3 +578,66 @@ test('findBot unquotes a Bot ref before matching the name', async (t) => {
   assert.equal(rt.findBot('"Nobody"'), undefined)
   assert.equal(rt.findBot(undefined), undefined)
 })
+
+test('a team from before departments gets the four built-ins and one per role', async (t) => {
+  const { rt, statePath } = runtime(t, {
+    version: 1,
+    mainBotIds: ['chief'],
+    bots: {
+      chief: { id: 'chief', name: 'Chief', role: '管理员' },
+      dev: { id: 'dev', name: 'Dev', role: '开发' },
+      ios: { id: 'ios', name: 'iOS', role: 'iOS 开发' },
+      qa: { id: 'qa', name: 'QA', role: '评审' },
+      designer: { id: 'designer', name: 'Designer', role: 'DS Bot 设计师' },
+      popo: { id: 'popo', name: 'POPO', role: '对接人' },
+      empty: { id: 'empty', name: 'Empty', role: '' },
+    },
+  })
+  await rt.load()
+  assert.deepEqual(rt.state.departments, [
+    { id: 'dev', name: '研发部', builtin: true },
+    { id: 'qa', name: '质量部', builtin: true },
+    { id: 'pd', name: '产品设计部', builtin: true },
+    { id: 'sup', name: '支持部', builtin: true },
+  ])
+  const departmentOf = id => rt.state.bots[id].department
+  assert.equal(departmentOf('chief'), null)
+  assert.equal(departmentOf('dev'), 'dev')
+  // The role rule is a contains rule: "iOS 开发" is 研发部.
+  assert.equal(departmentOf('ios'), 'dev')
+  assert.equal(departmentOf('qa'), 'qa')
+  assert.equal(departmentOf('designer'), 'pd')
+  assert.equal(departmentOf('popo'), 'sup')
+  assert.equal(departmentOf('empty'), null)
+  // The backfill is written once, so a later role change no longer moves the Bot.
+  const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  assert.equal(saved.bots.dev.department, 'dev')
+})
+
+test('saved department names stay, and a department that is gone leaves its Bots ungrouped', async (t) => {
+  const { rt } = runtime(t, {
+    version: 1,
+    mainBotIds: ['chief'],
+    bots: {
+      chief: { id: 'chief', name: 'Chief', department: null },
+      kept: { id: 'kept', name: 'Kept', department: 'd_abc12345' },
+      gone: { id: 'gone', name: 'Gone', department: 'd_gone99999' },
+    },
+    departments: [
+      { id: 'dev', name: '技术中心', builtin: true },
+      { id: 'd_abc12345', name: '内测组' },
+      { id: 'd_abc12345', name: '重复的' },
+      { id: 'qa', name: '  ' },
+    ],
+  })
+  await rt.load()
+  assert.deepEqual(rt.state.departments.map(entry => [entry.id, entry.name]), [
+    ['dev', '技术中心'],
+    ['qa', '质量部'],
+    ['pd', '产品设计部'],
+    ['sup', '支持部'],
+    ['d_abc12345', '内测组'],
+  ])
+  assert.equal(rt.state.bots.kept.department, 'd_abc12345')
+  assert.equal(rt.state.bots.gone.department, null)
+})

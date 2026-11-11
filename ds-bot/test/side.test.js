@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import { createRuntime } from '../index.js'
 import { SIDE_MARKER } from '../src/host/side.js'
 import { fakeContext } from './fake-ctx.js'
+import { BUILTIN_DEPARTMENTS } from '../src/host/constants.js'
 
 const user = text => ({ role: 'user', content: [{ type: 'text', text }] })
 const assistant = (...blocks) => ({ role: 'assistant', content: blocks })
@@ -25,7 +26,7 @@ const team = (extra = {}) => ({
   revision: 3,
   bots: {
     b1: {
-      id: 'b1', sessionId: 's-now', name: 'Chief', capabilities: [], color: 'deepseek', createdAt: 1,
+      id: 'b1', sessionId: 's-now', name: 'Chief', capabilities: [], color: 'deepseek', createdAt: 1, department: null,
       segments: [{ sessionId: 's-old', endedAt: 1 }],
     },
   },
@@ -36,6 +37,7 @@ const team = (extra = {}) => ({
     },
   },
   agents: {},
+  departments: BUILTIN_DEPARTMENTS.map(entry => ({ ...entry })),
   capabilities: { items: {} },
   exchanges: [],
   exchangeTurns: {},

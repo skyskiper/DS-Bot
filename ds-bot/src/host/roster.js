@@ -1,7 +1,8 @@
 // Roster: creating, changing, and deleting Bots and group chats, the Main Bot role, and
 // the first Main Bot of a new team.
+import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
-import { MAX_AVATAR_IMAGE, ROOM_MAX_MEMBERS, ROOM_MODES, ROOM_NAME_MAX, ROOM_NOTICE_MAX } from './constants.js'
+import { DEPARTMENT_NAME_MAX, MAX_AVATAR_IMAGE, ROOM_MAX_MEMBERS, ROOM_MODES, ROOM_NAME_MAX, ROOM_NOTICE_MAX } from './constants.js'
 import { currentColor, isColor, normalize, splitRef, unquote } from './text.js'
 import { nameProblem } from '../shared/mentions.js'
 
@@ -138,6 +139,63 @@ export function install(rt) {
     return `${stem} ${index}`
   }
 
+  // ---------------------------------------------------------------------------
+  // Departments, the sidebar's org tree. A built-in keeps its id and cannot be removed;
+  // a custom one gets a short id, so a rename moves nobody, and removing it leaves its
+  // members ungrouped rather than deleting them.
+
+  const departmentNamed = name => state.departments.find(entry => entry.name === name)
+  const departmentOf = id => state.departments.find(entry => entry.id === id)
+  const cleanDepartmentName = (value) => {
+    const name = String(value ?? '').trim().slice(0, DEPARTMENT_NAME_MAX)
+    if (name === '') throw new Error('A department needs a name')
+    return name
+  }
+
+  async function createDepartment(value, { save = true } = {}) {
+    const name = cleanDepartmentName(value)
+    if (departmentNamed(name) !== undefined) throw new Error(`A department called "${name}" already exists`)
+    const entry = { id: `d_${randomUUID().replace(/-/g, '').slice(0, 8)}`, name }
+    state.departments.push(entry)
+    if (save) await rt.save()
+    return entry
+  }
+
+  async function updateDepartment(id, value) {
+    const entry = departmentOf(String(id ?? ''))
+    if (entry === undefined) throw new Error('Unknown department')
+    const name = cleanDepartmentName(value)
+    const clash = departmentNamed(name)
+    if (clash !== undefined && clash.id !== entry.id) throw new Error(`A department called "${name}" already exists`)
+    entry.name = name
+    await rt.save()
+    return entry
+  }
+
+  async function deleteDepartment(id) {
+    const entry = departmentOf(String(id ?? ''))
+    if (entry === undefined) throw new Error('Unknown department')
+    if (entry.builtin === true) throw new Error(`"${entry.name}" is a built-in department; only its name can change`)
+    state.departments = state.departments.filter(item => item.id !== entry.id)
+    for (const bot of Object.values(state.bots)) if (bot.department === entry.id) bot.department = null
+    await rt.save()
+  }
+
+  // A department as a tool or the settings page names it: an id, a name, an empty string
+  // for none, or a name the user just typed, which becomes a department. An id the team
+  // no longer has is a mistake, not a new name.
+  async function resolveDepartment(value) {
+    const text = String(value ?? '').trim()
+    if (text === '') return null
+    const byId = departmentOf(text)
+    if (byId !== undefined) return byId.id
+    const byName = departmentNamed(text)
+    if (byName !== undefined) return byName.id
+    if (/^d_[a-z0-9]{6,}$/.test(text)) throw new Error('Unknown department')
+    const entry = await createDepartment(text, { save: false })
+    return entry.id
+  }
+
   // `pickModel` leaves the model to the user: the chat opens on a model card, and the
   // greeting waits until a model is chosen. So does a Bot made when no model it can
   // run on is served.
@@ -149,7 +207,7 @@ export function install(rt) {
     return holdName('bot', cleanName, () => buildBot(cleanName, options))
   }
 
-  async function buildBot(cleanName, { role = '', instructions = '', color, brief = '', createdBy, main = false, avatar, model, effort, workDir, copyOf, pickModel = false }) {
+  async function buildBot(cleanName, { role = '', instructions = '', color, brief = '', createdBy, main = false, avatar, model, effort, workDir, department, copyOf, pickModel = false }) {
     const cleanAvatarValue = cleanAvatar(avatar)
     // The model is fixed at creation, so a later change of the DSH default leaves it alone.
     const modelRef = model ? await rt.resolveModel(model) : pickModel ? undefined : await rt.defaultBotModel()
@@ -164,6 +222,8 @@ export function install(rt) {
     const dir = workDir === undefined || workDir === null ? undefined : await rt.cleanWorkDir(workDir)
     const clash = dir === undefined ? undefined : await rt.privateClash(dir)
     if (clash) throw new Error(`${dir} is in or around the folder of ${clash.name}, a private Bot, so ${cleanName} cannot work there`)
+    // A name the team does not have yet becomes a department; no department is `null`.
+    const departmentId = department === undefined || department === null ? null : await resolveDepartment(department)
     const id = await createSession(cleanName, { dir })
     try {
       state.bots[id] = {
@@ -177,6 +237,7 @@ export function install(rt) {
         ...(effortId ? { effort: effortId } : {}),
         ...(dir ? { workDir: dir } : {}),
         instructions: String(instructions).trim(),
+        department: departmentId,
         createdAt: Date.now(),
         createdBy: createdBy ?? null,
         capabilities: [],
@@ -399,6 +460,7 @@ export function install(rt) {
       if (workDir === undefined) delete bot.workDir
       else bot.workDir = workDir
     }
+    if (patch.department !== undefined) bot.department = await resolveDepartment(patch.department)
     await rt.save()
     // The system prompt reads the live profile every turn, but a Session with
     // several rounds behind it follows the old kickoff's pull until a message
@@ -800,6 +862,7 @@ export function install(rt) {
 
   Object.assign(rt, {
     ensureWorkspace, keepTeamFolder, createSession, createBot, duplicateBot, updateBot, setFlags,
+    createDepartment, updateDepartment, deleteDepartment, resolveDepartment,
     roomBusy, autoRoomName, retitleRoom, createRoom, updateRoom, deleteRoom,
     setMain, deleteBot, bootstrap, releaseKickoff, greetingOut, holdKickoffAgain, userWrote, userAnswered,
   })

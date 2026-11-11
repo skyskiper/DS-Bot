@@ -37,6 +37,9 @@ export function install(rt) {
   const view = () => ({
     revision: state.revision,
     workspaceId: state.workspaceId ?? null,
+    // The sidebar's org tree: the four built-ins in their fixed order, then the
+    // departments the user made. A Bot names its own by `department`, or null.
+    departments: (state.departments ?? []).map(entry => ({ ...entry })),
     // `mainBotId` is the first Main Bot, which the sidebar shows as its tile.
     mainBotId: state.mainBotIds[0] ?? null,
     mainBotIds: state.mainBotIds,
@@ -284,12 +287,24 @@ export function install(rt) {
         }
         case 'create-bot': {
           await rt.bootstrap()
-          const bot = await rt.createBot({ name: body.name, role: body.role, color: body.color, instructions: body.instructions, brief: body.brief, avatar: body.avatar, model: body.model, effort: body.effort, workDir: body.workDir })
+          const bot = await rt.createBot({ name: body.name, role: body.role, color: body.color, instructions: body.instructions, brief: body.brief, avatar: body.avatar, model: body.model, effort: body.effort, workDir: body.workDir, department: body.department })
           return ok(bot)
         }
         case 'update-bot':
           await rt.load()
           return ok(await rt.updateBot(body.id, body))
+        case 'create-department':
+          await rt.load()
+          await rt.createDepartment(body.name)
+          return ok(view())
+        case 'update-department':
+          await rt.load()
+          await rt.updateDepartment(body.id, body.name)
+          return ok(view())
+        case 'delete-department':
+          await rt.load()
+          await rt.deleteDepartment(body.id)
+          return ok(view())
         // The repair card's Retry, once the user fixed what failed the Bot's turn.
         case 'resume': {
           await rt.load()

@@ -94,3 +94,26 @@ export const HISTORY_TIMEOUT_MS = 20_000
 export const ASIDE_LIMIT = 'Answer cut off at the output limit.'
 
 export const STEER_CUT = 'ds-bot/steer'
+
+// Departments group the team in the sidebar's org tree. The four built-in ones keep
+// their id — a rename moves nobody — and only a custom one can be removed.
+export const BUILTIN_DEPARTMENTS = [
+  { id: 'dev', name: '研发部', builtin: true },
+  { id: 'qa', name: '质量部', builtin: true },
+  { id: 'pd', name: '产品设计部', builtin: true },
+  { id: 'sup', name: '支持部', builtin: true },
+]
+export const DEPARTMENT_NAME_MAX = 24
+// LEGACY: Bots from before departments existed have none; their role picks one once, by
+// the first group whose words it contains ("复刻开发" is 开发, "DS Bot 设计师" is 设计).
+export const ROLE_DEPARTMENTS = [
+  ['dev', ['开发', '安卓', 'ios', '架构']],
+  ['qa', ['评审', '验证']],
+  ['pd', ['产品', 'ui', '设计']],
+  ['sup', ['对接人', '支持']],
+]
+export const departmentOfRole = (role) => {
+  const text = String(role ?? '').toLowerCase()
+  const found = ROLE_DEPARTMENTS.find(([, words]) => words.some(word => text.includes(word)))
+  return found === undefined ? null : found[0]
+}

@@ -1457,3 +1457,66 @@ test('an empty photo from the settings panel removes the group photo', async (t)
   // The field is deleted, not stored empty.
   assert.equal('avatar' in JSON.parse(readFileSync(join(home, 'state.json'), 'utf8')).rooms[room.id], false)
 })
+
+test('a Bot is put in a department by name, and a name the team does not have becomes one', async (t) => {
+  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  let team = (await call('state', {})).value
+  assert.deepEqual(team.departments.map(entry => entry.id), ['dev', 'qa', 'pd', 'sup'])
+  assert.equal((await call('create-bot', { name: 'Writer', department: '研发部' })).value.department, 'dev')
+  // A name the team does not have yet becomes a department, and the Bot joins it.
+  const tester = (await call('create-bot', { name: 'Tester', department: '内测组' })).value
+  team = (await call('state', {})).value
+  const custom = team.departments.find(entry => entry.name === '内测组')
+  assert.match(custom.id, /^d_[a-z0-9]{8}$/)
+  assert.equal(tester.department, custom.id)
+  // With no department the Bot is ungrouped: the role rule is for old teams only.
+  assert.equal((await call('create-bot', { name: 'Plain', role: '开发' })).value.department, null)
+})
+
+test('a Bot changes department, and an id the team does not have is refused', async (t) => {
+  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const writer = (await call('create-bot', { name: 'Writer' })).value
+  assert.equal((await call('update-bot', { id: writer.id, department: '支持部' })).ok, true)
+  let team = (await call('state', {})).value
+  assert.equal(team.bots.find(bot => bot.id === writer.id).department, 'sup')
+  // An id the team no longer has is a mistake, not the name of a new department.
+  const refused = await call('update-bot', { id: writer.id, department: 'd_nosuchdept' })
+  assert.equal(refused.ok, false)
+  assert.match(refused.error.message, /Unknown department/)
+  team = (await call('state', {})).value
+  assert.equal(team.departments.some(entry => entry.id === 'd_nosuchdept'), false)
+  // An empty string leaves the Bot ungrouped again.
+  assert.equal((await call('update-bot', { id: writer.id, department: '' })).ok, true)
+  team = (await call('state', {})).value
+  assert.equal(team.bots.find(bot => bot.id === writer.id).department, null)
+})
+
+test('a built-in department can be renamed but not removed; a custom one can', async (t) => {
+  const { call, stop } = start(undefined, { models: ['deepseek-v4-flash'] })
+  t.after(stop)
+  const writer = (await call('create-bot', { name: 'Writer', department: '内测组' })).value
+  let team = (await call('state', {})).value
+  const customId = writer.department
+  assert.equal((await call('update-department', { id: 'dev', name: '技术中心' })).ok, true)
+  assert.equal((await call('update-department', { id: customId, name: '内测二组' })).ok, true)
+  team = (await call('state', {})).value
+  assert.deepEqual(team.departments.map(entry => [entry.id, entry.name]), [
+    ['dev', '技术中心'], ['qa', '质量部'], ['pd', '产品设计部'], ['sup', '支持部'], [customId, '内测二组'],
+  ])
+  // A built-in goes nowhere; two departments cannot share a name.
+  const builtin = await call('delete-department', { id: 'dev' })
+  assert.equal(builtin.ok, false)
+  assert.match(builtin.error.message, /built-in/)
+  const duplicate = await call('update-department', { id: 'qa', name: '技术中心' })
+  assert.equal(duplicate.ok, false)
+  assert.match(duplicate.error.message, /already exists/)
+  const blank = await call('create-department', { name: '  ' })
+  assert.equal(blank.ok, false)
+  // Removing a custom department ungroups its members and keeps the Bots.
+  assert.equal((await call('delete-department', { id: customId })).ok, true)
+  team = (await call('state', {})).value
+  assert.equal(team.bots.find(bot => bot.id === writer.id).department, null)
+  assert.equal(team.departments.some(entry => entry.id === customId), false)
+})

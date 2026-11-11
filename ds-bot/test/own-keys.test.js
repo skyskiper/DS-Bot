@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { createRuntime } from '../index.js'
 import { fakeContext } from './fake-ctx.js'
+import { BUILTIN_DEPARTMENTS } from '../src/host/constants.js'
 
 // Ids that name an inherited property: a lookup that misses Object.hasOwn would find
 // these on every table and could write onto Object.prototype.
@@ -16,13 +17,14 @@ const TEAM = {
   revision: 1,
   whaleStored: true,
   bots: {
-    m1: { id: 'm1', sessionId: 'm1', name: 'Chief', role: 'Lead', model: 'deepseek/v4', instructions: '', createdAt: 1, capabilities: [] },
-    b2: { id: 'b2', sessionId: 'b2', name: 'Writer', role: 'Write', model: 'deepseek/v4', instructions: '', createdAt: 2, capabilities: [] },
+    m1: { id: 'm1', sessionId: 'm1', name: 'Chief', role: 'Lead', model: 'deepseek/v4', instructions: '', createdAt: 1, department: null, capabilities: [] },
+    b2: { id: 'b2', sessionId: 'b2', name: 'Writer', role: 'Write', model: 'deepseek/v4', instructions: '', createdAt: 2, department: null, capabilities: [] },
   },
   rooms: {
     r1: { id: 'r1', name: 'Launch', named: true, members: ['m1', 'b2'], admin: 'm1', mode: 'everyone', notice: '', sessions: { b2: 'g2' }, seq: 0, log: [] },
   },
   agents: {},
+  departments: BUILTIN_DEPARTMENTS.map(entry => ({ ...entry })),
   capabilities: { items: {} },
   exchanges: [],
   exchangeTurns: {},
