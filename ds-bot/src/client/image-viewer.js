@@ -7,12 +7,75 @@ import { t } from './i18n.js'
 // follows exactly what is on screen (and follows the loaded history too).
 const IN_TRANSCRIPT = '.bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img'
 
+// An attachment-backed thumbnail remembers what it renders, so the viewer can ask the
+// Session for a fresh URL instead of reusing a URL the transcript already spent: the
+// shell's file URLs are per-mount, and a second read of one comes back empty.
+const attachmentOf = new WeakMap()
+
 export function imagesInView() {
   if (typeof document === 'undefined') return []
-  return [...document.querySelectorAll(IN_TRANSCRIPT)].map(img => ({
-    src: img.currentSrc || img.src,
-    label: img.alt ?? '',
-  }))
+  return [...document.querySelectorAll(IN_TRANSCRIPT)].map((img) => {
+    const held = attachmentOf.get(img)
+    return {
+      src: img.currentSrc || img.src,
+      label: img.alt ?? '',
+      img,
+      ...(held === undefined ? {} : held),
+    }
+  })
+}
+
+// What kind of URL a source is, for the failure line: a blob the page revoked, an
+// inline picture, or a server read are different problems.
+export function sourceKind(src) {
+  const text = String(src ?? '')
+  if (text.startsWith('blob:')) return 'blob'
+  if (text.startsWith('data:')) return 'data'
+  if (text.startsWith('http:') || text.startsWith('https:')) return 'http'
+  if (text === '') return 'empty'
+  return 'other'
+}
+
+// The picture to show, in the order that keeps it visible: a fresh attachment read,
+// then the pixels the transcript already decoded (a canvas copy survives a URL that
+// cannot be used twice), then the URL as it stands.
+export async function resolveImage(entry, actions, sessionId) {
+  if (entry?.attachment !== undefined && typeof actions?.loadImage === 'function') {
+    try {
+      const url = await actions.loadImage(sessionId ?? entry.sessionId, entry.attachment)
+      if (typeof url === 'string' && url !== '') return { url, kind: sourceKind(url) }
+    } catch {}
+  }
+  const shot = snapshotOf(entry?.img)
+  if (shot !== '') return { url: shot, kind: 'data' }
+  return { url: entry?.src ?? '', kind: sourceKind(entry?.src) }
+}
+
+// A loaded transcript image copied to a data URL, bounded so a huge screenshot does not
+// become a hundred-megabyte string. Its own canvas draws what the user already sees.
+export function snapshotOf(img, max = 2400) {
+  try {
+    if (img === undefined || img === null || !(img.naturalWidth > 0)) return ''
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+    const context = canvas.getContext('2d')
+    if (context === null) return ''
+    context.drawImage(img, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/png')
+  } catch {
+    return ''
+  }
+}
+
+// Why a preview is empty, in one line the user can send us: the URL's kind, how much
+// the browser decoded, and the start of the source.
+export function failureNote(entry, naturalWidth = 0) {
+  const src = String(entry?.src ?? '')
+  return t('{kind} image, {width}px decoded, src: {src}', {
+    kind: sourceKind(src), width: Number.isFinite(naturalWidth) ? naturalWidth : 0, src: src.slice(0, 40) || '(none)',
+  })
 }
 
 // Open the pager on one of those images. The shell's Markdown opens its own single-image
@@ -68,7 +131,10 @@ function Thumb({ image, single, actions }) {
       if (img !== null) openImageAt(img, actions)
     },
   },
-  url === '' ? h('span', { className: 'bt-uimg-wait', 'aria-hidden': true }) : h('img', { src: url, alt: label, draggable: false }),
+  url === '' ? h('span', { className: 'bt-uimg-wait', 'aria-hidden': true }) : h('img', {
+    src: url, alt: label, draggable: false,
+    ref: (node) => { if (node !== null) attachmentOf.set(node, { attachment: image.attachment, sessionId: image.sessionId }) },
+  }),
   h('span', { className: 'bt-uimg-glow', 'aria-hidden': true }))
 }
 
@@ -85,7 +151,8 @@ export function MessageImages({ sessionId, seq, blocks, actions }) {
 export function ImageViewer({ viewer, actions, leaving = false }) {
   const images = viewer.images ?? []
   const [index, setIndex] = useState(viewer.index ?? 0)
-  const [failed, setFailed] = useState(false)
+  const [shown, setShown] = useState({ url: '', kind: '' })
+  const [failed, setFailed] = useState('')
   const [attempt, setAttempt] = useState(0)
   const dialog = useRef(null)
   const current = images[index]
@@ -93,7 +160,18 @@ export function ImageViewer({ viewer, actions, leaving = false }) {
   useEffect(() => {
     dialog.current?.focus()
   }, [])
-  useEffect(() => { setFailed(false) }, [index, attempt])
+  useEffect(() => {
+    let alive = true
+    setShown({ url: '', kind: '' })
+    setFailed('')
+    if (current === undefined) return undefined
+    void resolveImage(current, actions, viewer.sessionId).then((result) => {
+      if (!alive) return
+      if (result.url === '') setFailed(failureNote(current))
+      else setShown(result)
+    }).catch(() => { if (alive) setFailed(failureNote(current)) })
+    return () => { alive = false }
+  }, [viewer.sessionId, current?.src, current?.attachment, attempt])
   const go = (step) => {
     const next = index + step
     if (next >= 0 && next < images.length) setIndex(next)
@@ -120,16 +198,17 @@ export function ImageViewer({ viewer, actions, leaving = false }) {
         type: 'button', className: 'bt-imgview-nav', 'data-side': 'prev', disabled: atStart,
         'aria-label': t('Previous image'), title: t('Previous image'), onClick: () => go(-1),
       }, h(ChevronLeftIcon)),
-      failed
-        ? h('div', { className: 'bt-imgview-failed', role: 'status' },
+      failed !== ''
+        ? h('div', { className: 'bt-imgview-failed', role: 'alert' },
           h('span', null, t('This image could not be loaded.')),
+          h('code', { className: 'bt-imgview-note' }, failed),
           h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => setAttempt(value => value + 1) }, t('Try again')))
-        : current === undefined
+        : shown.url === ''
           ? h('div', { className: 'bt-imgview-wait', role: 'status' }, t('Loading image…'))
           : h('img', {
-            key: `${current.src}:${attempt}`,
-            className: 'bt-imgview-img', src: current.src, alt: current.label ?? '', draggable: false,
-            onError: () => setFailed(true),
+            key: `${shown.url.slice(0, 64)}:${attempt}`,
+            className: 'bt-imgview-img', src: shown.url, alt: current?.label ?? '', draggable: false,
+            onError: (event) => setFailed(failureNote(current, event.currentTarget.naturalWidth)),
           }),
       h('button', {
         type: 'button', className: 'bt-imgview-nav', 'data-side': 'next', disabled: atEnd,
@@ -155,7 +234,9 @@ export const IMAGE_VIEWER_CSS = `
 .bt-imgview-count{font-size:12px;line-height:18px;color:var(--bt-ink-2);font-variant-numeric:tabular-nums}
 .bt-imgview-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;color:var(--bt-ink-3)}
 .bt-imgview-body{position:relative;display:flex;align-items:center;gap:8px;min-height:120px;justify-content:center}
-.bt-imgview-img{max-width:100%;max-height:calc(92vh - 120px);object-fit:contain;border-radius:10px;background:var(--bt-card)}
+.bt-imgview-body{min-height:180px}
+.bt-imgview-img{display:block;max-width:100%;max-height:calc(92vh - 120px);min-width:120px;min-height:120px;object-fit:contain;border-radius:10px;background:var(--bt-card)}
+.bt-imgview-note{display:block;max-width:100%;padding:6px 8px;border-radius:8px;background:var(--bt-tag-bg);color:var(--bt-ink-3);font-size:11px;line-height:16px;word-break:break-all;text-align:left}
 .bt-imgview-nav{flex:none;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid var(--bt-line-2);border-radius:50%;background:var(--bt-card);color:var(--bt-ink);cursor:pointer;transition:opacity .12s ease}
 .bt-imgview-nav:hover:not(:disabled){background:var(--bt-hover)}
 .bt-imgview-nav:disabled{opacity:.28;cursor:default}

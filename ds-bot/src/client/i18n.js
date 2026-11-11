@@ -1627,6 +1627,7 @@ const HOST_ZH = {
   '{at} / {count}': '{at} / {count}',
   'Loading image…': '图片加载中…',
   'This image could not be loaded.': '这张图片没能加载。',
+  '{kind} image, {width}px decoded, src: {src}': '{kind} 类型图片，已解码 {width}px，src: {src}',
   '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)

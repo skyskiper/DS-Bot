@@ -1670,6 +1670,7 @@ var HOST_ZH = {
   "{at} / {count}": "{at} / {count}",
   "Loading image…": "图片加载中…",
   "This image could not be loaded.": "这张图片没能加载。",
+  "{kind} image, {width}px decoded, src: {src}": "{kind} 类型图片，已解码 {width}px，src: {src}",
   "(skipped)": "（跳过）"
 };
 Object.assign(ZH, HOST_ZH);
@@ -4840,12 +4841,61 @@ function AgentBadge({ engine, size = 15 }) {
 // src/client/image-viewer.js
 var import_react5 = require("react");
 var IN_TRANSCRIPT = ".bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img";
+var attachmentOf = /* @__PURE__ */ new WeakMap();
 function imagesInView() {
   if (typeof document === "undefined") return [];
-  return [...document.querySelectorAll(IN_TRANSCRIPT)].map((img) => ({
-    src: img.currentSrc || img.src,
-    label: img.alt ?? ""
-  }));
+  return [...document.querySelectorAll(IN_TRANSCRIPT)].map((img) => {
+    const held = attachmentOf.get(img);
+    return {
+      src: img.currentSrc || img.src,
+      label: img.alt ?? "",
+      img,
+      ...held === void 0 ? {} : held
+    };
+  });
+}
+function sourceKind(src) {
+  const text = String(src ?? "");
+  if (text.startsWith("blob:")) return "blob";
+  if (text.startsWith("data:")) return "data";
+  if (text.startsWith("http:") || text.startsWith("https:")) return "http";
+  if (text === "") return "empty";
+  return "other";
+}
+async function resolveImage(entry, actions, sessionId) {
+  if (entry?.attachment !== void 0 && typeof actions?.loadImage === "function") {
+    try {
+      const url = await actions.loadImage(sessionId ?? entry.sessionId, entry.attachment);
+      if (typeof url === "string" && url !== "") return { url, kind: sourceKind(url) };
+    } catch {
+    }
+  }
+  const shot = snapshotOf(entry?.img);
+  if (shot !== "") return { url: shot, kind: "data" };
+  return { url: entry?.src ?? "", kind: sourceKind(entry?.src) };
+}
+function snapshotOf(img, max = 2400) {
+  try {
+    if (img === void 0 || img === null || !(img.naturalWidth > 0)) return "";
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (context === null) return "";
+    context.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
+  }
+}
+function failureNote(entry, naturalWidth = 0) {
+  const src = String(entry?.src ?? "");
+  return t("{kind} image, {width}px decoded, src: {src}", {
+    kind: sourceKind(src),
+    width: Number.isFinite(naturalWidth) ? naturalWidth : 0,
+    src: src.slice(0, 40) || "(none)"
+  });
 }
 function openImageAt(img, actions) {
   const src = img.currentSrc || img.src;
@@ -4902,7 +4952,14 @@ function Thumb({ image, single, actions }) {
         if (img !== null) openImageAt(img, actions);
       }
     },
-    url === "" ? (0, import_react5.createElement)("span", { className: "bt-uimg-wait", "aria-hidden": true }) : (0, import_react5.createElement)("img", { src: url, alt: label, draggable: false }),
+    url === "" ? (0, import_react5.createElement)("span", { className: "bt-uimg-wait", "aria-hidden": true }) : (0, import_react5.createElement)("img", {
+      src: url,
+      alt: label,
+      draggable: false,
+      ref: (node) => {
+        if (node !== null) attachmentOf.set(node, { attachment: image.attachment, sessionId: image.sessionId });
+      }
+    }),
     (0, import_react5.createElement)("span", { className: "bt-uimg-glow", "aria-hidden": true })
   );
 }
@@ -4918,7 +4975,8 @@ function MessageImages({ sessionId, seq, blocks, actions }) {
 function ImageViewer({ viewer, actions, leaving = false }) {
   const images = viewer.images ?? [];
   const [index, setIndex] = (0, import_react5.useState)(viewer.index ?? 0);
-  const [failed, setFailed] = (0, import_react5.useState)(false);
+  const [shown, setShown] = (0, import_react5.useState)({ url: "", kind: "" });
+  const [failed, setFailed] = (0, import_react5.useState)("");
   const [attempt, setAttempt] = (0, import_react5.useState)(0);
   const dialog = (0, import_react5.useRef)(null);
   const current = images[index];
@@ -4927,8 +4985,21 @@ function ImageViewer({ viewer, actions, leaving = false }) {
     dialog.current?.focus();
   }, []);
   (0, import_react5.useEffect)(() => {
-    setFailed(false);
-  }, [index, attempt]);
+    let alive = true;
+    setShown({ url: "", kind: "" });
+    setFailed("");
+    if (current === void 0) return void 0;
+    void resolveImage(current, actions, viewer.sessionId).then((result) => {
+      if (!alive) return;
+      if (result.url === "") setFailed(failureNote(current));
+      else setShown(result);
+    }).catch(() => {
+      if (alive) setFailed(failureNote(current));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [viewer.sessionId, current?.src, current?.attachment, attempt]);
   const go = (step) => {
     const next = index + step;
     if (next >= 0 && next < images.length) setIndex(next);
@@ -4988,18 +5059,19 @@ function ImageViewer({ viewer, actions, leaving = false }) {
           title: t("Previous image"),
           onClick: () => go(-1)
         }, (0, import_react5.createElement)(ChevronLeftIcon)),
-        failed ? (0, import_react5.createElement)(
+        failed !== "" ? (0, import_react5.createElement)(
           "div",
-          { className: "bt-imgview-failed", role: "status" },
+          { className: "bt-imgview-failed", role: "alert" },
           (0, import_react5.createElement)("span", null, t("This image could not be loaded.")),
+          (0, import_react5.createElement)("code", { className: "bt-imgview-note" }, failed),
           (0, import_react5.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => setAttempt((value) => value + 1) }, t("Try again"))
-        ) : current === void 0 ? (0, import_react5.createElement)("div", { className: "bt-imgview-wait", role: "status" }, t("Loading image…")) : (0, import_react5.createElement)("img", {
-          key: `${current.src}:${attempt}`,
+        ) : shown.url === "" ? (0, import_react5.createElement)("div", { className: "bt-imgview-wait", role: "status" }, t("Loading image…")) : (0, import_react5.createElement)("img", {
+          key: `${shown.url.slice(0, 64)}:${attempt}`,
           className: "bt-imgview-img",
-          src: current.src,
-          alt: current.label ?? "",
+          src: shown.url,
+          alt: current?.label ?? "",
           draggable: false,
-          onError: () => setFailed(true)
+          onError: (event) => setFailed(failureNote(current, event.currentTarget.naturalWidth))
         }),
         (0, import_react5.createElement)("button", {
           type: "button",
@@ -5032,7 +5104,9 @@ var IMAGE_VIEWER_CSS = `
 .bt-imgview-count{font-size:12px;line-height:18px;color:var(--bt-ink-2);font-variant-numeric:tabular-nums}
 .bt-imgview-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;color:var(--bt-ink-3)}
 .bt-imgview-body{position:relative;display:flex;align-items:center;gap:8px;min-height:120px;justify-content:center}
-.bt-imgview-img{max-width:100%;max-height:calc(92vh - 120px);object-fit:contain;border-radius:10px;background:var(--bt-card)}
+.bt-imgview-body{min-height:180px}
+.bt-imgview-img{display:block;max-width:100%;max-height:calc(92vh - 120px);min-width:120px;min-height:120px;object-fit:contain;border-radius:10px;background:var(--bt-card)}
+.bt-imgview-note{display:block;max-width:100%;padding:6px 8px;border-radius:8px;background:var(--bt-tag-bg);color:var(--bt-ink-3);font-size:11px;line-height:16px;word-break:break-all;text-align:left}
 .bt-imgview-nav{flex:none;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid var(--bt-line-2);border-radius:50%;background:var(--bt-card);color:var(--bt-ink);cursor:pointer;transition:opacity .12s ease}
 .bt-imgview-nav:hover:not(:disabled){background:var(--bt-hover)}
 .bt-imgview-nav:disabled{opacity:.28;cursor:default}
@@ -8770,7 +8844,7 @@ function viewCardText(args) {
   return summary === "" ? head : `${head}
 ${summary}`;
 }
-function viewReply(record, action, values, sourceKind = REPLY_KIND) {
+function viewReply(record, action, values, sourceKind2 = REPLY_KIND) {
   const checked = validateViewAnswer(record?.view, action, values);
   if (checked.error !== void 0) return void 0;
   const callId = record.callId ?? record.id;
@@ -8778,7 +8852,7 @@ function viewReply(record, action, values, sourceKind = REPLY_KIND) {
   const given = { id: record.id, action, values: checked };
   return {
     text: JSON.stringify({ kind: "answer_to_pending_view", tool: "show_view", callId, views: [shown], answers: [given] }),
-    source: { kind: sourceKind, callId, outcome: "answered" }
+    source: { kind: sourceKind2, callId, outcome: "answered" }
   };
 }
 var isRecord2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
