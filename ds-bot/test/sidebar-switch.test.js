@@ -16,7 +16,7 @@ const { JSDOM } = createRequire(join(process.env.DSH_HARNESS ?? join(PLUGIN, '..
 // fixtures retain refs across commits and run their layout effects after each render.
 const { outputFiles } = await build({
   stdin: {
-    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'",
+    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'\nexport { TeamDrawer } from './src/client/team-drawer.js'",
     resolveDir: PLUGIN,
   },
   bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
@@ -42,7 +42,7 @@ const sandbox = {
   window: viewport,
 }
 runInNewContext(outputFiles[0].text, sandbox)
-const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar } = module.exports
+const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar, TeamDrawer } = module.exports
 
 function navigationSidebar(wide, { leftDrawer = false } = {}) {
   const calls = []
@@ -87,7 +87,9 @@ for (const width of [390, 1023, 1024, 1280]) {
     test(`sidebar navigation at ${width}px with ${wide ? 'expanded content' : 'our own column'} just navigates`, () => {
       viewport.innerWidth = width
       const initial = navigationSidebar(wide)
-      assert.equal(initial.rows.length, 3)
+      // The wide list holds the items only; the rail keeps a person's avatar per row.
+      assert.ok(initial.rows.length === 2 || initial.rows.length === 3)
+      assert.equal(initial.rows.some(row => row.type.name === 'BotRow'), initial.rows.length === 3)
       for (const [index, row] of initial.rows.entries()) {
         const names = row.type.name === 'AgentRow' ? ['openAgent', 'openAgentSession', 'newAgentSession'] : ['openSession']
         for (const name of names) {
@@ -114,100 +116,41 @@ test('a row picked outside the drawer leaves it alone', () => {
   assert.deepEqual(side.calls, [['openSession', 'picked']])
 })
 
-// A Bot working in its own chat previews what it is doing, the way a group row does
-// for members at work; an idle Bot keeps the last message preview.
-test('a running Bot\'s sidebar row shows what it is doing', () => {
-  viewport.innerWidth = 1280
-  const bot = { id: 'writer', name: 'Writer', createdAt: 1 }
-  const roster = { bots: [bot], rooms: [], agents: [], byId: { writer: bot }, ready: true, exchangeTurns: {} }
+// Where a Bot is, and what it is doing, is the team drawer's line now: a Bot at work in
+// a group names that group, an idle one reads as idle.
+function drawerRows({ bots, roomsById = {}, roomsWork = {}, botsWork = {}, approvals = [], questions = {} }) {
+  const roster = { bots, byId: Object.fromEntries(bots.map(bot => [bot.id, bot])), roomsById, rooms: [], agents: [], ready: true, questions }
+  const work = { bots: botsWork, rooms: roomsWork, approvals }
   const rows = []
   const walk = (node) => {
     if (Array.isArray(node)) { node.forEach(walk); return }
     if (!node || typeof node !== 'object') return
-    if (node.type?.name === 'BotRow') rows.push(node)
+    if (node.type?.name === 'PersonRow') rows.push(node)
     walk(node.props?.children)
   }
-  const tree = TeamSidebar({
-    wide: true,
-    actions: Object.fromEntries(['openSession', 'openAgent', 'openAgentSession', 'newAgentSession', 'openMenu', 'openPalette', 'openNewChat', 'toggleSidebar', 'clearUnread'].map(name => [name, () => {}])),
-    useRoster: pick => pick(roster), useUi: pick => pick({ unread: {} }), useRegistry: pick => pick({}),
-    useSessions: pick => pick({ ids: [], byId: {} }), useUpdate: () => ({}),
-    useSessionStatus: pick => pick(new Map([['writer', { running: true }]])),
-    useSessionRetainInfo: () => null,
-    useActivity: pick => pick({ writer: 'working' }),
-    useWork: pick => pick({ waiting: {}, rooms: {}, approvals: [] }),
-  })
-  walk(tree)
-  assert.equal(rows.length, 1)
-  // BotRow renders as a function component: run it, then flatten Shimmer and the
-  // other function children to read the preview line's text.
-  const expand = (node) => {
-    if (Array.isArray(node)) return node.map(expand)
-    if (!node || typeof node !== 'object') return node
-    if (typeof node.type === 'function') return expand(node.type(node.props))
-    return { ...node, props: { ...node.props, children: expand(node.props.children) } }
-  }
-  const previews = []
-  const collect = (node) => {
-    if (Array.isArray(node)) { node.forEach(collect); return }
-    if (!node || typeof node !== 'object') return
-    if (node.props?.className === 'bt-row-preview') previews.push(node)
-    collect(node.props?.children)
-  }
-  const textOf = (node) => {
-    if (node === null || node === undefined || typeof node === 'boolean') return ''
-    if (typeof node === 'string' || typeof node === 'number') return String(node)
-    if (Array.isArray(node)) return node.map(textOf).join('')
-    return textOf(node.props?.children)
-  }
-  collect(expand(rows[0].type(rows[0].props)))
-  assert.equal(previews.length, 1)
-  // The row already says Writer, so the preview is the doing phrase alone.
-  assert.match(textOf(previews[0]), /^.+…$/)
-  assert.doesNotMatch(textOf(previews[0]), /^Writer ·/)
+  walk(TeamDrawer({
+    roster,
+    actions: Object.fromEntries(['openSession', 'openMenu', 'closeTeam'].map(name => [name, () => {}])),
+    useWork: pick => pick(work),
+  }))
+  return rows
+}
+
+test('a working Bot\'s team drawer row names the group it works in', () => {
+  const writer = { id: 'writer', name: 'Writer', role: 'Write', createdAt: 1 }
+  const room = { id: 'room', name: 'Launch' }
+  const [row] = drawerRows({ bots: [writer], roomsById: { room }, roomsWork: { room: [{ botId: 'writer', tool: 'bash' }] } })
+  assert.equal(row.props.place.kind, 'working')
+  assert.equal(row.props.place.text, 'In Launch')
 })
 
-test('an idle Bot\'s sidebar row keeps the message preview', () => {
-  viewport.innerWidth = 1280
-  const bot = { id: 'writer', name: 'Writer', createdAt: 1 }
-  const roster = { bots: [bot], rooms: [], agents: [], byId: { writer: bot }, ready: true, exchangeTurns: {} }
-  const rows = []
-  const walk = (node) => {
-    if (Array.isArray(node)) { node.forEach(walk); return }
-    if (!node || typeof node !== 'object') return
-    if (node.type?.name === 'BotRow') rows.push(node)
-    walk(node.props?.children)
-  }
-  const tree = TeamSidebar({
-    wide: true,
-    actions: Object.fromEntries(['openSession', 'openAgent', 'openAgentSession', 'newAgentSession', 'openMenu', 'openPalette', 'openNewChat', 'toggleSidebar', 'clearUnread'].map(name => [name, () => {}])),
-    useRoster: pick => pick(roster), useUi: pick => pick({ unread: {} }), useRegistry: pick => pick({}),
-    useSessions: pick => pick({ ids: [], byId: {} }), useUpdate: () => ({}),
-    useSessionStatus: pick => pick(new Map()),
-    useSessionRetainInfo: () => null,
-    useActivity: pick => pick({}),
-    useWork: pick => pick({ waiting: {}, rooms: {}, approvals: [] }),
-  })
-  walk(tree)
-  const expand = (node) => {
-    if (Array.isArray(node)) return node.map(expand)
-    if (!node || typeof node !== 'object') return node
-    if (typeof node.type === 'function') return expand(node.type(node.props))
-    return { ...node, props: { ...node.props, children: expand(node.props.children) } }
-  }
-  const previews = []
-  const collect = (node) => {
-    if (Array.isArray(node)) { node.forEach(collect); return }
-    if (!node || typeof node !== 'object') return
-    if (node.props?.className === 'bt-row-preview') previews.push(node)
-    collect(node.props?.children)
-  }
-  collect(expand(rows[0].type(rows[0].props)))
-  assert.equal(previews.length, 0)
+test('an idle Bot\'s team drawer row reads as idle', () => {
+  const writer = { id: 'writer', name: 'Writer', role: 'Write', createdAt: 1 }
+  const [row] = drawerRows({ bots: [writer] })
+  assert.equal(row.props.place.kind, 'idle')
+  assert.equal(row.props.place.text, 'Idle')
 })
 
-// The rail shows avatars only, and a group's name can be 60 characters long: a row whose
-// name is not on screen in full shows it on hover.
 test('a sidebar row shows its name on hover when the name is hidden or cut', () => {
   viewport.innerWidth = 1280
   const bot = { id: 'writer', name: 'Writer', createdAt: 1 }
@@ -247,7 +190,8 @@ test('a sidebar row shows its name on hover when the name is hidden or cut', () 
   Object.defineProperty(name, 'scrollWidth', { value: 260 })
   wide.RoomRow.props.onMouseEnter({ currentTarget: button })
   assert.equal(button.title, 'Launch plan for the spring release')
-  assert.equal(wide.BotRow.props.onMouseEnter, wide.RoomRow.props.onMouseEnter)
+  // No Bot row in the wide list any more: people are in the team drawer.
+  assert.equal(wide.BotRow, undefined)
 })
 
 test('preparing sidebar navigation leaves actions elsewhere unchanged', () => {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { FishLogo } from './dsh-primitives.js'
 import { isMainOf } from './sources.js'
 import { currentPart, previewOf, relativeShort } from './text.js'
-import { PlusIcon, SearchIcon, SidebarIcon, GaugeIcon, ClockIcon, GearIcon, PinMarkIcon, ConnectorIcon, CloudDownloadIcon, SignInIcon, SignOutIcon, SlidersIcon } from './icons.js'
+import { PlusIcon, SearchIcon, SidebarIcon, GaugeIcon, ClockIcon, GearIcon, PinMarkIcon, ConnectorIcon, CloudDownloadIcon, SignInIcon, SignOutIcon, SlidersIcon, ChevronDownIcon, ChevronRightIcon, PeopleIcon } from './icons.js'
 import { lookOf, MAIN_LOOK } from './characters.js'
 import { botState, BotMark, BotAvatar, RoomAvatar } from './mark.js'
 import { AgentBadge } from './agent-badge.js'
@@ -26,6 +26,9 @@ function useMarkedUnread(id, active, marked, actions) {
     if (active && marked) actions.clearUnread(id)
   }, [active, marked])
 }
+
+// How many items stay above the fold before the older ones fold into 更早.
+const RECENT_ITEMS = 6
 
 const PinMark = () => h('span', { className: 'bt-pin', 'aria-hidden': true }, h(PinMarkIcon))
 
@@ -143,6 +146,49 @@ function RoomRow({ room, roster, actions, useSessions, useSessionStatus, useSess
   wide && approval && !active ? h('span', { className: 'bt-unread bt-unread-wait', 'aria-hidden': true })
     : wide && unread && !active ? h('span', { className: 'bt-unread', 'aria-hidden': true })
       : !wide && !active && (approval || unread) ? h('span', { className: `bt-dot${approval ? ' bt-dot-wait' : ''}`, 'aria-hidden': true }) : null)
+}
+
+// One card or approval that waits for the user: who waits, and what it is about. The
+// row opens that conversation, where the card itself is answered.
+function NeedRow({ item, roster, actions }) {
+  const room = item.roomId === undefined ? undefined : roster.roomsById[item.roomId]
+  const bot = roster.byId[item.botId] ?? { id: item.botId, name: item.name ?? t('a Bot'), color: 'gray' }
+  const where = room?.name ?? bot.name
+  const what = t(item.kind === 'approval' ? 'waits for your approval' : 'waits for your answer')
+  const label = [where, what, item.text].filter(Boolean).join(', ')
+  return h('button', {
+    type: 'button', className: 'bt-row bt-need', 'aria-label': label, 'data-need-id': item.id,
+    onClick: () => actions.openSession(room ? room.id : bot.id),
+  },
+  room ? h(RoomAvatar, { room, roster, size: 32 }) : h(BotAvatar, { bot, size: 32, state: 'alert' }),
+  h('span', { className: 'bt-row-body' },
+    h('span', { className: 'bt-row-name' },
+      h('span', { className: 'bt-row-title' }, where),
+      h('span', { className: 'bt-need-what' }, what)),
+    item.text ? h('span', { className: 'bt-row-preview bt-need-text' }, item.text) : null),
+  h('span', { className: 'bt-need-dot', 'aria-hidden': true }))
+}
+
+// A level-1 group's heading: its name, and how many rows it holds.
+function SectionHead({ title, count }) {
+  return h('div', { className: 'bt-sec-head' },
+    h('span', { className: 'bt-sec-title' }, title),
+    count === undefined ? null : h('span', { className: 'bt-sec-count' }, count))
+}
+
+// The foot's way into the team: people live behind it, so the list above holds only
+// what the user has to act on and the items themselves.
+function TeamEntry({ count, busy, actions }) {
+  const label = t('Team · {count} people, {busy} working', { count, busy })
+  return h('button', {
+    type: 'button', className: 'bt-team-entry', 'aria-label': label,
+    onClick: () => actions.openTeam?.(),
+  },
+  h('span', { className: 'bt-team-ico', 'aria-hidden': true }, h(PeopleIcon)),
+  h('span', { className: 'bt-team-body' },
+    h('span', { className: 'bt-team-title' }, t('Team')),
+    h('span', { className: 'bt-team-sub' }, t('{count} people · {busy} working', { count, busy }))),
+  h('span', { className: 'bt-team-go', 'aria-hidden': true }, h(ChevronRightIcon)))
 }
 
 const agentSessionTitle = session => (session.title === '' ? t('New session') : session.title)
@@ -345,6 +391,52 @@ export function TeamSidebar(props) {
     ]
     return entries.sort((a, b) => Number(Boolean(b.item.pinned)) - Number(Boolean(a.item.pinned)) || b.at - a.at)
   }, [roster, updated])
+  // People live behind the Team entry now: the list itself holds the items — the group
+  // chats and the DSH Agent — newest first, with what waits for the user above them.
+  const items = useMemo(() => order.filter(entry => entry.kind !== 'bot'), [order])
+  const runningRaw = props.useWork
+    ? props.useWork(work => JSON.stringify(Object.entries(work.rooms ?? {}).filter(([, list]) => Array.isArray(list) && list.length > 0).map(([id]) => id)))
+    : '[]'
+  const runningIds = useMemo(() => new Set(JSON.parse(runningRaw)), [runningRaw])
+  // People at work anywhere, the group they are in and their own chat included.
+  const busyRaw = props.useWork
+    ? props.useWork(work => JSON.stringify({
+      bots: Object.keys(work.bots ?? {}),
+      rooms: Object.values(work.rooms ?? {}).flatMap(list => (Array.isArray(list) ? list.filter(entry => entry.botId !== undefined).map(entry => entry.botId) : [])),
+    }))
+    : '{"bots":[],"rooms":[]}'
+  const busy = useMemo(() => {
+    const raw = JSON.parse(busyRaw)
+    return new Set([...raw.bots, ...raw.rooms])
+  }, [busyRaw])
+  const approvalsRaw = props.useWork ? props.useWork(work => JSON.stringify(work.approvals ?? [])) : '[]'
+  const approvals = useMemo(() => JSON.parse(approvalsRaw), [approvalsRaw])
+  const needs = useMemo(() => {
+    const list = []
+    for (const bot of roster.bots) {
+      const card = roster.questions?.[currentPart(bot)]
+      if (card?.question) list.push({ id: `q:${card.id}`, kind: 'question', botId: bot.id, text: card.question, at: card.askedAt ?? 0 })
+    }
+    // A member's card in a group waits there, under that group's name.
+    for (const room of roster.rooms) {
+      for (const [botId, sessionId] of Object.entries(room.memberSessions ?? {})) {
+        const card = roster.questions?.[sessionId]
+        if (card?.question) list.push({ id: `q:${card.id}`, kind: 'question', botId, roomId: room.id, text: card.question, at: card.askedAt ?? 0 })
+      }
+    }
+    for (const entry of approvals) {
+      list.push({ id: `a:${entry.id}`, kind: 'approval', botId: entry.botId, ...(entry.roomId ? { roomId: entry.roomId } : {}), text: entry.reason || entry.tool || '', at: entry.at ?? 0 })
+    }
+    return list.sort((a, b) => b.at - a.at)
+  }, [roster, approvals])
+  const [olderOpen, setOlderOpen] = useState(false)
+  const running = useMemo(() => items.filter(entry => entry.kind === 'room' && runningIds.has(entry.item.id)), [items, runningIds])
+  const waiting = useMemo(() => items.filter(entry => entry.kind !== 'room' || !runningIds.has(entry.item.id)), [items, runningIds])
+  // Pinned items stay above the fold; the rest of the older ones wait behind 更早.
+  const pinnedItems = waiting.filter(entry => entry.item.pinned === true)
+  const restItems = waiting.filter(entry => entry.item.pinned !== true)
+  const recentItems = [...pinnedItems, ...restItems.slice(0, RECENT_ITEMS)]
+  const olderItems = restItems.slice(RECENT_ITEMS)
   const main = roster.byId[roster.mainBotId]
   useListGlide(listRef, wideContent, order.map(entry => entry.item.id).join(','))
   useLandOnMainBot(roster, useSessions, actions)
@@ -580,20 +672,39 @@ export function TeamSidebar(props) {
   // The foot stands in for the shell's hidden footer: the account avatar, and on
   // the rail the new-chat button above it.
   const foot = wideContent
-    ? h('div', { className: 'bt-leftcol-foot' }, h(AccountLauncher, { seat: false, actions }))
+    ? h('div', { className: 'bt-leftcol-foot' },
+        h(TeamEntry, { count: roster.bots.length, busy: busy.size, actions }),
+        h(AccountLauncher, { seat: false, actions }))
     : h('div', { className: 'bt-leftcol-foot bt-leftcol-foot-rail' },
         h('button', { type: 'button', className: 'bt-round', 'aria-label': t('New…'), title: t('New…'), onClick: () => actions.openNewChat('new') }, h(PlusIcon)),
         h(AccountLauncher, { seat: false, actions }))
+  const rowFor = entry => (entry.kind === 'bot'
+    ? h(BotRow, { key: entry.item.id, ...rowProps, bot: entry.item, marked: markedUnread[entry.item.id] === true })
+    : entry.kind === 'room'
+      ? h(RoomRow, { key: entry.item.id, ...rowProps, room: entry.item, marked: markedUnread[entry.item.id] === true })
+      : h(AgentRow, { key: entry.item.id, ...rowProps, agent: entry.item, marked: markedUnread[entry.item.id] === true }))
+  // The wide list, in the order the user reads it: what waits on them, what runs now,
+  // the items, and the older ones folded away. People are behind the Team entry.
+  const sideList = h(Fragment, null,
+    roster.ready ? null : h('div', { className: 'bt-hint' }, bootFailed ? bootHint() : t('Setting up your Main Bot…')),
+    needs.length === 0 ? null : h(Fragment, null,
+      h(SectionHead, { key: 'needs', title: t('Needs you'), count: needs.length }),
+      needs.map(item => h(NeedRow, { key: item.id, item, roster, actions: rowActions }))),
+    running.length === 0 ? null : h(Fragment, null,
+      h(SectionHead, { key: 'running', title: t('In progress'), count: running.length }),
+      running.map(rowFor)),
+    waiting.length === 0 ? null : h(SectionHead, { key: 'items', title: t('Items'), count: waiting.length }),
+    recentItems.map(rowFor),
+    olderItems.length === 0 ? null : h('button', {
+      key: 'older', type: 'button', className: 'bt-sec-more', 'aria-expanded': olderOpen,
+      onClick: () => setOlderOpen(value => !value),
+    }, olderOpen ? h(ChevronDownIcon) : h(ChevronRightIcon), h('span', null, t('Earlier · {count} items', { count: olderItems.length }))),
+    olderOpen ? olderItems.map(rowFor) : null)
   const content = h('div', { className: wideContent ? 'bt-side' : 'bt-side bt-rail', onKeyDown: typeToSearch },
     top,
     wideContent && roster.readOnly ? h('div', { className: 'bt-hint bt-read-only', role: 'status' }, hostText(roster.readOnly)) : null,
-    h('div', { ref: listRef, className: 'bt-list', role: 'region', 'aria-label': t('Bot list') },
-      wideContent ? (main ? h(BotRow, { ...rowProps, bot: main, marked: markedUnread[main.id] === true }) : roster.ready ? null : h('div', { className: 'bt-hint' }, bootFailed ? bootHint() : t('Setting up your Main Bot…'))) : null,
-      order.map(entry => (entry.kind === 'bot'
-        ? h(BotRow, { key: entry.item.id, ...rowProps, bot: entry.item, marked: markedUnread[entry.item.id] === true })
-        : entry.kind === 'room'
-          ? h(RoomRow, { key: entry.item.id, ...rowProps, room: entry.item, marked: markedUnread[entry.item.id] === true })
-          : h(AgentRow, { key: entry.item.id, ...rowProps, agent: entry.item, marked: markedUnread[entry.item.id] === true })))),
+    h('div', { ref: listRef, className: 'bt-list', role: 'region', 'aria-label': wideContent ? t('Items') : t('Bot list') },
+      wideContent ? sideList : order.map(rowFor)),
     foot)
   return h(Fragment, null,
     h(TitleToggle, { hidden: mode === 'hidden', onToggle }),
@@ -1162,4 +1273,21 @@ export const SIDEBAR_CSS = `
 .bt-agent-sub[data-open] .bt-agent-sub-row{animation:bt-agent-row-in .24s ease both;animation-delay:calc(var(--i, 0)*30ms)}
 @keyframes bt-agent-row-in{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
 @media (prefers-reduced-motion:reduce){.bt-agent-sub{transition:none}.bt-agent-sub .bt-agent-sub-row{animation:none}}
+/* The level-1 groups: what waits on the user, what runs now, the items and the older ones. */
+.bt-sec-head{display:flex;align-items:center;gap:6px;padding:12px 8px 2px;color:var(--bt-ink-3);font-size:11px;line-height:16px;letter-spacing:.02em}
+.bt-sec-count{margin-left:auto;font-variant-numeric:tabular-nums}
+.bt-need .bt-row-body{gap:2px}
+.bt-need-what{margin-left:6px;font-size:12px;font-weight:400;color:var(--bt-ink-3)}
+.bt-need-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-need-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--bt-star)}
+.bt-sec-more{display:flex;align-items:center;gap:6px;width:100%;padding:8px;margin-top:2px;border:0;border-radius:10px;background:transparent;color:var(--bt-ink-3);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.bt-sec-more:hover{background:var(--bt-hover);color:var(--bt-ink-2)}
+/* The foot's way into the team: everyone lives behind it. */
+.bt-team-entry{display:flex;align-items:center;gap:10px;width:100%;padding:8px;margin-bottom:4px;border:1px solid var(--bt-line);border-radius:12px;background:var(--bt-card);color:var(--bt-ink);font:inherit;text-align:left;cursor:pointer;transition:background-color .12s ease}
+.bt-team-entry:hover{background:var(--bt-hover)}
+.bt-team-ico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--bt-tag-bg);color:var(--bt-ink-2)}
+.bt-team-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.bt-team-title{font-size:13px;line-height:18px;font-weight:500}
+.bt-team-sub{font-size:11px;line-height:15px;color:var(--bt-ink-3)}
+.bt-team-go{flex:none;display:inline-flex;color:var(--bt-ink-3)}
 `
