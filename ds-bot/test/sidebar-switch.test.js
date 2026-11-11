@@ -50,7 +50,7 @@ function navigationSidebar(wide, { leftDrawer = false } = {}) {
   const bot = { id: 'writer', name: 'Writer', createdAt: 1 }
   const room = { id: 'room', name: 'Team', members: [], createdAt: 2 }
   const agent = { id: 'agent', sessions: ['session'], createdAt: 3 }
-  const roster = { bots: [bot], rooms: [room], agents: [agent], byId: { writer: bot }, ready: true }
+  const roster = { bots: [bot], rooms: [room], agents: [agent], byId: { writer: bot }, mainBotId: 'writer', ready: true }
   const actions = Object.fromEntries(['openSession', 'openAgent', 'openAgentSession', 'newAgentSession'].map(name => [name, id => { calls.push([name, id]); return id }]))
   actions.toggleSidebar = () => { calls.push(['toggleSidebar']) }
   actions.setLeftDrawer = (on) => { calls.push(['setLeftDrawer', on]) }
@@ -87,9 +87,13 @@ for (const width of [390, 1023, 1024, 1280]) {
     test(`sidebar navigation at ${width}px with ${wide ? 'expanded content' : 'our own column'} just navigates`, () => {
       viewport.innerWidth = width
       const initial = navigationSidebar(wide)
-      // The wide list holds the items only; the rail keeps a person's avatar per row.
-      assert.ok(initial.rows.length === 2 || initial.rows.length === 3)
-      assert.equal(initial.rows.some(row => row.type.name === 'BotRow'), initial.rows.length === 3)
+      // The open column holds the Main Bot's tile above the items; the rail keeps a
+      // person's avatar per row and no tile.
+      const botRows = initial.rows.filter(row => row.type.name === 'BotRow')
+      const others = initial.rows.filter(row => row.type.name !== 'BotRow')
+      assert.equal(botRows.length, 1)
+      assert.equal(botRows[0].props.bot.id, 'writer')
+      assert.equal(others.length, 2)
       for (const [index, row] of initial.rows.entries()) {
         const names = row.type.name === 'AgentRow' ? ['openAgent', 'openAgentSession', 'newAgentSession'] : ['openSession']
         for (const name of names) {
@@ -700,4 +704,68 @@ test('a department row folds and unfolds from the keyboard', () => {
   mainOpen[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })
   mainOpen[0].props.onKeyDown({ key: 'ArrowLeft', preventDefault() {} })
   assert.deepEqual(JSON.parse(JSON.stringify(opened)), ['toggle'])
+})
+
+// The Main Bot's tile is the team's front door: it stays in the open column even when
+// nothing is waiting and no item exists, and it opens the Main Bot's own chat.
+test('the open sidebar keeps the Main Bot tile with nothing else to show', () => {
+  viewport.innerWidth = 1280
+  const chief = { id: 'chief', sessionId: 'chief', name: 'Chief', role: 'Chief of Staff', color: 'deepseek', capabilities: [], createdAt: 1 }
+  const roster = { bots: [chief], rooms: [], agents: [], byId: { chief }, roomsById: {}, mainBotId: 'chief', ready: true, exchangeTurns: {} }
+  const calls = []
+  const actions = {
+    ...Object.fromEntries(['openMenu', 'openPalette', 'openNewChat', 'toggleSidebar', 'clearUnread', 'seatAccount', 'openSettings', 'openTeam', 'setLeftDrawer'].map(name => [name, () => {}])),
+    openSession: id => calls.push(['openSession', id]),
+  }
+  const rows = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.type?.name === 'BotRow') rows.push(node)
+    walk(node.props?.children)
+  }
+  walk(TeamSidebar({
+    wide: true, actions,
+    useRoster: pick => pick(roster), useUi: pick => pick({ unread: {}, leftDrawer: false }), useRegistry: pick => pick({}),
+    useSessions: pick => pick({ ids: ['chief'], byId: { chief: { id: 'chief', updatedAt: 1 } } }), useUpdate: () => ({}),
+    useSessionStatus: pick => pick(new Map()), useSessionRetainInfo: () => null,
+    useActivity: pick => pick({}), useWork: pick => pick({ bots: {}, rooms: {}, approvals: [] }),
+  }))
+  assert.equal(rows.length, 1)
+  // The tile is the Main Bot's own row, not one of the list's items.
+  assert.equal(rows[0].props.bot.id, 'chief')
+  assert.equal(rows[0].props.wide, true)
+  rows[0].props.actions.openSession('chief')
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['openSession', 'chief']])
+})
+
+// A department on the Main Bot's record never puts it in the tree: the tile leads the
+// team, and the drawer says so on a row of its own.
+test('the Main Bot stays out of the departments and is labelled in the drawer', () => {
+  const person = (id, department, extra = {}) => ({ id, name: id, department, capabilities: [], createdAt: 1, ...extra })
+  const roster = {
+    departments: [{ id: 'dev', name: '研发部', builtin: true }, { id: 'qa', name: '质量部', builtin: true }],
+    bots: [person('chief', 'dev', { role: 'Chief of Staff' }), person('dev', 'dev'), person('qa', null)],
+    byId: {},
+    rooms: [], agents: [], ready: true, mainBotId: 'chief',
+  }
+  roster.byId = Object.fromEntries(roster.bots.map(bot => [bot.id, bot]))
+  const tree = orgTree(roster, { bots: {}, rooms: { 'r-1': [{ botId: 'chief' }] }, approvals: [] })
+  const plain = value => JSON.parse(JSON.stringify(value))
+  // Not in 研发部, even though its record names it, and not in 未分组 either.
+  assert.deepEqual(plain(tree.groups.map(group => [group.id, group.people.map(bot => bot.id)])), [['dev', ['dev']], ['qa', []]])
+  assert.deepEqual(plain((tree.ungrouped?.people ?? []).map(bot => bot.id)), ['qa'])
+  const rows = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.type?.name === 'PersonRow') rows.push(node)
+    walk(node.props?.children)
+  }
+  walk(TeamDrawer({ roster, actions: { closeTeam() {}, openSession() {}, openMenu() {}, renameDepartment: async () => {}, deleteDepartment: async () => {} }, useWork: pick => pick({}) }))
+  const main = rows.find(row => row.props.main === true)
+  assert.equal(main?.props.bot.id, 'chief')
+  assert.equal(main?.props.department, 'Main Bot')
+  // It cannot be moved into a department from here.
+  assert.equal(main?.props.departments, null)
 })

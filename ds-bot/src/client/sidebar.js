@@ -99,7 +99,8 @@ function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessio
     },
     h(BotAvatar, { bot, size: 60, state, main: true }),
     h('span', { className: 'bt-tile-name' }, bot.name),
-    bot.role ? h('span', { className: 'bt-chip' }, bot.role) : null))
+    bot.role ? h('span', { className: 'bt-chip' }, bot.role) : null,
+    (alert || (unread && !active)) ? h('span', { className: `bt-tile-dot${alert ? ' bt-dot-wait' : ''}`, 'aria-hidden': true }) : null))
   }
   return h('button', {
     type: 'button', className: 'bt-row', 'aria-label': label, 'aria-current': active ? 'page' : undefined,
@@ -700,8 +701,12 @@ export function TeamSidebar(props) {
       onClick: () => setOlderOpen(value => !value),
     }, olderOpen ? h(ChevronDownIcon) : h(ChevronRightIcon), h('span', null, t('Earlier · {count} items', { count: olderItems.length }))),
     olderOpen ? olderItems.map(rowFor) : null)
+  // The team's Main Bot keeps its tile at the top of the open column: people left the
+  // list in favour of the Team entry, but the one the user talks to most stays here.
+  const mainTile = wideContent && main ? h(BotRow, { ...rowProps, bot: main, marked: markedUnread[main.id] === true }) : null
   const content = h('div', { className: wideContent ? 'bt-side' : 'bt-side bt-rail', onKeyDown: typeToSearch },
     top,
+    mainTile,
     wideContent && roster.readOnly ? h('div', { className: 'bt-hint bt-read-only', role: 'status' }, hostText(roster.readOnly)) : null,
     h('div', { ref: listRef, className: 'bt-list', role: 'region', 'aria-label': wideContent ? t('Items') : t('Bot list') },
       wideContent ? sideList : order.map(rowFor)),
@@ -1273,6 +1278,10 @@ export const SIDEBAR_CSS = `
 .bt-agent-sub[data-open] .bt-agent-sub-row{animation:bt-agent-row-in .24s ease both;animation-delay:calc(var(--i, 0)*30ms)}
 @keyframes bt-agent-row-in{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
 @media (prefers-reduced-motion:reduce){.bt-agent-sub{transition:none}.bt-agent-sub .bt-agent-sub-row{animation:none}}
+/* The Main Bot's tile keeps a dot for what waits there. */
+.bt-tile-wrap{position:relative}
+.bt-tile-dot{position:absolute;top:14px;right:22px;width:8px;height:8px;border-radius:50%;background:var(--bt-ink-3);box-shadow:0 0 0 2px var(--bt-main)}
+.bt-tile-dot.bt-dot-wait{background:var(--bt-star)}
 /* The level-1 groups: what waits on the user, what runs now, the items and the older ones. */
 .bt-sec-head{display:flex;align-items:center;gap:6px;padding:12px 8px 2px;color:var(--bt-ink-3);font-size:11px;line-height:16px;letter-spacing:.02em}
 .bt-sec-count{margin-left:auto;font-variant-numeric:tabular-nums}

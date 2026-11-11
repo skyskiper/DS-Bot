@@ -39,6 +39,8 @@ export function orgTree(roster, work = {}) {
   const byId = new Map(groups.map(group => [group.id, group]))
   const loose = []
   for (const bot of roster.bots) {
+    // The Main Bot leads the team rather than sitting in one of its departments.
+    if (bot.id === roster.mainBotId) continue
     const group = byId.get(bot.department)
     if (group === undefined) loose.push(bot)
     else group.people.push(bot)
@@ -55,7 +57,7 @@ export function orgTree(roster, work = {}) {
 // One person in the team drawer: the mark, the name and role, where it is now, and a
 // dot that reads the same as the sidebar's. A row opens the Bot's chat; its menu moves
 // the Bot to another department.
-export function PersonRow({ bot, place, department, departments, moving = false, actions, onClose, onToggleMove, onMove, onDismissMove }) {
+export function PersonRow({ bot, place, department, departments, moving = false, main = false, actions, onClose, onToggleMove, onMove, onDismissMove }) {
   const label = [bot.name, bot.role, department, place.text].filter(Boolean).join(', ')
   return h('div', { className: 'bt-team-row-wrap', 'data-open': moving || undefined },
     h('button', {
@@ -65,7 +67,7 @@ export function PersonRow({ bot, place, department, departments, moving = false,
     },
     h(BotAvatar, { bot, size: 34, state: botState(place.kind === 'working', undefined, place.kind === 'need') }),
     h('span', { className: 'bt-team-row-body' },
-      h('span', { className: 'bt-team-row-name' }, bot.name),
+      h('span', { className: 'bt-team-row-name' }, bot.name, main ? h('span', { className: 'bt-team-row-main' }, t('Main Bot')) : null),
       bot.role ? h('span', { className: 'bt-team-row-role' }, bot.role) : null),
     department ? h('span', { className: 'bt-team-row-dept' }, department) : null,
     h('span', { className: 'bt-team-row-place' }, place.text),
@@ -187,14 +189,19 @@ export function TeamDrawer({ roster, actions, useWork, leaving = false }) {
     void actions.updateBot?.(id, { department: department ?? '' })
       .catch(error => actions.reportError?.(error, 'department-move'))
   }
-  const personRow = (bot, department) => h(PersonRow, {
+  const personRow = (bot, department, extra = {}) => h(PersonRow, {
     key: bot.id, bot, place: places.get(bot.id), department, departments,
     moving: moving === bot.id,
     actions, onClose: close,
     onToggleMove: id => setMoving(current => (current === id ? null : id)),
     onMove: moveTo,
     onDismissMove: () => setMoving(null),
+    ...extra,
   })
+  // The Main Bot is drawn above the departments, not inside one: the sidebar keeps its
+  // tile, and here it says why it is not grouped with the others.
+  const mainBot = roster.bots.find(bot => bot.id === roster.mainBotId)
+  const mainRow = mainBot === undefined || find !== '' ? null : personRow(mainBot, t('Main Bot'), { main: true, departments: null })
   const groups = tree === null ? null : [
     ...tree.groups.map(group => ({
       ...group,
@@ -215,20 +222,20 @@ export function TeamDrawer({ roster, actions, useWork, leaving = false }) {
           ? h('div', { className: 'bt-team-empty' }, t('Nobody matches “{query}”.', { query }))
           : hits.map(bot => personRow(bot, departmentNameOf(bot, groups)))
       }
-      return groups.map(group => h('div', { key: group.id, className: 'bt-org-group', 'data-group': group.id },
+      return [mainRow, ...groups.map(group => h('div', { key: group.id, className: 'bt-org-group', 'data-group': group.id },
         h(DepartmentRow, {
           group, open: group.open, busy: group.busy,
           onToggle: () => toggle(group.id),
           onRename: name => void actions.renameDepartment?.(group.id, name).catch(error => actions.reportError?.(error, 'department-rename')),
           onDelete: () => void actions.deleteDepartment?.(group.id).catch(error => actions.reportError?.(error, 'department-delete')),
         }),
-        group.open ? h(Branch, { people: group.people, places, actions, onClose: close, rowFor: personRow }) : null))
+        group.open ? h(Branch, { people: group.people, places, actions, onClose: close, rowFor: personRow }) : null))]
     }
     // No departments from the host: the flat list of people, as before.
     const people = roster.bots.filter(matches)
     return people.length === 0
       ? h('div', { className: 'bt-team-empty' }, t('Nobody matches “{query}”.', { query }))
-      : people.map(bot => personRow(bot, undefined))
+      : people.map(bot => personRow(bot, bot.id === roster.mainBotId ? t('Main Bot') : undefined, bot.id === roster.mainBotId ? { main: true, departments: null } : {}))
   })()
   return h('div', { className: 'bt-team-layer', 'data-leaving': leaving || undefined },
     h('div', { className: 'bt-scrim', onMouseDown: close }),
@@ -277,6 +284,8 @@ export const TEAM_DRAWER_CSS = `
 .bt-team-row[data-state=working] .bt-team-row-dot{background:var(--bt-green)}
 .bt-team-row[data-state=need] .bt-team-row-dot{background:var(--bt-star)}
 .bt-team-empty{padding:18px 8px;color:var(--bt-ink-3);font-size:13px;text-align:center}
+/* The Main Bot's row: it leads the team, so it is not put in a department. */
+.bt-team-row-main{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--bt-accent-soft);color:var(--bt-accent);font-size:10px;line-height:16px;font-weight:500}
 /* A person's row and the menu that moves it to another department. */
 .bt-team-row-wrap{position:relative;display:flex;align-items:center;gap:2px}
 .bt-team-row-wrap .bt-team-row{flex:1 1 auto;min-width:0}

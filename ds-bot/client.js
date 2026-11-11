@@ -15172,7 +15172,8 @@ function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessio
       },
       (0, import_react35.createElement)(BotAvatar, { bot, size: 60, state, main: true }),
       (0, import_react35.createElement)("span", { className: "bt-tile-name" }, bot.name),
-      bot.role ? (0, import_react35.createElement)("span", { className: "bt-chip" }, bot.role) : null
+      bot.role ? (0, import_react35.createElement)("span", { className: "bt-chip" }, bot.role) : null,
+      alert || unread && !active ? (0, import_react35.createElement)("span", { className: `bt-tile-dot${alert ? " bt-dot-wait" : ""}`, "aria-hidden": true }) : null
     ));
   }
   return (0, import_react35.createElement)(
@@ -15818,10 +15819,12 @@ function TeamSidebar(props) {
     }, olderOpen ? (0, import_react35.createElement)(ChevronDownIcon) : (0, import_react35.createElement)(ChevronRightIcon), (0, import_react35.createElement)("span", null, t("Earlier · {count} items", { count: olderItems.length }))),
     olderOpen ? olderItems.map(rowFor) : null
   );
+  const mainTile = wideContent && main ? (0, import_react35.createElement)(BotRow, { ...rowProps, bot: main, marked: markedUnread[main.id] === true }) : null;
   const content = (0, import_react35.createElement)(
     "div",
     { className: wideContent ? "bt-side" : "bt-side bt-rail", onKeyDown: typeToSearch },
     top,
+    mainTile,
     wideContent && roster.readOnly ? (0, import_react35.createElement)("div", { className: "bt-hint bt-read-only", role: "status" }, hostText(roster.readOnly)) : null,
     (0, import_react35.createElement)(
       "div",
@@ -16414,6 +16417,10 @@ var SIDEBAR_CSS = `
 .bt-agent-sub[data-open] .bt-agent-sub-row{animation:bt-agent-row-in .24s ease both;animation-delay:calc(var(--i, 0)*30ms)}
 @keyframes bt-agent-row-in{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
 @media (prefers-reduced-motion:reduce){.bt-agent-sub{transition:none}.bt-agent-sub .bt-agent-sub-row{animation:none}}
+/* The Main Bot's tile keeps a dot for what waits there. */
+.bt-tile-wrap{position:relative}
+.bt-tile-dot{position:absolute;top:14px;right:22px;width:8px;height:8px;border-radius:50%;background:var(--bt-ink-3);box-shadow:0 0 0 2px var(--bt-main)}
+.bt-tile-dot.bt-dot-wait{background:var(--bt-star)}
 /* The level-1 groups: what waits on the user, what runs now, the items and the older ones. */
 .bt-sec-head{display:flex;align-items:center;gap:6px;padding:12px 8px 2px;color:var(--bt-ink-3);font-size:11px;line-height:16px;letter-spacing:.02em}
 .bt-sec-count{margin-left:auto;font-variant-numeric:tabular-nums}
@@ -26260,6 +26267,7 @@ function orgTree(roster, work = {}) {
   const byId = new Map(groups.map((group) => [group.id, group]));
   const loose = [];
   for (const bot of roster.bots) {
+    if (bot.id === roster.mainBotId) continue;
     const group = byId.get(bot.department);
     if (group === void 0) loose.push(bot);
     else group.people.push(bot);
@@ -26272,7 +26280,7 @@ function orgTree(roster, work = {}) {
     ungrouped: loose.length === 0 ? null : { id: "ungrouped", name: t("Ungrouped"), ungrouped: true, people: loose, ...count(loose) }
   };
 }
-function PersonRow({ bot, place, department, departments, moving = false, actions, onClose, onToggleMove, onMove, onDismissMove }) {
+function PersonRow({ bot, place, department, departments, moving = false, main = false, actions, onClose, onToggleMove, onMove, onDismissMove }) {
   const label = [bot.name, bot.role, department, place.text].filter(Boolean).join(", ");
   return (0, import_react62.createElement)(
     "div",
@@ -26298,7 +26306,7 @@ function PersonRow({ bot, place, department, departments, moving = false, action
       (0, import_react62.createElement)(
         "span",
         { className: "bt-team-row-body" },
-        (0, import_react62.createElement)("span", { className: "bt-team-row-name" }, bot.name),
+        (0, import_react62.createElement)("span", { className: "bt-team-row-name" }, bot.name, main ? (0, import_react62.createElement)("span", { className: "bt-team-row-main" }, t("Main Bot")) : null),
         bot.role ? (0, import_react62.createElement)("span", { className: "bt-team-row-role" }, bot.role) : null
       ),
       department ? (0, import_react62.createElement)("span", { className: "bt-team-row-dept" }, department) : null,
@@ -26479,7 +26487,7 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
     setMoving(null);
     void actions.updateBot?.(id, { department: department ?? "" }).catch((error) => actions.reportError?.(error, "department-move"));
   };
-  const personRow = (bot, department) => (0, import_react62.createElement)(PersonRow, {
+  const personRow = (bot, department, extra = {}) => (0, import_react62.createElement)(PersonRow, {
     key: bot.id,
     bot,
     place: places.get(bot.id),
@@ -26490,8 +26498,11 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
     onClose: close,
     onToggleMove: (id) => setMoving((current) => current === id ? null : id),
     onMove: moveTo,
-    onDismissMove: () => setMoving(null)
+    onDismissMove: () => setMoving(null),
+    ...extra
   });
+  const mainBot = roster.bots.find((bot) => bot.id === roster.mainBotId);
+  const mainRow = mainBot === void 0 || find !== "" ? null : personRow(mainBot, t("Main Bot"), { main: true, departments: null });
   const groups = tree === null ? null : [
     ...tree.groups.map((group) => ({
       ...group,
@@ -26508,7 +26519,7 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
         const hits = roster.bots.filter(matches2);
         return hits.length === 0 ? (0, import_react62.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : hits.map((bot) => personRow(bot, departmentNameOf(bot, groups)));
       }
-      return groups.map((group) => (0, import_react62.createElement)(
+      return [mainRow, ...groups.map((group) => (0, import_react62.createElement)(
         "div",
         { key: group.id, className: "bt-org-group", "data-group": group.id },
         (0, import_react62.createElement)(DepartmentRow, {
@@ -26520,10 +26531,10 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
           onDelete: () => void actions.deleteDepartment?.(group.id).catch((error) => actions.reportError?.(error, "department-delete"))
         }),
         group.open ? (0, import_react62.createElement)(Branch, { people: group.people, places, actions, onClose: close, rowFor: personRow }) : null
-      ));
+      ))];
     }
     const people = roster.bots.filter(matches2);
-    return people.length === 0 ? (0, import_react62.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => personRow(bot, void 0));
+    return people.length === 0 ? (0, import_react62.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => personRow(bot, bot.id === roster.mainBotId ? t("Main Bot") : void 0, bot.id === roster.mainBotId ? { main: true, departments: null } : {}));
   })();
   return (0, import_react62.createElement)(
     "div",
@@ -26589,6 +26600,8 @@ var TEAM_DRAWER_CSS = `
 .bt-team-row[data-state=working] .bt-team-row-dot{background:var(--bt-green)}
 .bt-team-row[data-state=need] .bt-team-row-dot{background:var(--bt-star)}
 .bt-team-empty{padding:18px 8px;color:var(--bt-ink-3);font-size:13px;text-align:center}
+/* The Main Bot's row: it leads the team, so it is not put in a department. */
+.bt-team-row-main{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--bt-accent-soft);color:var(--bt-accent);font-size:10px;line-height:16px;font-weight:500}
 /* A person's row and the menu that moves it to another department. */
 .bt-team-row-wrap{position:relative;display:flex;align-items:center;gap:2px}
 .bt-team-row-wrap .bt-team-row{flex:1 1 auto;min-width:0}
