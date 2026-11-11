@@ -34,6 +34,7 @@ const pluginAt = args.includes('--plugin') ? resolve(args[args.indexOf('--plugin
 const attached = args.includes('--attach') ? args[args.indexOf('--attach') + 1] : undefined
 
 const children = []
+const sockets = []
 let home = ''
 let chromeHome = ''
 let failed = 0
@@ -49,6 +50,11 @@ let cleaned = false
 const cleanup = () => {
   if (cleaned) return
   cleaned = true
+  for (const socket of sockets.splice(0)) {
+    // An open CDP WebSocket is a live handle: without closing it the event loop never
+    // empties and the process sits there long after the assertions printed.
+    try { socket.ws.close() } catch {}
+  }
   for (const child of children.splice(0)) {
     // Chrome starts helpers of its own; a polite signal sometimes leaves them and the
     // headless window running, so this is the last thing the script does to them.
@@ -187,7 +193,9 @@ class Cdp {
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?url=${encodeURIComponent('about:blank')}`, { method: 'PUT' })).json()
     const ws = new WebSocket(target.webSocketDebuggerUrl)
     await new Promise((done, fail) => { ws.onopen = done; ws.onerror = fail })
-    return new Cdp(ws)
+    const cdp = new Cdp(ws)
+    sockets.push(cdp)
+    return cdp
   }
   send(method, params = {}) {
     return new Promise((done) => {
@@ -357,12 +365,12 @@ async function main() {
   // that the team surface is really up; page text alone can read empty for a moment.
   const readyOn = page => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false)
   let cdp = await openPage()
-  const warm = await waitFor(() => readyOn(cdp), 10_000)
+  const warm = await waitFor(() => readyOn(cdp), 3_000)
   if (warm !== true) {
     // A second page is what warms a fresh instance by hand; try it once, then fail fast.
     await cdp.send('Page.close').catch(() => {})
     cdp = await openPage()
-    if (await waitFor(() => readyOn(cdp), 10_000) !== true) {
+    if (await waitFor(() => readyOn(cdp), 3_000) !== true) {
       check('the instance holds a session', false, attached === undefined ? 'empty session on a fresh home: start the instance with `serve`, open its UI once, then drive it with --attach <url>' : 'this instance is on an empty session: open its team workspace once, then attach again')
       return
     }
@@ -374,8 +382,14 @@ const entry = scenario === 'serve' ? serve() : main()
 entry.then(() => {
   log('')
   log(`${results.filter(r => r.ok).length} passed, ${failed} failed`)
-  process.exitCode = failed === 0 ? 0 : 1
+  // serve runs until Ctrl-C; a scenario is done once its results are printed, so close
+  // the sockets and children and leave instead of waiting for the loop to drain.
+  if (scenario !== 'serve') {
+    cleanup()
+    process.exit(failed === 0 ? 0 : 1)
+  }
 }, (error) => {
   log(`FAIL ${error?.message ?? error}`)
-  process.exitCode = 1
+  cleanup()
+  process.exit(1)
 })
