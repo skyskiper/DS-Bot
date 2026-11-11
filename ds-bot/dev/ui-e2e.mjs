@@ -299,6 +299,25 @@ async function serve() {
   log(`  plugin  ${pluginAt}`)
   log(`  home    ${prepareHome()}`)
   const url = await startHost()
+  // Warm the instance now: a fresh home opens its first page on an empty session, and
+  // the driver would have nothing to prove. One page, sometimes two, makes it hold the
+  // team's own session; Chrome then goes away and only the instance stays.
+  const debugPort = await freePort()
+  const chrome = startChrome(debugPort)
+  const up = await waitFor(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/version`).then(r => r.ok, () => false)), 20_000)
+  if (up === true) {
+    let warmed = false
+    for (let attempt = 0; attempt < 2 && !warmed; attempt += 1) {
+      const page = await Cdp.open(debugPort)
+      await page.send('Page.enable')
+      await page.send('Page.navigate', { url })
+      warmed = (await waitFor(() => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false), 15_000)) === true
+      await page.send('Page.close').catch(() => {})
+    }
+    log(warmed ? '  warm: the team session is open' : '  warm: still an empty session (the driver will say so)')
+  }
+  children.splice(children.indexOf(chrome), 1)
+  try { chrome.kill('SIGKILL') } catch {}
   log('')
   log(`serving ${url}`)
   log('drive it with: node dev/ui-e2e.mjs image-paging --attach <url>')
