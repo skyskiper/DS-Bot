@@ -1619,6 +1619,14 @@ const HOST_ZH = {
   'Move {name} to a department': '把 {name} 移动到别的部门',
   'No Bots on the team yet.': '团队里还没有 Bot。',
   'Where the Bot sits in the team drawer.': '这个 Bot 在团队抽屉里所在的部门。',
+  'Image': '图片',
+  'Image viewer': '图片查看',
+  'Open image {name}': '查看图片 {name}',
+  'Previous image': '上一张',
+  'Next image': '下一张',
+  '{at} / {count}': '{at} / {count}',
+  'Loading image…': '图片加载中…',
+  'This image could not be loaded.': '这张图片没能加载。',
   '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)

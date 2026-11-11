@@ -1,4 +1,5 @@
 import { createElement as h, Fragment, useEffect, useRef, useState } from 'react'
+import { MessageImages } from './image-viewer.js'
 import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import { imPlatform } from '../shared/im-platforms.js'
 import { mentionSpans } from '../shared/mentions.js'
@@ -59,18 +60,30 @@ function UserText({ text, bots, referenceLabels, skillNames, references, actions
     : h(Fragment, { key: index }, ui.projectUserText(part.text, referenceLabels, skillNames, 'skill', references))))
 }
 
-function Attachments({ attachments, renderMessageImages }) {
-  const compact = attachments.length > 1
-  return h('div', { className: 'bt-uattach' }, attachments.map((block, index) => {
-    if (block.type === 'image') {
-      return renderMessageImages ? h(Fragment, { key: index }, renderMessageImages({ images: [{ attachment: block.attachment }], align: 'end', compact })) : null
-    }
-    const file = block.attachment
-    const meta = [ui.fileExtension?.(file.name)?.toUpperCase().slice(0, 8), ui.fileSizeText?.(file.bytes)].filter(Boolean).join(' · ')
-    return h('span', { key: index, className: 'bt-ufile', title: file.name },
-      ui.FileTypeIcon ? h(ui.FileTypeIcon, { path: file.name, className: 'bt-ufile-icon' }) : null,
-      h('span', { className: 'bt-ufile-text' }, h('span', { className: 'bt-ufile-name' }, file.name), meta ? h('span', { className: 'bt-ufile-meta' }, meta) : null))
-  }))
+// A message's images are drawn here rather than by the shell's gallery, so opening one
+// can page through the conversation's images; its other attachments stay as they were.
+function Attachments({ attachments, sessionId, seq, actions, renderMessageImages }) {
+  const images = attachments.filter(block => block.type === 'image')
+  const files = attachments.filter(block => block.type !== 'image')
+  // A host without the viewer's verbs keeps the shell's own gallery, so its images
+  // still show (the desktop app's window runs without them).
+  const ours = typeof actions?.loadImage === 'function' && typeof actions?.openImageViewer === 'function'
+  const compact = images.length > 1
+  return h('div', { className: 'bt-uattach' },
+    images.length === 0 ? null : ours ? h(MessageImages, {
+      sessionId, seq,
+      blocks: images.map(block => ({ attachment: block.attachment })),
+      actions,
+    }) : images.map((block, index) => (renderMessageImages
+      ? h(Fragment, { key: index }, renderMessageImages({ images: [{ attachment: block.attachment }], align: 'end', compact }))
+      : null)),
+    files.map((block, index) => {
+      const file = block.attachment
+      const meta = [ui.fileExtension?.(file.name)?.toUpperCase().slice(0, 8), ui.fileSizeText?.(file.bytes)].filter(Boolean).join(' · ')
+      return h('span', { key: index, className: 'bt-ufile', title: file.name },
+        ui.FileTypeIcon ? h(ui.FileTypeIcon, { path: file.name, className: 'bt-ufile-icon' }) : null,
+        h('span', { className: 'bt-ufile-text' }, h('span', { className: 'bt-ufile-name' }, file.name), meta ? h('span', { className: 'bt-ufile-meta' }, meta) : null))
+    }))
 }
 
 function CopyButton({ text }) {
@@ -115,7 +128,7 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
   }
   return h('div', { ref: row, className: 'bt-umsg', 'data-steering': steering || undefined },
     h('div', { className: 'bt-ustack' },
-      attachments.length > 0 ? h(Attachments, { attachments, renderMessageImages }) : null,
+      attachments.length > 0 ? h(Attachments, { attachments, sessionId, seq: data.seq, actions, renderMessageImages }) : null,
       text !== '' || rest.length > 0 ? h('div', { className: 'bt-ubody', title: clock(data.time), 'data-folded': folded || undefined, onClick: tapTools },
         control ? h('div', { className: 'bt-fold-body' }, body) : body,
         control,

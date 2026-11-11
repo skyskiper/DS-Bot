@@ -37,6 +37,7 @@ import { AVATAR_LIBRARY_CSS } from './avatar-library.js'
 import { GROUP_SETTINGS_CSS } from './group-settings.js'
 import { SESSION_MAP_CSS } from './session-map.js'
 import { TEAM_DRAWER_CSS } from './team-drawer.js'
+import { IMAGE_VIEWER_CSS } from './image-viewer.js'
 import { GROUP_CARD_CSS } from './group-card.js'
 import { FOLDER_CSS } from './folder-menu.js'
 import { USAGE_CSS } from './usage-page.js'
@@ -76,7 +77,7 @@ export function apply(ctx) {
   let seenAt = seenStore.read()
   // `details` is the panel's subject (a Session id); `view` picks details or the
   // subject Bot's browser inside it.
-  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, side: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, map: null, team: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {}, panelYield: false, leftDrawer: false, bootFailed: false, goalCompose: null, goalOpen: null })
+  const ui = createSource({ details: null, view: 'details', renaming: false, tab: null, side: null, newChat: null, exchange: null, menu: null, voice: null, palette: null, quote: null, settings: null, memory: null, map: null, team: null, imageViewer: null, toast: null, signIn: null, renameAgent: null, unread: unreadStore.read(), reactions: reactionStore.read(), visits: {}, panelYield: false, leftDrawer: false, bootFailed: false, goalCompose: null, goalOpen: null })
   // The left column's kept preference, and the frame geometry the layout rules
   // in frame-layout.js read: the window and the shell's collapsed track come from
   // installFrameWatch, the open column's width is the user's own.
@@ -500,6 +501,10 @@ export function apply(ctx) {
     },
     // The Session map behind a Bot or a group: every Session it works in, with a jump
     // to the shell's own view of any of them.
+    // The image viewer pages through the conversation's own images (image-viewer.js).
+    openImageViewer: (sessionId, key) => ui.set(state => ({ ...state, imageViewer: { sessionId, key }, newChat: null, exchange: null, menu: null, palette: null })),
+    closeImageViewer: () => ui.set(state => (state.imageViewer ? { ...state, imageViewer: null } : state)),
+    loadImage: (sessionId, attachment) => ctx.uiConversation.imageUrl(sessionId, attachment),
     openTeam: () => ui.set(state => ({ ...state, team: true, newChat: null, exchange: null, menu: null, palette: null })),
     closeTeam: () => ui.set(state => (state.team ? { ...state, team: null } : state)),
     openMap: (id) => ui.set(state => ({ ...state, map: id, newChat: null, exchange: null, menu: null, palette: null })),
@@ -1062,6 +1067,7 @@ export function apply(ctx) {
     () => installCompiledStyles(MODEL_CSS + FOLDER_CSS + BOT_SETTINGS_CSS + GROUP_SETTINGS_CSS + AVATAR_LIBRARY_CSS, 'models'),
     () => installCompiledStyles(SESSION_MAP_CSS, 'session-map'),
     () => installCompiledStyles(TEAM_DRAWER_CSS, 'team-drawer'),
+    () => installCompiledStyles(IMAGE_VIEWER_CSS, 'image-viewer'),
     () => installCompiledStyles(GROUP_CARD_CSS, 'group-cards'),
     () => installCompiledStyles(USAGE_CSS, 'usage'),
     () => installCompiledStyles(SCHEDULE_CSS, 'schedules'),
