@@ -1603,6 +1603,18 @@ const HOST_ZH = {
   'In {room}': '在【{room}】',
   'In its own chat': '在自己的会话里',
   'Nobody matches “{query}”.': '没有找到「{query}」。',
+  'Ungrouped': '未分组',
+  '{count} people': '{count} 人',
+  '{count} working': '{count} 人在忙',
+  'Rename': '改名',
+  'Delete': '删除',
+  'More': '更多',
+  'Built-in: rename only': '内置部门：只能改名',
+  'Delete this department? Its members go back to ungrouped.': '删除这个部门？成员会回到未分组。',
+  'Department': '部门',
+  'New department': '新建部门',
+  'Create it': '创建',
+  'Department settings for {name}': '{name} 的部门设置',
   '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)

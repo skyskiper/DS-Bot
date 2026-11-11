@@ -16,7 +16,7 @@ const { JSDOM } = createRequire(join(process.env.DSH_HARNESS ?? join(PLUGIN, '..
 // fixtures retain refs across commits and run their layout effects after each render.
 const { outputFiles } = await build({
   stdin: {
-    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'\nexport { TeamDrawer } from './src/client/team-drawer.js'",
+    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'\nexport { TeamDrawer, orgTree, busyIds } from './src/client/team-drawer.js'",
     resolveDir: PLUGIN,
   },
   bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
@@ -42,7 +42,7 @@ const sandbox = {
   window: viewport,
 }
 runInNewContext(outputFiles[0].text, sandbox)
-const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar, TeamDrawer } = module.exports
+const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar, TeamDrawer, orgTree, busyIds } = module.exports
 
 function navigationSidebar(wide, { leftDrawer = false } = {}) {
   const calls = []
@@ -536,3 +536,67 @@ test('TeamSidebar subscribes to specific ui slices rather than the whole ui obje
   }
 })
 
+
+// The team drawer's tree: departments in their own order, the empty ones after the busy
+// ones, and 未分组 last. A host that sends no departments keeps the flat list.
+test('the team tree groups people by department, empty ones after, ungrouped last', () => {
+  const person = (id, department) => ({ id, name: id, department })
+  const roster = {
+    departments: [
+      { id: 'dev', name: '研发部', builtin: true },
+      { id: 'qa', name: '质量部', builtin: true },
+      { id: 'd_abc12345', name: '内测组' },
+      { id: 'sup', name: '支持部', builtin: true },
+    ],
+    bots: [person('a', 'dev'), person('b', 'd_abc12345'), person('c', null), person('d', 'dev')],
+    roomsById: { 'r-1': { id: 'r-1', name: 'Launch' } },
+  }
+  const tree = orgTree(roster, { bots: { a: { tool: 'read' } }, rooms: { 'r-1': [{ botId: 'b' }] }, approvals: [] })
+  const plain = value => JSON.parse(JSON.stringify(value))
+  assert.deepEqual(plain(tree.groups.map(group => [group.id, group.total, group.busy])), [
+    ['dev', 2, 1],
+    ['d_abc12345', 1, 1],
+    ['qa', 0, 0],
+    ['sup', 0, 0],
+  ])
+  assert.equal(tree.ungrouped.total, 1)
+  assert.deepEqual(plain(tree.ungrouped.people.map(bot => bot.id)), ['c'])
+  // The group and the Bot's own chat both count as at work.
+  assert.deepEqual(plain([...busyIds({ bots: { a: {} }, rooms: { 'r-1': [{ botId: 'b' }] } })].sort()), ['a', 'b'])
+})
+
+test('a host without departments leaves the team drawer flat', () => {
+  assert.equal(orgTree({ bots: [] }), null)
+  assert.equal(orgTree({ bots: [], departments: [] }), null)
+  const roster = { bots: [{ id: 'writer', name: 'Writer', createdAt: 1 }], byId: { writer: { id: 'writer', name: 'Writer' } }, rooms: [], agents: [], ready: true }
+  const rows = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.type?.name === 'PersonRow') rows.push(node)
+    walk(node.props?.children)
+  }
+  walk(TeamDrawer({ roster, actions: { closeTeam() {}, openSession() {}, openMenu() {} }, useWork: pick => pick({}) }))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].props.department, undefined)
+})
+
+test('the team drawer draws a department row per group, folded until opened', () => {
+  const person = (id, department) => ({ id, name: id, department })
+  const roster = {
+    departments: [{ id: 'dev', name: '研发部', builtin: true }, { id: 'qa', name: '质量部', builtin: true }],
+    bots: [person('a', 'dev'), person('b', 'qa')],
+    byId: { a: person('a', 'dev'), b: person('b', 'qa') },
+    rooms: [], agents: [], ready: true,
+  }
+  const rows = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.type?.name === 'DepartmentRow') rows.push(node)
+    walk(node.props?.children)
+  }
+  walk(TeamDrawer({ roster, actions: { closeTeam() {}, openSession() {}, openMenu() {} }, useWork: pick => pick({}) }))
+  assert.deepEqual(JSON.parse(JSON.stringify(rows.map(row => [row.props.group.name, row.props.open]))), [['研发部', false], ['质量部', false]])
+  assert.equal(rows[0].props.busy, 0)
+})

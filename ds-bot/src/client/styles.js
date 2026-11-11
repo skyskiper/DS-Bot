@@ -372,6 +372,16 @@ button.bt-q-opt:active{background:var(--bt-active)}
 .bt-create-step{font-size:12px;line-height:16px;color:var(--bt-ink-2);margin-bottom:-10px}
 .bt-create-looks{display:flex;flex-direction:column;gap:10px;padding:10px;border:1px solid var(--bt-line);border-radius:12px;background:var(--bt-card)}
 .bt-create-lookbar{justify-content:center}
+/* The new Bot's department: the team's departments with their counts, or a new name. */
+.bt-dept-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.bt-dept-caret{display:inline-flex;color:var(--bt-ink-3)}
+.bt-dept-menu{display:flex;flex-direction:column;gap:1px;margin-top:-10px;padding:4px;border:1px solid var(--bt-line-2);border-radius:10px;background:var(--bt-card);box-shadow:var(--bt-glass-shadow);max-height:240px;overflow-y:auto}
+.bt-dept-menu>[role=option]{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.bt-dept-menu>[role=option]:hover{background:var(--bt-hover)}
+.bt-dept-menu>[aria-selected=true]{background:var(--bt-active)}
+.bt-dept-count{color:var(--bt-ink-3);font-size:11px}
+.bt-dept-new{display:flex;align-items:center;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--bt-line);margin-top:4px}
+.bt-dept-new input{flex:1 1 auto;min-width:0;padding:6px 8px;border:1px solid var(--bt-line-2);border-radius:8px;background:var(--bt-main);color:var(--bt-ink);font:inherit;font-size:12px;outline:none}
 .bt-create-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
 .bt-create-go{height:36px;padding:0 20px}
 @media (prefers-reduced-motion:reduce){.bt-create-card,.bt-create-pop{animation:none}}

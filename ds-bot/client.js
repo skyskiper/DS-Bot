@@ -1646,6 +1646,18 @@ var HOST_ZH = {
   "In {room}": "在【{room}】",
   "In its own chat": "在自己的会话里",
   "Nobody matches “{query}”.": "没有找到「{query}」。",
+  "Ungrouped": "未分组",
+  "{count} people": "{count} 人",
+  "{count} working": "{count} 人在忙",
+  "Rename": "改名",
+  "Delete": "删除",
+  "More": "更多",
+  "Built-in: rename only": "内置部门：只能改名",
+  "Delete this department? Its members go back to ungrouped.": "删除这个部门？成员会回到未分组。",
+  "Department": "部门",
+  "New department": "新建部门",
+  "Create it": "创建",
+  "Department settings for {name}": "{name} 的部门设置",
   "(skipped)": "（跳过）"
 };
 Object.assign(ZH, HOST_ZH);
@@ -2105,6 +2117,10 @@ function teamActions({ call: call2, after, partFor, roster, ui: ui2, live, cards
       ui2.set((state) => ({ ...state, newChat: null, exchange: null, details: state.newChat || state.exchange ? state.details : null }));
     },
     createBot: (payload) => after(call2("create-bot", payload)),
+    // Departments: the built-ins can be renamed, a department the user made can also go.
+    createDepartment: (name) => after(call2("create-department", { name })),
+    renameDepartment: (id, name) => after(call2("update-department", { id, name })),
+    deleteDepartment: (id) => after(call2("delete-department", { id })),
     // The avatar library: photos the user imported once, kept by the host.
     avatarLibrary: (options = {}) => call2("avatar-library", options),
     importAvatars: (items) => call2("avatar-import", { items }),
@@ -3393,6 +3409,16 @@ button.bt-q-opt:active{background:var(--bt-active)}
 .bt-create-step{font-size:12px;line-height:16px;color:var(--bt-ink-2);margin-bottom:-10px}
 .bt-create-looks{display:flex;flex-direction:column;gap:10px;padding:10px;border:1px solid var(--bt-line);border-radius:12px;background:var(--bt-card)}
 .bt-create-lookbar{justify-content:center}
+/* The new Bot's department: the team's departments with their counts, or a new name. */
+.bt-dept-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.bt-dept-caret{display:inline-flex;color:var(--bt-ink-3)}
+.bt-dept-menu{display:flex;flex-direction:column;gap:1px;margin-top:-10px;padding:4px;border:1px solid var(--bt-line-2);border-radius:10px;background:var(--bt-card);box-shadow:var(--bt-glass-shadow);max-height:240px;overflow-y:auto}
+.bt-dept-menu>[role=option]{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.bt-dept-menu>[role=option]:hover{background:var(--bt-hover)}
+.bt-dept-menu>[aria-selected=true]{background:var(--bt-active)}
+.bt-dept-count{color:var(--bt-ink-3);font-size:11px}
+.bt-dept-new{display:flex;align-items:center;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--bt-line);margin-top:4px}
+.bt-dept-new input{flex:1 1 auto;min-width:0;padding:6px 8px;border:1px solid var(--bt-line-2);border-radius:8px;background:var(--bt-main);color:var(--bt-ink);font:inherit;font-size:12px;outline:none}
 .bt-create-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
 .bt-create-go{height:36px;padding:0 20px}
 @media (prefers-reduced-motion:reduce){.bt-create-card,.bt-create-pop{animation:none}}
@@ -17799,12 +17825,13 @@ function startModel(roster) {
   const usable = (roster.models ?? []).filter((model) => model.needsKey !== true);
   return (usable.find((model) => model.ref === roster.prefs?.defaultBotModel) ?? usable.find((model) => model.ref === roster.defaultModel) ?? usable[0])?.ref ?? "";
 }
-function createPayload({ name, look, image, model, effort, brief }) {
+function createPayload({ name, look, image, model, effort, brief, department }) {
   const badge = image === void 0 && isLocalRoute(model) ? agentAvatar(String(model).split("/")[0]) : void 0;
   const payload = { name, color: look.color, avatar: image ? { shape: look.shape, image } : badge !== void 0 ? { shape: look.shape, image: badge.image } : { shape: look.shape } };
   if (model) payload.model = model;
   if (effort !== void 0) payload.effort = effort;
   if (brief) payload.brief = brief;
+  if (department) payload.department = department;
   return payload;
 }
 
@@ -17816,11 +17843,103 @@ var randomLook = (avoid = {}) => {
   const colors = DEFAULT_COLORS.filter((color) => color !== avoid.color);
   return { shape: pick(shapes), color: pick(colors) };
 };
+function DepartmentPicker({ roster, value, onChange, actions }) {
+  const departments = Array.isArray(roster.departments) ? roster.departments : [];
+  const [open, setOpen] = (0, import_react40.useState)(false);
+  const [draft, setDraft] = (0, import_react40.useState)("");
+  const [busy, setBusy] = (0, import_react40.useState)(false);
+  const [error, setError] = (0, import_react40.useState)("");
+  if (departments.length === 0) return null;
+  const current = departments.find((entry) => entry.id === value);
+  const countOf = (id) => roster.bots.filter((bot) => bot.department === id).length;
+  const make = async () => {
+    const name = draft.trim();
+    if (name === "" || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const view = await actions.createDepartment(name);
+      const created = (view?.departments ?? []).find((entry) => entry.name === name);
+      if (created !== void 0) onChange(created.id);
+      setDraft("");
+      setOpen(false);
+    } catch (failure) {
+      setError(failure?.message ?? String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (0, import_react40.createElement)(
+    "div",
+    { className: "bt-field bt-dept" },
+    (0, import_react40.createElement)("span", { className: "bt-field-label" }, t("Department")),
+    (0, import_react40.createElement)(
+      "button",
+      {
+        type: "button",
+        className: "bt-input bt-dept-pick",
+        "aria-haspopup": "listbox",
+        "aria-expanded": open,
+        "aria-label": t("Department"),
+        onClick: () => setOpen((value2) => !value2)
+      },
+      (0, import_react40.createElement)("span", null, current?.name ?? t("Ungrouped")),
+      (0, import_react40.createElement)("span", { className: "bt-dept-caret", "aria-hidden": true }, open ? (0, import_react40.createElement)(ChevronDownIcon) : (0, import_react40.createElement)(ChevronRightIcon))
+    ),
+    open ? (0, import_react40.createElement)(
+      "div",
+      { className: "bt-dept-menu", role: "listbox", "aria-label": t("Department") },
+      (0, import_react40.createElement)("button", {
+        type: "button",
+        role: "option",
+        "aria-selected": value === null || value === void 0,
+        onClick: () => {
+          onChange(null);
+          setOpen(false);
+        }
+      }, (0, import_react40.createElement)("span", null, t("Ungrouped")), (0, import_react40.createElement)("span", { className: "bt-dept-count" }, t("{count} people", { count: roster.bots.filter((bot) => bot.department === null || bot.department === void 0).length }))),
+      departments.map((entry) => (0, import_react40.createElement)(
+        "button",
+        {
+          key: entry.id,
+          type: "button",
+          role: "option",
+          "aria-selected": entry.id === value,
+          onClick: () => {
+            onChange(entry.id);
+            setOpen(false);
+          }
+        },
+        (0, import_react40.createElement)("span", null, entry.name),
+        (0, import_react40.createElement)("span", { className: "bt-dept-count" }, t("{count} people", { count: countOf(entry.id) }))
+      )),
+      (0, import_react40.createElement)(
+        "div",
+        { className: "bt-dept-new" },
+        (0, import_react40.createElement)("input", {
+          value: draft,
+          placeholder: t("New department"),
+          "aria-label": t("New department"),
+          onChange: (event) => setDraft(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void make();
+            }
+          }
+        }),
+        (0, import_react40.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: busy || draft.trim() === "", onClick: () => void make() }, busy ? t("Creating…") : t("Create it"))
+      ),
+      error ? (0, import_react40.createElement)("div", { className: "bt-error", role: "alert" }, error) : null
+    ) : null
+  );
+}
 function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCreated, inline = false }) {
   const [look, setLook] = (0, import_react40.useState)(() => randomLook());
   const [image, setImage] = (0, import_react40.useState)(null);
   const [library, setLibrary] = (0, import_react40.useState)(false);
   const [name, setName] = (0, import_react40.useState)(start?.name ?? "");
+  const [department, setDepartment] = (0, import_react40.useState)(null);
   const [model, setModel] = (0, import_react40.useState)(() => startModel(roster));
   const [effort, setEffort] = (0, import_react40.useState)(void 0);
   const [busy, setBusy] = (0, import_react40.useState)(false);
@@ -17840,7 +17959,7 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
     setError("");
     setBusy(true);
     try {
-      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model, effort, brief }));
+      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model, effort, brief, department }));
       onCreated(bot);
     } catch (failure) {
       setError(failure?.message ?? String(failure));
@@ -17926,6 +18045,7 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
       }),
       problem ? (0, import_react40.createElement)("span", { className: "bt-note bt-danger" }, hostText(problem)) : clash ? (0, import_react40.createElement)("span", { className: "bt-note bt-danger" }, t("A Bot named {name} already exists", { name: finalName })) : null
     ),
+    (0, import_react40.createElement)(DepartmentPicker, { roster, value: department, onChange: setDepartment, actions }),
     (0, import_react40.createElement)(
       "div",
       { className: "bt-field" },
@@ -25866,6 +25986,12 @@ var BROWSER_CSS = `
 
 // src/client/team-drawer.js
 var import_react61 = require("react");
+var orgGroupsOf = (roster) => Array.isArray(roster.departments) && roster.departments.length > 0 ? roster.departments : null;
+function busyIds(work = {}) {
+  const ids = new Set(Object.keys(work.bots ?? {}));
+  for (const list of Object.values(work.rooms ?? {})) for (const entry of Array.isArray(list) ? list : []) if (entry.botId !== void 0) ids.add(entry.botId);
+  return ids;
+}
 function placeOf(bot, { work, questions, roster }) {
   const part = currentPart(bot);
   if (questions?.[part] !== void 0) return { kind: "need", text: t("waits for your answer") };
@@ -25875,8 +26001,28 @@ function placeOf(bot, { work, questions, roster }) {
   if (work.bots?.[bot.id] !== void 0) return { kind: "working", text: t("In its own chat") };
   return { kind: "idle", text: t("Idle") };
 }
-function PersonRow({ bot, place, actions, onClose }) {
-  const label = [bot.name, bot.role, place.text].filter(Boolean).join(", ");
+function orgTree(roster, work = {}) {
+  const departments = orgGroupsOf(roster);
+  if (departments === null) return null;
+  const busy = busyIds(work);
+  const groups = departments.map((entry) => ({ id: entry.id, name: entry.name, builtin: entry.builtin === true, people: [] }));
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  const loose = [];
+  for (const bot of roster.bots) {
+    const group = byId.get(bot.department);
+    if (group === void 0) loose.push(bot);
+    else group.people.push(bot);
+  }
+  const count = (people) => ({ total: people.length, busy: people.filter((bot) => busy.has(bot.id)).length });
+  const filled = groups.filter((group) => group.people.length > 0).map((group) => ({ ...group, ...count(group.people) }));
+  const empty = groups.filter((group) => group.people.length === 0).map((group) => ({ ...group, ...count(group.people) }));
+  return {
+    groups: [...filled, ...empty],
+    ungrouped: loose.length === 0 ? null : { id: "ungrouped", name: t("Ungrouped"), ungrouped: true, people: loose, ...count(loose) }
+  };
+}
+function PersonRow({ bot, place, department, actions, onClose }) {
+  const label = [bot.name, bot.role, department, place.text].filter(Boolean).join(", ");
   return (0, import_react61.createElement)(
     "button",
     {
@@ -25901,14 +26047,119 @@ function PersonRow({ bot, place, actions, onClose }) {
       (0, import_react61.createElement)("span", { className: "bt-team-row-name" }, bot.name),
       bot.role ? (0, import_react61.createElement)("span", { className: "bt-team-row-role" }, bot.role) : null
     ),
+    department ? (0, import_react61.createElement)("span", { className: "bt-team-row-dept" }, department) : null,
     (0, import_react61.createElement)("span", { className: "bt-team-row-place" }, place.text),
     (0, import_react61.createElement)("span", { className: "bt-team-row-dot", "aria-hidden": true })
+  );
+}
+function DepartmentRow({ group, open, onToggle, onRename, onDelete, busy }) {
+  const [menu, setMenu] = (0, import_react61.useState)(false);
+  const [renaming, setRenaming] = (0, import_react61.useState)(false);
+  const [draft, setDraft] = (0, import_react61.useState)(group.name);
+  const [confirming, setConfirming] = (0, import_react61.useState)(false);
+  const input = (0, import_react61.useRef)(null);
+  (0, import_react61.useEffect)(() => {
+    if (renaming) {
+      input.current?.focus();
+      input.current?.select();
+    }
+  }, [renaming]);
+  const commit = () => {
+    const name = draft.trim();
+    setRenaming(false);
+    setMenu(false);
+    if (name !== "" && name !== group.name) onRename(name);
+    else setDraft(group.name);
+  };
+  const counts2 = [t("{count} people", { count: group.total }), busy > 0 ? t("{count} working", { count: busy }) : ""].filter(Boolean).join(" · ");
+  return (0, import_react61.createElement)(
+    "div",
+    { className: "bt-org-dept", "data-dept": group.id, "data-empty": group.total === 0 || void 0, "data-open": open || void 0 },
+    (0, import_react61.createElement)(
+      "div",
+      { className: "bt-org-dept-line" },
+      (0, import_react61.createElement)(
+        "button",
+        {
+          type: "button",
+          className: "bt-org-dept-main",
+          "aria-expanded": open,
+          "aria-label": `${group.name}, ${counts2}`,
+          onClick: onToggle
+        },
+        (0, import_react61.createElement)("span", { className: "bt-org-caret", "aria-hidden": true }, open ? (0, import_react61.createElement)(ChevronDownIcon) : (0, import_react61.createElement)(ChevronRightIcon)),
+        renaming ? (0, import_react61.createElement)("input", {
+          ref: input,
+          className: "bt-org-rename",
+          value: draft,
+          maxLength: 24,
+          "aria-label": t("Rename"),
+          onClick: (event) => event.stopPropagation(),
+          onChange: (event) => setDraft(event.target.value),
+          onKeyDown: (event) => {
+            if (event.nativeEvent.isComposing) return;
+            event.stopPropagation();
+            if (event.key === "Enter") commit();
+            else if (event.key === "Escape") {
+              setDraft(group.name);
+              setRenaming(false);
+              setMenu(false);
+            }
+          },
+          onBlur: commit
+        }) : (0, import_react61.createElement)("span", { className: "bt-org-name" }, group.name),
+        (0, import_react61.createElement)("span", { className: "bt-org-counts" }, counts2)
+      ),
+      (0, import_react61.createElement)("button", {
+        type: "button",
+        className: "bt-org-more",
+        "aria-label": t("Department settings for {name}", { name: group.name }),
+        title: t("More"),
+        "aria-expanded": menu,
+        onClick: () => {
+          setMenu((value) => !value);
+          setConfirming(false);
+        }
+      }, (0, import_react61.createElement)(DotsIcon)),
+      menu ? (0, import_react61.createElement)(
+        "div",
+        { className: "bt-org-menu", role: "menu" },
+        (0, import_react61.createElement)("button", { type: "button", role: "menuitem", onClick: () => {
+          setDraft(group.name);
+          setRenaming(true);
+          setMenu(false);
+        } }, t("Rename")),
+        group.builtin ? (0, import_react61.createElement)("span", { className: "bt-org-menu-note" }, t("Built-in: rename only")) : confirming ? (0, import_react61.createElement)("button", { type: "button", role: "menuitem", className: "bt-org-danger", onClick: () => {
+          setMenu(false);
+          setConfirming(false);
+          onDelete();
+        } }, t("Delete this department? Its members go back to ungrouped.")) : (0, import_react61.createElement)("button", { type: "button", role: "menuitem", className: "bt-org-danger", onClick: () => setConfirming(true) }, t("Delete"))
+      ) : null
+    ),
+    // Folded, the department still shows who is in it.
+    open || group.stack.length === 0 ? null : (0, import_react61.createElement)(
+      "div",
+      { className: "bt-org-stack", "aria-hidden": true },
+      group.stack.map((bot) => (0, import_react61.createElement)(BotMark, { key: bot.id, bot, size: 18 }))
+    )
+  );
+}
+function Branch({ people, places, actions, onClose, department }) {
+  return (0, import_react61.createElement)(
+    "div",
+    { className: "bt-org-kids" },
+    people.map((bot, index) => (0, import_react61.createElement)(
+      "div",
+      { key: bot.id, className: "bt-org-kid", "data-last": index === people.length - 1 || void 0 },
+      (0, import_react61.createElement)(PersonRow, { bot, place: places.get(bot.id), department, actions, onClose })
+    ))
   );
 }
 function TeamDrawer({ roster, actions, useWork, leaving = false }) {
   const close = () => actions.closeTeam();
   useEscape(close);
   const [query, setQuery] = (0, import_react61.useState)("");
+  const [expanded, setExpanded] = (0, import_react61.useState)({});
   const search = (0, import_react61.useRef)(null);
   (0, import_react61.useEffect)(() => {
     search.current?.focus();
@@ -25918,14 +26169,51 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
     const raw = JSON.parse(workRaw);
     return { bots: raw.bots ?? {}, rooms: raw.rooms ?? {}, approvals: raw.approvals ?? [] };
   }, [workRaw]);
-  const busy = (0, import_react61.useMemo)(() => {
-    const ids = new Set(Object.keys(work.bots));
-    for (const list of Object.values(work.rooms)) for (const entry of Array.isArray(list) ? list : []) if (entry.botId !== void 0) ids.add(entry.botId);
-    return ids;
-  }, [work]);
+  const busy = (0, import_react61.useMemo)(() => busyIds(work), [work]);
+  const tree = (0, import_react61.useMemo)(() => orgTree(roster, work), [roster, work]);
+  const places = (0, import_react61.useMemo)(() => new Map(roster.bots.map((bot) => [bot.id, placeOf(bot, { work, questions: roster.questions, roster })])), [roster, work]);
   const find = query.trim().toLowerCase();
-  const people = roster.bots.filter((bot) => find === "" || bot.name.toLowerCase().includes(find) || (bot.role ?? "").toLowerCase().includes(find));
-  const places = new Map(people.map((bot) => [bot.id, placeOf(bot, { work, questions: roster.questions, roster })]));
+  const matches2 = (bot) => find === "" || bot.name.toLowerCase().includes(find) || (bot.role ?? "").toLowerCase().includes(find);
+  const toggle = (id) => setExpanded((current) => ({ ...current, [id]: current[id] !== true }));
+  const groups = tree === null ? null : [
+    ...tree.groups.map((group) => ({
+      ...group,
+      // A folded department still shows a few marks, so the row is not just a number.
+      stack: group.people.slice(0, 3),
+      open: expanded[group.id] === true
+    })),
+    ...tree.ungrouped === null ? [] : [{ ...tree.ungrouped, stack: tree.ungrouped.people.slice(0, 3), open: expanded.ungrouped === true }]
+  ];
+  const body = (() => {
+    if (groups !== null) {
+      if (find !== "") {
+        const hits = roster.bots.filter(matches2);
+        return hits.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : hits.map((bot) => (0, import_react61.createElement)(PersonRow, {
+          key: bot.id,
+          bot,
+          place: places.get(bot.id),
+          department: departmentNameOf(bot, groups),
+          actions,
+          onClose: close
+        }));
+      }
+      return groups.map((group) => (0, import_react61.createElement)(
+        "div",
+        { key: group.id, className: "bt-org-group", "data-group": group.id },
+        (0, import_react61.createElement)(DepartmentRow, {
+          group,
+          open: group.open,
+          busy: group.busy,
+          onToggle: () => toggle(group.id),
+          onRename: (name) => void actions.renameDepartment?.(group.id, name).catch((error) => actions.reportError?.(error, "department-rename")),
+          onDelete: () => void actions.deleteDepartment?.(group.id).catch((error) => actions.reportError?.(error, "department-delete"))
+        }),
+        group.open ? (0, import_react61.createElement)(Branch, { people: group.people, places, actions, onClose: close }) : null
+      ));
+    }
+    const people = roster.bots.filter(matches2);
+    return people.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => (0, import_react61.createElement)(PersonRow, { key: bot.id, bot, place: places.get(bot.id), actions, onClose: close }));
+  })();
   return (0, import_react61.createElement)(
     "div",
     { className: "bt-team-layer", "data-leaving": leaving || void 0 },
@@ -25959,13 +26247,13 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
           }
         })
       ),
-      (0, import_react61.createElement)(
-        "div",
-        { className: "bt-team-list", role: "list" },
-        people.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => (0, import_react61.createElement)(PersonRow, { key: bot.id, bot, place: places.get(bot.id), actions, onClose: close }))
-      )
+      (0, import_react61.createElement)("div", { className: "bt-team-list", role: groups !== null && find === "" ? "tree" : "list" }, body)
     )
   );
+}
+function departmentNameOf(bot, groups) {
+  const found = groups.find((group) => group.people.some((person) => person.id === bot.id));
+  return found === void 0 || found.ungrouped === true ? t("Ungrouped") : found.name;
 }
 var TEAM_DRAWER_CSS = `
 .bt-team-layer{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:flex-end}
@@ -25977,18 +26265,45 @@ var TEAM_DRAWER_CSS = `
 .bt-team-x{margin-left:auto}
 .bt-team-search{display:flex;align-items:center;gap:8px;margin:0 16px 8px;padding:8px 10px;border:1px solid var(--bt-line);border-radius:10px;background:var(--bt-main);color:var(--bt-ink-3)}
 .bt-team-search input{flex:1 1 auto;min-width:0;border:0;background:transparent;color:var(--bt-ink);font:inherit;font-size:13px;outline:none}
-.bt-team-list{overflow-y:auto;padding:4px 8px 12px;display:flex;flex-direction:column;gap:2px}
+.bt-team-list{overflow-y:auto;padding:2px 8px 12px;display:flex;flex-direction:column;gap:1px}
 .bt-team-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:0;border-radius:10px;background:transparent;color:var(--bt-ink);text-align:left;cursor:pointer;font-family:inherit}
 .bt-team-row:hover{background:var(--bt-hover)}
 .bt-team-row-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
 .bt-team-row-name{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-team-row-role{font-size:12px;line-height:16px;color:var(--bt-ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-team-row-place{font-size:12px;line-height:16px;color:var(--bt-ink-2);max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-team-row-dept{flex:none;max-width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--bt-tag-bg);color:var(--bt-tag-ink)}
+.bt-team-row-place{font-size:12px;line-height:16px;color:var(--bt-ink-2);max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-team-row[data-state=need] .bt-team-row-place{color:var(--bt-star)}
 .bt-team-row-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--bt-ink-3)}
 .bt-team-row[data-state=working] .bt-team-row-dot{background:var(--bt-green)}
 .bt-team-row[data-state=need] .bt-team-row-dot{background:var(--bt-star)}
 .bt-team-empty{padding:18px 8px;color:var(--bt-ink-3);font-size:13px;text-align:center}
+/* The org tree: a department row, then its people on a guide with an elbow each. */
+.bt-org-group{display:flex;flex-direction:column}
+.bt-org-dept-line{position:relative;display:flex;align-items:center;gap:2px;padding:6px 8px 6px 4px;border-radius:10px}
+.bt-org-dept-line:hover{background:var(--bt-hover)}
+.bt-org-dept-main{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;padding:0;border:0;background:transparent;color:var(--bt-ink);font:inherit;text-align:left;cursor:pointer}
+.bt-org-caret{display:inline-flex;color:var(--bt-ink-3)}
+.bt-org-name{font-size:13px;line-height:18px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-org-counts{flex:none;font-size:11px;line-height:16px;color:var(--bt-ink-3)}
+.bt-org-dept[data-empty] .bt-org-name,.bt-org-dept[data-empty] .bt-org-counts{color:var(--bt-ink-3)}
+.bt-org-dept[data-empty] .bt-org-main{opacity:.7}
+.bt-org-more{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink-3);cursor:pointer;opacity:0}
+.bt-org-dept-line:hover .bt-org-more,.bt-org-more[aria-expanded=true],.bt-org-more:focus-visible{opacity:1}
+.bt-org-more:hover{background:var(--bt-active);color:var(--bt-ink)}
+.bt-org-menu{position:absolute;right:4px;top:calc(100% - 2px);z-index:2;min-width:200px;padding:4px;display:flex;flex-direction:column;gap:1px;background:var(--bt-card);border:1px solid var(--bt-line-2);border-radius:10px;box-shadow:var(--bt-glass-shadow)}
+.bt-org-menu button{display:block;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.bt-org-menu button:hover{background:var(--bt-hover)}
+.bt-org-menu .bt-org-danger{color:var(--bt-danger)}
+.bt-org-menu-note{padding:7px 9px;font-size:11px;line-height:16px;color:var(--bt-ink-3)}
+.bt-org-rename{flex:1 1 auto;min-width:0;border:0;border-radius:6px;background:var(--bt-hover);color:var(--bt-ink);font:inherit;font-size:13px;font-weight:600;line-height:20px;padding:1px 6px;outline:none;box-shadow:inset 0 0 0 .5px var(--bt-line-2)}
+.bt-org-stack{display:flex;align-items:center;gap:4px;padding:0 0 6px 28px}
+.bt-org-kids{display:flex;flex-direction:column;padding-left:20px}
+.bt-org-kid{position:relative;padding-left:14px}
+.bt-org-kid::before{content:'';position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--bt-line-2)}
+.bt-org-kid[data-last]::before{bottom:calc(100% - 18px)}
+.bt-org-kid::after{content:'';position:absolute;left:0;top:18px;width:10px;border-top:1px solid var(--bt-line-2)}
+.bt-org-kid .bt-team-row{padding:6px 8px}
 `;
 
 // src/client/overlays.js

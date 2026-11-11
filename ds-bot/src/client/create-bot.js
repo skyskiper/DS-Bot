@@ -3,7 +3,7 @@ import { BotMark } from './mark.js'
 import { CharacterGrid } from './bot-settings.js'
 import { AvatarLibraryPanel, avatarImage } from './avatar-library.js'
 import { DEFAULT_SHAPES, DEFAULT_COLORS } from './characters.js'
-import { ChevronLeftIcon, CloseIcon } from './icons.js'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from './icons.js'
 import { useEscape } from './overlay-hooks.js'
 import { createPayload, freshBotName, startModel } from './bot-draft.js'
 import { ModelMenu } from './model-menu.js'
@@ -17,13 +17,71 @@ const randomLook = (avoid = {}) => {
   return { shape: pick(shapes), color: pick(colors) }
 }
 
-// The new-Bot form: look first, then name and model. Nothing exists until Create.
+// The new Bot's department: the team's departments with how many people each has, or a
+// name of its own, which becomes a department at once and is selected right away.
+function DepartmentPicker({ roster, value, onChange, actions }) {
+  const departments = Array.isArray(roster.departments) ? roster.departments : []
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (departments.length === 0) return null
+  const current = departments.find(entry => entry.id === value)
+  const countOf = id => roster.bots.filter(bot => bot.department === id).length
+  const make = async () => {
+    const name = draft.trim()
+    if (name === '' || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const view = await actions.createDepartment(name)
+      const created = (view?.departments ?? []).find(entry => entry.name === name)
+      if (created !== undefined) onChange(created.id)
+      setDraft('')
+      setOpen(false)
+    } catch (failure) {
+      setError(failure?.message ?? String(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return h('div', { className: 'bt-field bt-dept' },
+    h('span', { className: 'bt-field-label' }, t('Department')),
+    h('button', {
+      type: 'button', className: 'bt-input bt-dept-pick', 'aria-haspopup': 'listbox', 'aria-expanded': open,
+      'aria-label': t('Department'), onClick: () => setOpen(value => !value),
+    },
+    h('span', null, current?.name ?? t('Ungrouped')),
+    h('span', { className: 'bt-dept-caret', 'aria-hidden': true }, open ? h(ChevronDownIcon) : h(ChevronRightIcon))),
+    open ? h('div', { className: 'bt-dept-menu', role: 'listbox', 'aria-label': t('Department') },
+      h('button', {
+        type: 'button', role: 'option', 'aria-selected': value === null || value === undefined,
+        onClick: () => { onChange(null); setOpen(false) },
+      }, h('span', null, t('Ungrouped')), h('span', { className: 'bt-dept-count' }, t('{count} people', { count: roster.bots.filter(bot => bot.department === null || bot.department === undefined).length }))),
+      departments.map(entry => h('button', {
+        key: entry.id, type: 'button', role: 'option', 'aria-selected': entry.id === value,
+        onClick: () => { onChange(entry.id); setOpen(false) },
+      },
+      h('span', null, entry.name),
+      h('span', { className: 'bt-dept-count' }, t('{count} people', { count: countOf(entry.id) })))),
+      h('div', { className: 'bt-dept-new' },
+        h('input', {
+          value: draft, placeholder: t('New department'), 'aria-label': t('New department'),
+          onChange: event => setDraft(event.target.value),
+          onKeyDown: (event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void make() } },
+        }),
+        h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: busy || draft.trim() === '', onClick: () => void make() }, busy ? t('Creating…') : t('Create it'))),
+      error ? h('div', { className: 'bt-error', role: 'alert' }, error) : null) : null)
+}
+
+// The new-Bot form: look first, then name, department and model. Nothing exists until Create.
 // `inline` drops the pane's header for a form shown inside Settings.
 export function CreateBot({ roster, actions, start, brief = '', onBack, canGoBack, onCreated, inline = false }) {
   const [look, setLook] = useState(() => randomLook())
   const [image, setImage] = useState(null)
   const [library, setLibrary] = useState(false)
   const [name, setName] = useState(start?.name ?? '')
+  const [department, setDepartment] = useState(null)
   const [model, setModel] = useState(() => startModel(roster))
   const [effort, setEffort] = useState(undefined)
   const [busy, setBusy] = useState(false)
@@ -42,7 +100,7 @@ export function CreateBot({ roster, actions, start, brief = '', onBack, canGoBac
     setError('')
     setBusy(true)
     try {
-      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model, effort, brief }))
+      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model, effort, brief, department }))
       onCreated(bot)
     } catch (failure) {
       setError(failure?.message ?? String(failure))
@@ -85,6 +143,7 @@ export function CreateBot({ roster, actions, start, brief = '', onBack, canGoBac
       }),
       problem ? h('span', { className: 'bt-note bt-danger' }, hostText(problem))
         : clash ? h('span', { className: 'bt-note bt-danger' }, t('A Bot named {name} already exists', { name: finalName })) : null),
+    h(DepartmentPicker, { roster, value: department, onChange: setDepartment, actions }),
     h('div', { className: 'bt-field' },
       h('span', { className: 'bt-field-label' }, t('Model')),
       h(ModelMenu, { bot: { id: 'new-bot', name: finalName, model: model || undefined, effort }, roster, actions, wide: true, onPick: ref => { setModel(ref); setEffort(undefined) }, onPickEffort: picked => setEffort(picked ?? null) }),

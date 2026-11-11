@@ -89,6 +89,10 @@ export function teamActions({ call, after, partFor, roster, ui, live, cards, hel
     closeMenu: () => { ui.set(state => (state.menu ? { ...state, menu: null } : state)) },
     closeOverlay: () => { ui.set(state => ({ ...state, newChat: null, exchange: null, details: state.newChat || state.exchange ? state.details : null })) },
     createBot: payload => after(call('create-bot', payload)),
+    // Departments: the built-ins can be renamed, a department the user made can also go.
+    createDepartment: name => after(call('create-department', { name })),
+    renameDepartment: (id, name) => after(call('update-department', { id, name })),
+    deleteDepartment: id => after(call('delete-department', { id })),
     // The avatar library: photos the user imported once, kept by the host.
     avatarLibrary: (options = {}) => call('avatar-library', options),
     importAvatars: items => call('avatar-import', { items }),
