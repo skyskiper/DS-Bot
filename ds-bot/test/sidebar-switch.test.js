@@ -16,7 +16,7 @@ const { JSDOM } = createRequire(join(process.env.DSH_HARNESS ?? join(PLUGIN, '..
 // fixtures retain refs across commits and run their layout effects after each render.
 const { outputFiles } = await build({
   stdin: {
-    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'\nexport { TeamDrawer, orgTree, busyIds } from './src/client/team-drawer.js'",
+    contents: "export { SHELL_CSS } from './src/client/styles.js'\nexport { SIDEBAR_CSS, TeamSidebar } from './src/client/sidebar.js'\nexport { TeamDrawer, PersonRow, orgTree, busyIds } from './src/client/team-drawer.js'",
     resolveDir: PLUGIN,
   },
   bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
@@ -42,7 +42,7 @@ const sandbox = {
   window: viewport,
 }
 runInNewContext(outputFiles[0].text, sandbox)
-const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar, TeamDrawer, orgTree, busyIds } = module.exports
+const { SHELL_CSS, SIDEBAR_CSS, TeamSidebar, TeamDrawer, PersonRow, orgTree, busyIds } = module.exports
 
 function navigationSidebar(wide, { leftDrawer = false } = {}) {
   const calls = []
@@ -599,4 +599,105 @@ test('the team drawer draws a department row per group, folded until opened', ()
   walk(TeamDrawer({ roster, actions: { closeTeam() {}, openSession() {}, openMenu() {} }, useWork: pick => pick({}) }))
   assert.deepEqual(JSON.parse(JSON.stringify(rows.map(row => [row.props.group.name, row.props.open]))), [['研发部', false], ['质量部', false]])
   assert.equal(rows[0].props.busy, 0)
+})
+
+// Moving a person: the row's menu offers every department and 未分组, and names the one
+// the Bot is in now.
+test('a person row offers every department, and moves the Bot to the one picked', () => {
+  const calls = []
+  const node = PersonRow({
+    bot: { id: 'writer', name: 'Writer', department: 'dev' },
+    place: { kind: 'idle', text: 'Idle' },
+    department: '研发部',
+    departments: [{ id: 'dev', name: '研发部' }, { id: 'qa', name: '质量部' }],
+    moving: true,
+    actions: { openSession() {}, openMenu() {} },
+    onClose() {},
+    onToggleMove() {},
+    onMove: (id, department) => calls.push([id, department]),
+    onDismissMove() {},
+  })
+  const items = []
+  const walk = (item) => {
+    if (Array.isArray(item)) { item.forEach(walk); return }
+    if (!item || typeof item !== 'object') return
+    if (item.props?.role === 'menuitemradio') items.push(item)
+    walk(item.props?.children)
+  }
+  walk(node)
+  const textOf = (item) => {
+    if (item === null || item === undefined) return ''
+    if (typeof item === 'string') return item
+    if (Array.isArray(item)) return item.map(textOf).join('')
+    return textOf(item.props?.children)
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(items.map(item => [item.props['aria-checked'], textOf(item)]))), [
+    [false, 'Ungrouped'],
+    [true, '研发部'],
+    [false, '质量部'],
+  ])
+  items[2].props.onClick()
+  items[0].props.onClick()
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['writer', 'qa'], ['writer', null]])
+})
+
+// A move changes the group the drawer draws the person in; a department that empties
+// moves behind the ones that still hold people.
+test('moving a Bot changes its department\'s people in the drawer tree', () => {
+  const person = (id, department) => ({ id, name: id, department })
+  const roster = {
+    departments: [{ id: 'dev', name: '研发部', builtin: true }, { id: 'qa', name: '质量部', builtin: true }],
+    bots: [person('a', 'dev'), person('b', 'qa')],
+    rooms: [], agents: [], ready: true,
+  }
+  const plain = value => JSON.parse(JSON.stringify(value))
+  assert.deepEqual(plain(orgTree(roster).groups.map(group => [group.id, group.people.map(bot => bot.id)])), [['dev', ['a']], ['qa', ['b']]])
+  roster.bots[0].department = 'qa'
+  assert.deepEqual(plain(orgTree(roster).groups.map(group => [group.id, group.people.map(bot => bot.id)])), [['qa', ['a', 'b']], ['dev', []]])
+})
+
+// The department row is a real button, so Tab reaches it and Enter toggles it; the left
+// and right arrows fold and unfold it the way a tree does.
+test('a department row folds and unfolds from the keyboard', () => {
+  const roster = {
+    departments: [{ id: 'dev', name: '研发部', builtin: true }],
+    bots: [{ id: 'writer', name: 'Writer', department: 'dev' }],
+    byId: { writer: { id: 'writer', name: 'Writer' } },
+    rooms: [], agents: [], ready: true,
+  }
+  const rows = []
+  const walk = (node) => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (!node || typeof node !== 'object') return
+    if (node.type?.name === 'DepartmentRow') rows.push(node)
+    walk(node.props?.children)
+  }
+  walk(TeamDrawer({ roster, actions: { closeTeam() {}, openSession() {}, openMenu() {} }, useWork: pick => pick({}) }))
+  const toggles = []
+  const rendered = []
+  const collect = (node) => {
+    if (Array.isArray(node)) { node.forEach(collect); return }
+    if (!node || typeof node !== 'object') return
+    if (node.props?.className === 'bt-org-dept-main') rendered.push(node)
+    collect(node.props?.children)
+  }
+  collect(rows[0].type({ ...rows[0].props, onToggle: () => toggles.push('toggle') }))
+  const main = rendered[0]
+  // Folded: the left arrow does nothing, the right one unfolds.
+  main.props.onKeyDown({ key: 'ArrowLeft', preventDefault() {} })
+  main.props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })
+  assert.deepEqual(JSON.parse(JSON.stringify(toggles)), ['toggle'])
+  const opened = []
+  const open = rows[0].type({ ...rows[0].props, open: true, onToggle: () => opened.push('toggle') })
+  const mainOpen = []
+  const collectOpen = (node) => {
+    if (Array.isArray(node)) { node.forEach(collectOpen); return }
+    if (!node || typeof node !== 'object') return
+    if (node.props?.className === 'bt-org-dept-main') mainOpen.push(node)
+    collectOpen(node.props?.children)
+  }
+  collectOpen(open)
+  mainOpen[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })
+  mainOpen[0].props.onKeyDown({ key: 'ArrowLeft', preventDefault() {} })
+  assert.deepEqual(JSON.parse(JSON.stringify(opened)), ['toggle'])
 })

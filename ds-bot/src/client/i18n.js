@@ -1615,6 +1615,10 @@ const HOST_ZH = {
   'New department': '新建部门',
   'Create it': '创建',
   'Department settings for {name}': '{name} 的部门设置',
+  'Move to a department': '移动到部门',
+  'Move {name} to a department': '把 {name} 移动到别的部门',
+  'No Bots on the team yet.': '团队里还没有 Bot。',
+  'Where the Bot sits in the team drawer.': '这个 Bot 在团队抽屉里所在的部门。',
   '(skipped)': '（跳过）',
 }
 Object.assign(ZH, HOST_ZH)

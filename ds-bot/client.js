@@ -1658,6 +1658,10 @@ var HOST_ZH = {
   "New department": "新建部门",
   "Create it": "创建",
   "Department settings for {name}": "{name} 的部门设置",
+  "Move to a department": "移动到部门",
+  "Move {name} to a department": "把 {name} 移动到别的部门",
+  "No Bots on the team yet.": "团队里还没有 Bot。",
+  "Where the Bot sits in the team drawer.": "这个 Bot 在团队抽屉里所在的部门。",
   "(skipped)": "（跳过）"
 };
 Object.assign(ZH, HOST_ZH);
@@ -3411,6 +3415,10 @@ button.bt-q-opt:active{background:var(--bt-active)}
 .bt-create-lookbar{justify-content:center}
 /* The new Bot's department: the team's departments with their counts, or a new name. */
 .bt-dept-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.bt-dept-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:62%}
+.bt-chip-btn{height:26px;padding:0 10px;border:1px solid var(--bt-line-2);border-radius:999px;background:transparent;color:var(--bt-ink-2);font:inherit;font-size:12px;line-height:24px;cursor:pointer}
+.bt-chip-btn:hover{background:var(--bt-hover)}
+.bt-chip-btn[aria-pressed=true]{background:var(--bt-accent);border-color:transparent;color:var(--bt-accent-ink)}
 .bt-dept-caret{display:inline-flex;color:var(--bt-ink-3)}
 .bt-dept-menu{display:flex;flex-direction:column;gap:1px;margin-top:-10px;padding:4px;border:1px solid var(--bt-line-2);border-radius:10px;background:var(--bt-card);box-shadow:var(--bt-glass-shadow);max-height:240px;overflow-y:auto}
 .bt-dept-menu>[role=option]{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
@@ -11388,6 +11396,7 @@ function BotSettingsForm({ bot, roster, actions, run: run2 }) {
   const inGroup = (roster.rooms ?? []).some((room2) => room2.members?.includes(bot.id));
   const privateHint = t("Other Bots cannot read its folder, memory or chats, and you approve what it shares with them.");
   const privacyHint = bot.private === true ? privateHint : isMainBot ? t("A Main Bot cannot be private.") : inGroup ? t("Leave its group chats before making it private.") : !bot.workDir ? t("Choose a working folder of its own first.") : privateHint;
+  const departments = Array.isArray(roster.departments) ? roster.departments : [];
   const save = (patch) => run2(actions.updateBot(bot.id, patch));
   const duplicate = () => run2(actions.duplicateBot(bot.id).then((copy2) => actions.openSession(copy2.id)));
   const remove = () => {
@@ -11425,7 +11434,22 @@ function BotSettingsForm({ bot, roster, actions, run: run2 }) {
       Card2,
       { title: t("Profile") },
       (0, import_react25.createElement)(Row, { label: t("Name") }, (0, import_react25.createElement)(InlineText, { label: t("Name"), value: bot.name, placeholder: "Bob", required: true, maxLength: 40, onSave: (name) => save({ name }) })),
-      (0, import_react25.createElement)(Row, { label: t("Label"), hint: t("Optional. Shown under the name.") }, (0, import_react25.createElement)(InlineText, { label: t("Label"), value: bot.role, placeholder: t("Research, admin…"), maxLength: 24, onSave: (role) => save({ role }) }))
+      (0, import_react25.createElement)(Row, { label: t("Label"), hint: t("Optional. Shown under the name.") }, (0, import_react25.createElement)(InlineText, { label: t("Label"), value: bot.role, placeholder: t("Research, admin…"), maxLength: 24, onSave: (role) => save({ role }) })),
+      departments.length === 0 ? null : (0, import_react25.createElement)(
+        Row,
+        { label: t("Department"), hint: t("Where the Bot sits in the team drawer.") },
+        (0, import_react25.createElement)(
+          "div",
+          { className: "bt-dept-chips", role: "group", "aria-label": t("Department") },
+          [{ id: null, name: t("Ungrouped") }, ...departments].map((entry) => (0, import_react25.createElement)("button", {
+            key: entry.id ?? "none",
+            type: "button",
+            className: "bt-chip-btn",
+            "aria-pressed": (bot.department ?? null) === entry.id,
+            onClick: () => save({ department: entry.id ?? "" })
+          }, entry.name))
+        )
+      )
     ),
     (0, import_react25.createElement)(
       Card2,
@@ -26021,35 +26045,73 @@ function orgTree(roster, work = {}) {
     ungrouped: loose.length === 0 ? null : { id: "ungrouped", name: t("Ungrouped"), ungrouped: true, people: loose, ...count(loose) }
   };
 }
-function PersonRow({ bot, place, department, actions, onClose }) {
+function PersonRow({ bot, place, department, departments, moving = false, actions, onClose, onToggleMove, onMove, onDismissMove }) {
   const label = [bot.name, bot.role, department, place.text].filter(Boolean).join(", ");
   return (0, import_react61.createElement)(
-    "button",
-    {
-      type: "button",
-      className: "bt-team-row",
-      "data-bot-id": bot.id,
-      "data-state": place.kind,
-      "aria-label": label,
-      onClick: () => {
-        onClose();
-        actions.openSession(bot.id);
-      },
-      onContextMenu: (event) => {
-        event.preventDefault();
-        actions.openMenu({ kind: "bot", id: bot.id, x: event.clientX, y: event.clientY });
-      }
-    },
-    (0, import_react61.createElement)(BotAvatar, { bot, size: 34, state: botState(place.kind === "working", void 0, place.kind === "need") }),
+    "div",
+    { className: "bt-team-row-wrap", "data-open": moving || void 0 },
     (0, import_react61.createElement)(
-      "span",
-      { className: "bt-team-row-body" },
-      (0, import_react61.createElement)("span", { className: "bt-team-row-name" }, bot.name),
-      bot.role ? (0, import_react61.createElement)("span", { className: "bt-team-row-role" }, bot.role) : null
+      "button",
+      {
+        type: "button",
+        className: "bt-team-row",
+        "data-bot-id": bot.id,
+        "data-state": place.kind,
+        "aria-label": label,
+        onClick: () => {
+          onClose();
+          actions.openSession(bot.id);
+        },
+        onContextMenu: (event) => {
+          event.preventDefault();
+          actions.openMenu({ kind: "bot", id: bot.id, x: event.clientX, y: event.clientY });
+        }
+      },
+      (0, import_react61.createElement)(BotAvatar, { bot, size: 34, state: botState(place.kind === "working", void 0, place.kind === "need") }),
+      (0, import_react61.createElement)(
+        "span",
+        { className: "bt-team-row-body" },
+        (0, import_react61.createElement)("span", { className: "bt-team-row-name" }, bot.name),
+        bot.role ? (0, import_react61.createElement)("span", { className: "bt-team-row-role" }, bot.role) : null
+      ),
+      department ? (0, import_react61.createElement)("span", { className: "bt-team-row-dept" }, department) : null,
+      (0, import_react61.createElement)("span", { className: "bt-team-row-place" }, place.text),
+      (0, import_react61.createElement)("span", { className: "bt-team-row-dot", "aria-hidden": true })
     ),
-    department ? (0, import_react61.createElement)("span", { className: "bt-team-row-dept" }, department) : null,
-    (0, import_react61.createElement)("span", { className: "bt-team-row-place" }, place.text),
-    (0, import_react61.createElement)("span", { className: "bt-team-row-dot", "aria-hidden": true })
+    departments === null ? null : (0, import_react61.createElement)("button", {
+      type: "button",
+      className: "bt-team-row-more",
+      "aria-label": t("Move {name} to a department", { name: bot.name }),
+      "aria-expanded": moving,
+      onClick: () => onToggleMove(bot.id)
+    }, (0, import_react61.createElement)(DotsIcon)),
+    moving ? (0, import_react61.createElement)(
+      "div",
+      {
+        className: "bt-team-move",
+        role: "menu",
+        "aria-label": t("Move to a department"),
+        onKeyDown: (event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            onDismissMove();
+          }
+        }
+      },
+      (0, import_react61.createElement)("div", { className: "bt-team-move-head" }, t("Move to a department")),
+      [{ id: null, name: t("Ungrouped") }, ...departments].map((entry) => (0, import_react61.createElement)(
+        "button",
+        {
+          key: entry.id ?? "none",
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": (bot.department ?? null) === entry.id,
+          onClick: () => onMove(bot.id, entry.id)
+        },
+        (0, import_react61.createElement)("span", null, entry.name),
+        (bot.department ?? null) === entry.id ? (0, import_react61.createElement)(CheckIcon) : null
+      ))
+    ) : null
   );
 }
 function DepartmentRow({ group, open, onToggle, onRename, onDelete, busy }) {
@@ -26085,7 +26147,13 @@ function DepartmentRow({ group, open, onToggle, onRename, onDelete, busy }) {
           className: "bt-org-dept-main",
           "aria-expanded": open,
           "aria-label": `${group.name}, ${counts2}`,
-          onClick: onToggle
+          onClick: onToggle,
+          onKeyDown: (event) => {
+            if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+            if (event.key === "ArrowRight" === open) return;
+            event.preventDefault();
+            onToggle();
+          }
         },
         (0, import_react61.createElement)("span", { className: "bt-org-caret", "aria-hidden": true }, open ? (0, import_react61.createElement)(ChevronDownIcon) : (0, import_react61.createElement)(ChevronRightIcon)),
         renaming ? (0, import_react61.createElement)("input", {
@@ -26144,20 +26212,24 @@ function DepartmentRow({ group, open, onToggle, onRename, onDelete, busy }) {
     )
   );
 }
-function Branch({ people, places, actions, onClose, department }) {
+function Branch({ people, rowFor }) {
   return (0, import_react61.createElement)(
     "div",
     { className: "bt-org-kids" },
     people.map((bot, index) => (0, import_react61.createElement)(
       "div",
       { key: bot.id, className: "bt-org-kid", "data-last": index === people.length - 1 || void 0 },
-      (0, import_react61.createElement)(PersonRow, { bot, place: places.get(bot.id), department, actions, onClose })
+      rowFor(bot)
     ))
   );
 }
 function TeamDrawer({ roster, actions, useWork, leaving = false }) {
   const close = () => actions.closeTeam();
-  useEscape(close);
+  const [moving, setMoving] = (0, import_react61.useState)(null);
+  useEscape(() => {
+    if (moving !== null) setMoving(null);
+    else close();
+  });
   const [query, setQuery] = (0, import_react61.useState)("");
   const [expanded, setExpanded] = (0, import_react61.useState)({});
   const search = (0, import_react61.useRef)(null);
@@ -26175,6 +26247,24 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
   const find = query.trim().toLowerCase();
   const matches2 = (bot) => find === "" || bot.name.toLowerCase().includes(find) || (bot.role ?? "").toLowerCase().includes(find);
   const toggle = (id) => setExpanded((current) => ({ ...current, [id]: current[id] !== true }));
+  const departments = tree === null ? null : roster.departments ?? [];
+  const moveTo = (id, department) => {
+    setMoving(null);
+    void actions.updateBot?.(id, { department: department ?? "" }).catch((error) => actions.reportError?.(error, "department-move"));
+  };
+  const personRow = (bot, department) => (0, import_react61.createElement)(PersonRow, {
+    key: bot.id,
+    bot,
+    place: places.get(bot.id),
+    department,
+    departments,
+    moving: moving === bot.id,
+    actions,
+    onClose: close,
+    onToggleMove: (id) => setMoving((current) => current === id ? null : id),
+    onMove: moveTo,
+    onDismissMove: () => setMoving(null)
+  });
   const groups = tree === null ? null : [
     ...tree.groups.map((group) => ({
       ...group,
@@ -26185,17 +26275,11 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
     ...tree.ungrouped === null ? [] : [{ ...tree.ungrouped, stack: tree.ungrouped.people.slice(0, 3), open: expanded.ungrouped === true }]
   ];
   const body = (() => {
+    if (roster.bots.length === 0) return (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("No Bots on the team yet."));
     if (groups !== null) {
       if (find !== "") {
         const hits = roster.bots.filter(matches2);
-        return hits.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : hits.map((bot) => (0, import_react61.createElement)(PersonRow, {
-          key: bot.id,
-          bot,
-          place: places.get(bot.id),
-          department: departmentNameOf(bot, groups),
-          actions,
-          onClose: close
-        }));
+        return hits.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : hits.map((bot) => personRow(bot, departmentNameOf(bot, groups)));
       }
       return groups.map((group) => (0, import_react61.createElement)(
         "div",
@@ -26208,11 +26292,11 @@ function TeamDrawer({ roster, actions, useWork, leaving = false }) {
           onRename: (name) => void actions.renameDepartment?.(group.id, name).catch((error) => actions.reportError?.(error, "department-rename")),
           onDelete: () => void actions.deleteDepartment?.(group.id).catch((error) => actions.reportError?.(error, "department-delete"))
         }),
-        group.open ? (0, import_react61.createElement)(Branch, { people: group.people, places, actions, onClose: close }) : null
+        group.open ? (0, import_react61.createElement)(Branch, { people: group.people, places, actions, onClose: close, rowFor: personRow }) : null
       ));
     }
     const people = roster.bots.filter(matches2);
-    return people.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => (0, import_react61.createElement)(PersonRow, { key: bot.id, bot, place: places.get(bot.id), actions, onClose: close }));
+    return people.length === 0 ? (0, import_react61.createElement)("div", { className: "bt-team-empty" }, t("Nobody matches “{query}”.", { query })) : people.map((bot) => personRow(bot, void 0));
   })();
   return (0, import_react61.createElement)(
     "div",
@@ -26278,6 +26362,19 @@ var TEAM_DRAWER_CSS = `
 .bt-team-row[data-state=working] .bt-team-row-dot{background:var(--bt-green)}
 .bt-team-row[data-state=need] .bt-team-row-dot{background:var(--bt-star)}
 .bt-team-empty{padding:18px 8px;color:var(--bt-ink-3);font-size:13px;text-align:center}
+/* A person's row and the menu that moves it to another department. */
+.bt-team-row-wrap{position:relative;display:flex;align-items:center;gap:2px}
+.bt-team-row-wrap .bt-team-row{flex:1 1 auto;min-width:0}
+.bt-team-row-more{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink-3);cursor:pointer;opacity:0}
+.bt-team-row-wrap:hover .bt-team-row-more,.bt-team-row-more[aria-expanded=true],.bt-team-row-more:focus-visible{opacity:1}
+.bt-team-row-more:hover{background:var(--bt-active);color:var(--bt-ink)}
+.bt-team-move{position:absolute;right:6px;top:calc(100% - 4px);z-index:2;min-width:210px;max-height:260px;overflow-y:auto;padding:4px;display:flex;flex-direction:column;gap:1px;background:var(--bt-card);border:1px solid var(--bt-line-2);border-radius:10px;box-shadow:var(--bt-glass-shadow)}
+.bt-team-move-head{padding:6px 8px 4px;font-size:11px;line-height:16px;color:var(--bt-ink-3)}
+.bt-team-move button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.bt-team-move button:hover{background:var(--bt-hover)}
+.bt-team-move [aria-checked=true]{color:var(--bt-accent)}
+/* A narrow window gets the drawer nearly whole, with its own margins. */
+@media (max-width:560px){.bt-team-layer{align-items:stretch}.bt-team{margin:16px;width:calc(100vw - 32px);max-height:calc(100vh - 32px)}}
 /* The org tree: a department row, then its people on a guide with an elbow each. */
 .bt-org-group{display:flex;flex-direction:column}
 .bt-org-dept-line{position:relative;display:flex;align-items:center;gap:2px;padding:6px 8px 6px 4px;border-radius:10px}

@@ -374,6 +374,10 @@ button.bt-q-opt:active{background:var(--bt-active)}
 .bt-create-lookbar{justify-content:center}
 /* The new Bot's department: the team's departments with their counts, or a new name. */
 .bt-dept-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.bt-dept-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:62%}
+.bt-chip-btn{height:26px;padding:0 10px;border:1px solid var(--bt-line-2);border-radius:999px;background:transparent;color:var(--bt-ink-2);font:inherit;font-size:12px;line-height:24px;cursor:pointer}
+.bt-chip-btn:hover{background:var(--bt-hover)}
+.bt-chip-btn[aria-pressed=true]{background:var(--bt-accent);border-color:transparent;color:var(--bt-accent-ink)}
 .bt-dept-caret{display:inline-flex;color:var(--bt-ink-3)}
 .bt-dept-menu{display:flex;flex-direction:column;gap:1px;margin-top:-10px;padding:4px;border:1px solid var(--bt-line-2);border-radius:10px;background:var(--bt-card);box-shadow:var(--bt-glass-shadow);max-height:240px;overflow-y:auto}
 .bt-dept-menu>[role=option]{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--bt-ink);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}

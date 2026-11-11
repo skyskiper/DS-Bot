@@ -192,6 +192,8 @@ export function BotSettingsForm({ bot, roster, actions, run }) {
   const inGroup = (roster.rooms ?? []).some(room => room.members?.includes(bot.id))
   const privateHint = t('Other Bots cannot read its folder, memory or chats, and you approve what it shares with them.')
   const privacyHint = bot.private === true ? privateHint : isMainBot ? t('A Main Bot cannot be private.') : inGroup ? t('Leave its group chats before making it private.') : !bot.workDir ? t('Choose a working folder of its own first.') : privateHint
+  // The department the Bot belongs to: the same list the team drawer groups by.
+  const departments = Array.isArray(roster.departments) ? roster.departments : []
   const save = patch => run(actions.updateBot(bot.id, patch))
   const duplicate = () => run(actions.duplicateBot(bot.id).then(copy => actions.openSession(copy.id)))
   const remove = () => { if (confirming) void run(actions.deleteBot(bot.id)); else setConfirming(true) }
@@ -209,7 +211,14 @@ export function BotSettingsForm({ bot, roster, actions, run }) {
         h('span', { className: 'bt-bs-sub' }, [bot.role, isMainBot ? t('Main Bot') : ''].filter(Boolean).join(' · ') || t('Bot')))),
     h(Card, { title: t('Profile') },
       h(Row, { label: t('Name') }, h(InlineText, { label: t('Name'), value: bot.name, placeholder: 'Bob', required: true, maxLength: 40, onSave: name => save({ name }) })),
-      h(Row, { label: t('Label'), hint: t('Optional. Shown under the name.') }, h(InlineText, { label: t('Label'), value: bot.role, placeholder: t('Research, admin…'), maxLength: 24, onSave: role => save({ role }) }))),
+      h(Row, { label: t('Label'), hint: t('Optional. Shown under the name.') }, h(InlineText, { label: t('Label'), value: bot.role, placeholder: t('Research, admin…'), maxLength: 24, onSave: role => save({ role }) })),
+      departments.length === 0 ? null : h(Row, { label: t('Department'), hint: t('Where the Bot sits in the team drawer.') },
+        h('div', { className: 'bt-dept-chips', role: 'group', 'aria-label': t('Department') },
+          [{ id: null, name: t('Ungrouped') }, ...departments].map(entry => h('button', {
+            key: entry.id ?? 'none', type: 'button', className: 'bt-chip-btn',
+            'aria-pressed': (bot.department ?? null) === entry.id,
+            onClick: () => save({ department: entry.id ?? '' }),
+          }, entry.name))))),
     h(Card, { title: t('Model') },
       h('div', { className: 'bt-set-row bt-bs-row' },
         h('span', { className: 'bt-set-copy' }, h('span', { className: 'bt-bs-label' }, t('Model')), h('span', { className: 'bt-set-hint' }, modelHint(bot, roster))),
