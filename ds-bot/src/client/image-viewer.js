@@ -4,8 +4,10 @@ import { t } from './i18n.js'
 
 // The images the conversation shows, in the order it shows them: a Bot's Markdown
 // pictures and the user's attachments alike, read from the transcript itself so paging
-// follows exactly what is on screen (and follows the loaded history too).
-const IN_TRANSCRIPT = '.bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img'
+// follows exactly what is on screen (and follows the loaded history too). A Bot's photo
+// avatar sits inside the same stack as its text and is not a picture of the conversation.
+const PICTURE = 'img:not(.bt-mark-img)'
+const IN_TRANSCRIPT = `.bt-astack ${PICTURE}, .bt-ububble ${PICTURE}, .bt-umsg ${PICTURE}, .bt-uimgs ${PICTURE}`
 
 // An attachment-backed thumbnail remembers what it renders, so the viewer can ask the
 // Session for a fresh URL instead of reusing a URL the transcript already spent: the
@@ -79,11 +81,11 @@ export function failureNote(entry, naturalWidth = 0) {
 }
 
 // Open the pager on one of those images. The shell's Markdown opens its own single-image
-// lightbox on the same click; the caller stops that event when this returns true.
+// lightbox on the same click; the caller stops that event when this returns true. The
+// clicked node itself picks the picture, so two copies of one file still page by place.
 export function openImageAt(img, actions) {
-  const src = img.currentSrc || img.src
   const images = imagesInView()
-  const index = images.findIndex(entry => entry.src === src)
+  const index = images.findIndex(entry => entry.img === img)
   if (index < 0) return false
   actions.openImageViewer?.(images, index)
   return true

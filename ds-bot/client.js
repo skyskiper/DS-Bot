@@ -4840,7 +4840,8 @@ function AgentBadge({ engine, size = 15 }) {
 
 // src/client/image-viewer.js
 var import_react5 = require("react");
-var IN_TRANSCRIPT = ".bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img";
+var PICTURE = "img:not(.bt-mark-img)";
+var IN_TRANSCRIPT = `.bt-astack ${PICTURE}, .bt-ububble ${PICTURE}, .bt-umsg ${PICTURE}, .bt-uimgs ${PICTURE}`;
 var attachmentOf = /* @__PURE__ */ new WeakMap();
 function imagesInView() {
   if (typeof document === "undefined") return [];
@@ -4898,9 +4899,8 @@ function failureNote(entry, naturalWidth = 0) {
   });
 }
 function openImageAt(img, actions) {
-  const src = img.currentSrc || img.src;
   const images = imagesInView();
-  const index = images.findIndex((entry) => entry.src === src);
+  const index = images.findIndex((entry) => entry.img === img);
   if (index < 0) return false;
   actions.openImageViewer?.(images, index);
   return true;
