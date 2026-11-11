@@ -203,3 +203,36 @@ test('the viewer action\'s shape is the one the viewer reads', () => {
   walk(ImageViewer({ viewer, actions: { closeImageViewer() {} } }))
   assert.deepEqual(found, ['2 / 2'])
 })
+
+// A Bot's uploaded photo avatar is drawn in the same stack as its words; it is an avatar,
+// not a picture of the conversation, so paging must neither count it nor take its click.
+test('a Bot\'s photo avatar is not one of the pager\'s pictures', () => {
+  document.body.innerHTML = `
+    <main id="chat">
+      <div class="bt-astack" data-lead>
+        <div class="bt-msg"><div class="bt-msg-line"><div class="bt-bubble"><p><img src="https://example.test/body.png" alt="正文"></p></div></div></div>
+        <button class="bt-lead"><span class="bt-mark" data-shape="image"><img class="bt-mark-img" src="https://example.test/avatar.png" alt=""></span></button>
+      </div>
+    </main>`
+  assert.deepEqual(JSON.parse(JSON.stringify(imagesInView().map(({ src }) => src))), ['https://example.test/body.png'])
+  const opened = []
+  const actions = { openImageViewer: (images, index) => opened.push({ images, index }) }
+  assert.equal(openImageAt(document.querySelector('.bt-mark-img'), actions), false)
+  assert.equal(opened.length, 0)
+  assert.equal(openImageAt(document.querySelector('[src="https://example.test/body.png"]'), actions), true)
+  assert.equal(opened[0].index, 0)
+})
+
+// The same file pasted twice is two places in the conversation: a click pages from the
+// node it hit, not from the first node that happens to share its URL.
+test('two copies of one picture page from the copy that was clicked', () => {
+  document.body.innerHTML = `
+    <main id="chat">
+      <div class="bt-astack"><div class="bt-bubble"><img src="https://example.test/same.png" alt="一"></div></div>
+      <div class="bt-astack"><div class="bt-bubble"><img src="https://example.test/same.png" alt="二"></div></div>
+    </main>`
+  const opened = []
+  const actions = { openImageViewer: (images, index) => opened.push({ labels: images.map(entry => entry.label), index }) }
+  assert.equal(openImageAt(document.querySelectorAll('.bt-astack img')[1], actions), true)
+  assert.deepEqual(JSON.parse(JSON.stringify(opened[0])), { labels: ['一', '二'], index: 1 })
+})

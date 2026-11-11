@@ -6,6 +6,7 @@
 //
 //   node dev/ui-e2e.mjs serve [--plugin <checkout>] [--keep]
 //   node dev/ui-e2e.mjs image-paging --attach <url> [--plugin <checkout>]
+//   node dev/ui-e2e.mjs markdown-paging --attach <url> [--plugin <checkout>]
 //
 // `serve` starts the isolated instance and prints its token URL, then waits for Ctrl-C.
 // `--attach` drives an instance that already runs: it reads no DSH home at all, starts
@@ -240,36 +241,54 @@ async function drawnPicture(cdp) {
 const checkDrawn = (drawn, which) => check(`the picture itself is drawn (${which})`, drawn !== undefined,
   drawn === undefined ? 'still 0×0 after 5 s' : `naturalWidth ${drawn.naturalWidth}, ${drawn.width}×${drawn.height}, src ${drawn.data ? 'data:' : drawn.src}`)
 
-async function imagePaging(cdp) {
+// What counts as a picture of the conversation: a Bot's Markdown pictures and the user's
+// attachments, but never a Bot's photo avatar, which sits in the same stack as its words.
+const CONTENT_SEL = '.bt-astack img:not(.bt-mark-img), .bt-ububble img:not(.bt-mark-img), .bt-umsg img:not(.bt-mark-img), .bt-uimgs img:not(.bt-mark-img)'
+// A picture in a Bot's own bubble, as opposed to anywhere else in the transcript.
+const BODY_SEL = '.bt-astack .bt-bubble img:not(.bt-mark-img)'
+
+// The Main Bot's tile opens its own chat, where the transcript's pictures are. Returns
+// how many the conversation holds, or undefined when it holds none (or never loaded).
+async function openTranscript(cdp) {
   await cdp.send('Page.enable')
   const url = await cdp.evaluate('location.href').catch(() => '')
   if (typeof url !== 'string' || url === '' || url === 'about:blank') throw new Error('the page did not navigate')
   const ready = await waitFor(() => cdp.evaluate("document.querySelectorAll('.bt-side').length > 0"), 60_000)
-  if (!check('the sidebar renders', ready === true)) return
-  // The Main Bot's tile opens its own chat, where the transcript's pictures are.
+  if (!check('the sidebar renders', ready === true)) return undefined
   await cdp.evaluate("document.querySelector('.bt-tile')?.click(); true")
   await sleep(1500)
-  const countExpr = "document.querySelectorAll('.bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img').length"
-  let images = await waitFor(async () => { const n = await cdp.evaluate(countExpr); return n > 0 ? n : undefined }, 15_000)
+  const count = () => cdp.evaluate(`document.querySelectorAll("${CONTENT_SEL}").length`)
+  let images = await waitFor(async () => { const n = await count(); return n > 0 ? n : undefined }, 15_000)
   if (images === undefined) {
     // Older history loads on demand; ask for it once, then look again.
     await cdp.evaluate("[...document.querySelectorAll('button')].find(node => /加载更早|Load earlier/.test(node.textContent))?.click(); true")
-    images = await waitFor(async () => { const n = await cdp.evaluate(countExpr); return n > 0 ? n : undefined }, 15_000)
+    images = await waitFor(async () => { const n = await count(); return n > 0 ? n : undefined }, 15_000)
   }
+  return images
+}
+
+// What the page holds when a scenario cannot find a picture: enough to tell an empty
+// session, a missing plugin and an unloaded transcript apart.
+async function diagnose(cdp) {
+  log(`  diagnostics: ${await cdp.evaluate(`JSON.stringify({
+    allImgs: document.querySelectorAll('img').length,
+    imgs: [...document.querySelectorAll('img')].slice(0, 6).map(node => ({ cls: node.className, src: (node.currentSrc || node.src).slice(0, 60) })),
+    msgs: document.querySelectorAll('.bt-msg').length,
+    users: document.querySelectorAll('.bt-umsg').length,
+    buttons: [...document.querySelectorAll('button')].map(node => node.textContent.trim()).filter(text => text !== '').slice(-12),
+    text: document.body.innerText.slice(-300),
+  }`)}`)
+  log(`  api: ${await cdp.evaluate(`fetch('/api/bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: 'state', payload: {} }) }).then(async r => r.status + ' ' + (await r.text()).slice(0, 160), e => 'ERR ' + e.message)`)}`)
+  log(`  console: ${JSON.stringify(cdp.console.slice(-8))}`)
+}
+
+async function imagePaging(cdp) {
+  const images = await openTranscript(cdp)
   if (!check('the conversation shows images', typeof images === 'number' && images > 0, `${images ?? 0} images`)) {
-    log(`  diagnostics: ${await cdp.evaluate(`JSON.stringify({
-      allImgs: document.querySelectorAll('img').length,
-      imgs: [...document.querySelectorAll('img')].slice(0, 6).map(node => ({ cls: node.className, src: (node.currentSrc || node.src).slice(0, 60) })),
-      msgs: document.querySelectorAll('.bt-msg').length,
-      users: document.querySelectorAll('.bt-umsg').length,
-      buttons: [...document.querySelectorAll('button')].map(node => node.textContent.trim()).filter(text => text !== '').slice(-12),
-      text: document.body.innerText.slice(-300),
-    })`)}`)
-    log(`  api: ${await cdp.evaluate(`fetch('/api/bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: 'state', payload: {} }) }).then(async r => r.status + ' ' + (await r.text()).slice(0, 160), e => 'ERR ' + e.message)`)}`)
-    log(`  console: ${JSON.stringify(cdp.console.slice(-8))}`)
+    await diagnose(cdp)
     return
   }
-  await cdp.evaluate("[...document.querySelectorAll('.bt-astack img, .bt-ububble img, .bt-umsg img, .bt-uimgs img')][0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); true")
+  await cdp.evaluate(`[...document.querySelectorAll("${CONTENT_SEL}")][0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); true`)
   const opened = await waitFor(() => cdp.evaluate("document.querySelectorAll('.bt-imgview').length > 0"), 8000)
   if (!check('clicking an image opens the pager', opened === true)) return
   const first = JSON.parse(await cdp.evaluate(`JSON.stringify({
@@ -299,7 +318,68 @@ async function imagePaging(cdp) {
   log(`saved ${await cdp.shot(join(SHOTS, 'e2e-image-paging-last.png'))}`)
 }
 
-const scenarios = { 'image-paging': imagePaging }
+// A Bot's Markdown pictures are pictures of the conversation: they open the pager at
+// their own place among the user's attachments, and the shell's single-image lightbox
+// must not take the click.
+async function markdownPaging(cdp) {
+  const images = await openTranscript(cdp)
+  if (!check('the conversation holds pictures', typeof images === 'number' && images > 0, `${images ?? 0} pictures`)) {
+    await diagnose(cdp)
+    return
+  }
+  const where = JSON.parse(await cdp.evaluate(`(() => {
+    const all = [...document.querySelectorAll("${CONTENT_SEL}")]
+    const body = document.querySelector("${BODY_SEL}")
+    return JSON.stringify(body === null ? null : {
+      all: all.length,
+      inBodies: document.querySelectorAll("${BODY_SEL}").length,
+      at: all.indexOf(body),
+      alt: body.alt ?? '',
+    })
+  })()`))
+  if (!check('a Bot message draws Markdown pictures', where !== null && where.inBodies > 0, where === null ? 'no picture in a Bot bubble' : `${where?.inBodies} in Bot messages`)) return
+  check('the pager takes the whole conversation, not just the Bot picture', where.all >= where.inBodies, `${where.all} pictures, ${where.inBodies} of them in Bot messages`)
+  // What was clicked, in the words of the page: a picture inside a Bot's own bubble.
+  log(`  clicked: ${await cdp.evaluate(`(() => {
+    const node = document.querySelector("${BODY_SEL}")
+    const chain = []
+    let at = node
+    while (at !== null && chain.length < 8) { chain.unshift((typeof at.className === 'string' ? at.className : '') || at.tagName); at = at.parentElement }
+    return chain.join(' > ') + ' — alt ' + JSON.stringify(node.alt ?? '')
+  })()`)}`)
+  await cdp.evaluate(`document.querySelector("${BODY_SEL}").dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); true`)
+  const opened = await waitFor(() => cdp.evaluate("document.querySelectorAll('.bt-imgview').length > 0"), 8000)
+  if (!check('clicking a Bot picture opens the pager', opened === true)) return
+  const total = where.all
+  const first = JSON.parse(await cdp.evaluate(`JSON.stringify({
+    count: document.querySelector('.bt-imgview-count')?.textContent ?? '',
+    name: document.querySelector('.bt-imgview-name')?.textContent ?? '',
+    prevDisabled: document.querySelector('[data-side=prev]')?.disabled,
+    nextDisabled: document.querySelector('[data-side=next]')?.disabled,
+    inside: document.querySelector('.bt-imgview')?.contains(document.activeElement) === true,
+  })`))
+  check('the pager opens on that very picture', first.count.trim() === `${where.at + 1} / ${total}`, `${first.count.trim()} (expected ${where.at + 1} / ${total})`)
+  check('the pager names the picture it shows', first.name === where.alt, `"${first.name}" for alt "${where.alt}"`)
+  check('the shell\'s lightbox does not take the click', first.inside === true, first.inside ? 'the pager holds the focus' : 'something else holds the focus')
+  check('the previous arrow follows the first picture', first.prevDisabled === (where.at === 0), `disabled=${first.prevDisabled}, at ${where.at + 1} of ${total}`)
+  checkDrawn(await drawnPicture(cdp), 'the Bot picture')
+  log(`saved ${await cdp.shot(join(SHOTS, 'e2e-markdown-paging-1.png'))}`)
+  if (!check('the conversation has more than one picture to page', total > 1, `${total}`)) return
+  for (let step = where.at + 1; step < total; step += 1) {
+    await cdp.evaluate("document.querySelector('[data-side=next]')?.click(); true")
+    await sleep(400)
+  }
+  const last = JSON.parse(await cdp.evaluate(`JSON.stringify({
+    count: document.querySelector('.bt-imgview-count')?.textContent ?? '',
+    nextDisabled: document.querySelector('[data-side=next]')?.disabled,
+  })`))
+  check('the last picture is N / N', new RegExp(`^${total}\\s*/\\s*${total}$`).test(last.count.trim()), last.count)
+  check('the next arrow is disabled on the last picture', last.nextDisabled === true)
+  checkDrawn(await drawnPicture(cdp), 'the last picture')
+  log(`saved ${await cdp.shot(join(SHOTS, 'e2e-markdown-paging-last.png'))}`)
+}
+
+const scenarios = { 'image-paging': imagePaging, 'markdown-paging': markdownPaging }
 
 // Start the isolated instance and stay with it: this is the warm side of --attach.
 async function serve() {
@@ -319,16 +399,19 @@ async function serve() {
       const page = await Cdp.open(debugPort)
       await page.send('Page.enable')
       await page.send('Page.navigate', { url })
-      warmed = (await waitFor(() => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false), 15_000)) === true
+      // The first page of a copied home reads a team's whole history; 15 s was not
+      // enough for it on a busy machine, and a cold instance then looked empty.
+      const started = Date.now()
+      warmed = (await waitFor(() => page.evaluate("document.querySelectorAll('.bt-tile').length > 0").catch(() => false), 45_000)) === true
+      log(`  warm ${attempt + 1}: ${warmed ? 'the team session is open' : 'still an empty session'} after ${Math.round((Date.now() - started) / 1000)}s`)
       await page.send('Page.close').catch(() => {})
     }
-    log(warmed ? '  warm: the team session is open' : '  warm: still an empty session (the driver will say so)')
   }
   children.splice(children.indexOf(chrome), 1)
   try { chrome.kill('SIGKILL') } catch {}
   log('')
   log(`serving ${url}`)
-  log('drive it with: node dev/ui-e2e.mjs image-paging --attach <url>')
+  log('drive it with: node dev/ui-e2e.mjs image-paging --attach <url> (or markdown-paging)')
   log('Ctrl-C stops it and removes the copy.')
   await new Promise(() => {})
 }
