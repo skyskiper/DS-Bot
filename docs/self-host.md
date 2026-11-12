@@ -228,6 +228,28 @@ It exits non-zero, with one line per finding, when it meets a token, a private k
 block, an email address, or a certificate file on its way into the commit. Placeholders
 such as `<account>` or `/path/to/...` are fine.
 
+## Version numbers
+
+This fork carries its own version, so the update check does not offer an upstream 0.3.x
+release over it. The version is `0.4.0-YYYYMMDDHHMM`: a fixed stamp from the moment of the
+commit, never generated during a build.
+
+Change it in all of these, with the same string:
+
+- `app/package.json` and `ds-bot/package.json` (`version`), which `app.getVersion()` and
+  its update check read;
+- the two root `version` entries in `app/package-lock.json` and
+  `ds-bot/package-lock.json`, which mirror those files;
+- `app/electron-builder.yml`: `mac.bundleShortVersion` (numbers and dots only, `0.4.0`) and
+  `mac.bundleVersion` (the same stamp, `202611121135`).
+
+macOS wants numbers only in `CFBundleShortVersionString`, so a prerelease version cannot go
+into the plist as it is: electron-builder writes the package version there unless
+`mac.bundleShortVersion` overrides it, and `CFBundleVersion` comes from `mac.bundleVersion`
+(see `app-builder-lib/out/macPackager.js`, `applyCommonInfo`: `CFBundleShortVersionString =
+bundleShortVersion || appInfo.version`, `CFBundleVersion = bundleVersion || appInfo.buildVersion`).
+The prerelease string itself stays in `package.json`, where the update check compares it.
+
 ## Notes
 
 - While the app links the development checkout, `npm run build` rebuilds the
