@@ -985,6 +985,15 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
     const choice = reply.choice === 'allow' ? t('allowed') : t('rejected')
     return h('div', { className: 'bt-event' }, t('You {choice} {name}\'s {tool}', { choice, name: bot.name, tool: reply.tool ?? t('tool call') }))
   }
+  if (reply.kind === 'group-question') {
+    // The member's Session is hidden, so this card came to the group: answer it here.
+    return h(GroupQuestionRow, { key: reply.requestId, reply, bot, actions })
+  }
+  if (reply.kind === 'group-question-answer') {
+    return h('div', { className: 'bt-event' }, reply.outcome?.aborted || reply.outcome?.expired
+      ? t('{name}’s question was closed before it was answered', { name: bot.name })
+      : t('You answered {name}’s question', { name: bot.name }))
+  }
   if (reply.kind === 'stalled') {
     const minutes = Math.max(1, Math.round((reply.waitedMs ?? 0) / 60000))
     return h('div', { className: 'bt-event bt-event-error', role: 'status' },
@@ -1005,6 +1014,45 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
     return h('div', { className: 'bt-event' }, t('{name} finished its work', { name: bot.name }))
   }
   return null
+}
+
+// A question a group member asked (cua's "application access", for one): its own Session is
+// hidden, so the group shows the card and answers it. Options are the asker's, verbatim.
+function GroupQuestionRow({ reply, bot, actions }) {
+  const questions = Array.isArray(reply.questions) ? reply.questions : []
+  const [state, setState] = useState('open')
+  const [error, setError] = useState('')
+  const [picked, setPicked] = useState({})
+  const answer = (question, label) => {
+    if (state !== 'open') return
+    const next = { ...picked, [question.id]: label }
+    setPicked(next)
+    if (questions.some(item => next[item.id] === undefined)) return
+    setState('busy')
+    setError('')
+    const answers = questions.map(item => ({ id: item.id, selected: [next[item.id]] }))
+    void Promise.resolve(actions.answerGroupQuestion?.(reply.requestId, answers)).then(
+      () => setState('answered'),
+      (failure) => {
+        const message = String(failure?.message ?? failure)
+        setState(/no longer open/i.test(message) ? 'expired' : 'open')
+        setError(message)
+      },
+    )
+  }
+  const stateLine = state === 'answered' ? t('Answered.') : state === 'expired' ? t('This question expired.') : null
+  return h('div', { className: 'bt-appr' },
+    questions.map(question => h('div', { key: question.id },
+      h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
+      h('div', { className: 'bt-appr-reason' }, question.question ?? ''),
+      stateLine !== null ? null : h('div', { className: 'bt-appr-actions' },
+        (question.options ?? []).map(option => h('button', {
+          key: option.label, type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy',
+          'data-picked': picked[question.id] === option.label ? '' : undefined,
+          onClick: () => answer(question, option.label),
+        }, option.label))))),
+    stateLine !== null ? h('div', { className: 'bt-appr-state' }, stateLine) : null,
+    error !== '' ? h('div', { className: 'bt-appr-error', role: 'alert' }, error) : null)
 }
 
 // A member waiting for the user's approval in a group: the card carries the approval's id, so

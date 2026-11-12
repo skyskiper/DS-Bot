@@ -12475,6 +12475,11 @@ var ZH = {
   "Paused after {count} Bot relays. Waiting: {names}": "Bot 之间已接力 {count} 次，先停下了。还在等：{names}",
   "{names} went back and forth {count} times without progress and paused. Write here to go on": "{names} 来回 {count} 次没有进展，先停下了。你发言后继续",
   "{name} paused for your approval": "{name} 停下来等你批准",
+  "{name}’s question was closed before it was answered": "{name} 的提问在回答前已关闭",
+  "You answered {name}’s question": "你已回答 {name} 的提问",
+  Answered: "已回答",
+  "Answered.": "已回答。",
+  "This question expired.": "这个提问已失效。",
   "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} 在 {tool} 上等了 {minutes} 分钟没有进展，已放弃；请在它自己的会话里执行这一步。",
   "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} 停下来等你批准，但这条审批已失效，无法在这里批准；请让 {name} 重新发起。",
   "{name} started on it": "{name} 开始做了",
@@ -13395,6 +13400,10 @@ var FORK_COPY = {
   "allowed": "allowed",
   "rejected": "rejected",
   "tool call": "tool call",
+  "{name}’s question was closed before it was answered": "{name}’s question was closed before it was answered",
+  "You answered {name}’s question": "You answered {name}’s question",
+  "Answered.": "Answered.",
+  "This question expired.": "This question expired.",
   "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.",
   "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.",
   "Without one, the members' characters make the group icon.": "Without one, the members' characters make the group icon.",
@@ -14073,6 +14082,7 @@ function teamActions({ call: call2, after, partFor, roster, ui: ui2, live, cards
     dismissView: (sessionId) => after(call2("dismiss-view", { sessionId: partFor(sessionId) })),
     deleteBtw: (sessionId, cardId) => after(call2("btw-delete", { sessionId, cardId })),
     answerApproval: (id, choice) => after(call2("approval-answer", { id, choice })),
+    answerGroupQuestion: (requestId, answers) => after(call2("answer-group-question", { requestId, answers })),
     computerSetEnabled: (enabled) => after(call2("computer-set-enabled", { enabled })),
     computerSetLevel: (botId, level) => after(call2("computer-set-level", { botId, level })),
     computerRevokeApp: (botId, appKey) => after(call2("computer-revoke-app", { botId, appKey })),
@@ -27174,6 +27184,12 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     const choice = reply.choice === "allow" ? t("allowed") : t("rejected");
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
   }
+  if (reply.kind === "group-question") {
+    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.requestId, reply, bot, actions });
+  }
+  if (reply.kind === "group-question-answer") {
+    return (0, import_react34.createElement)("div", { className: "bt-event" }, reply.outcome?.aborted || reply.outcome?.expired ? t("{name}’s question was closed before it was answered", { name: bot.name }) : t("You answered {name}’s question", { name: bot.name }));
+  }
   if (reply.kind === "stalled") {
     const minutes = Math.max(1, Math.round((reply.waitedMs ?? 0) / 6e4));
     return (0, import_react34.createElement)(
@@ -27204,6 +27220,54 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("{name} finished its work", { name: bot.name }));
   }
   return null;
+}
+function GroupQuestionRow({ reply, bot, actions }) {
+  const questions = Array.isArray(reply.questions) ? reply.questions : [];
+  const [state2, setState] = (0, import_react34.useState)("open");
+  const [error, setError] = (0, import_react34.useState)("");
+  const [picked, setPicked] = (0, import_react34.useState)({});
+  const answer = (question, label) => {
+    if (state2 !== "open") return;
+    const next = { ...picked, [question.id]: label };
+    setPicked(next);
+    if (questions.some((item) => next[item.id] === void 0)) return;
+    setState("busy");
+    setError("");
+    const answers = questions.map((item) => ({ id: item.id, selected: [next[item.id]] }));
+    void Promise.resolve(actions.answerGroupQuestion?.(reply.requestId, answers)).then(
+      () => setState("answered"),
+      (failure) => {
+        const message = String(failure?.message ?? failure);
+        setState(/no longer open/i.test(message) ? "expired" : "open");
+        setError(message);
+      }
+    );
+  };
+  const stateLine2 = state2 === "answered" ? t("Answered.") : state2 === "expired" ? t("This question expired.") : null;
+  return (0, import_react34.createElement)(
+    "div",
+    { className: "bt-appr" },
+    questions.map((question) => (0, import_react34.createElement)(
+      "div",
+      { key: question.id },
+      (0, import_react34.createElement)("div", { className: "bt-appr-head" }, (0, import_react34.createElement)(BotMark, { bot, size: 16 }), (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name)),
+      (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, question.question ?? ""),
+      stateLine2 !== null ? null : (0, import_react34.createElement)(
+        "div",
+        { className: "bt-appr-actions" },
+        (question.options ?? []).map((option) => (0, import_react34.createElement)("button", {
+          key: option.label,
+          type: "button",
+          className: "bt-soft bt-soft-sm",
+          disabled: state2 === "busy",
+          "data-picked": picked[question.id] === option.label ? "" : void 0,
+          onClick: () => answer(question, option.label)
+        }, option.label))
+      )
+    )),
+    stateLine2 !== null ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, stateLine2) : null,
+    error !== "" ? (0, import_react34.createElement)("div", { className: "bt-appr-error", role: "alert" }, error) : null
+  );
 }
 function ApprovalRow({ reply, bot, actions }) {
   const [state2, setState] = (0, import_react34.useState)("open");

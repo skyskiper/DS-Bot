@@ -136,6 +136,7 @@ export function teamActions({ call, after, partFor, roster, ui, live, cards, hel
     dismissView: sessionId => after(call('dismiss-view', { sessionId: partFor(sessionId) })),
     deleteBtw: (sessionId, cardId) => after(call('btw-delete', { sessionId, cardId })),
     answerApproval: (id, choice) => after(call('approval-answer', { id, choice })),
+    answerGroupQuestion: (requestId, answers) => after(call('answer-group-question', { requestId, answers })),
     computerSetEnabled: enabled => after(call('computer-set-enabled', { enabled })),
     computerSetLevel: (botId, level) => after(call('computer-set-level', { botId, level })),
     computerRevokeApp: (botId, appKey) => after(call('computer-revoke-app', { botId, appKey })),
