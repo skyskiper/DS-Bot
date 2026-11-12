@@ -12477,6 +12477,7 @@ var ZH = {
   "{name} paused for your approval": "{name} 停下来等你批准",
   "{name}’s question was closed before it was answered": "{name} 的提问在回答前已关闭",
   "You answered {name}’s question": "你已回答 {name} 的提问",
+  "Open {name}’s chat": "打开 {name} 的会话",
   Answered: "已回答",
   "Answered.": "已回答。",
   "This question expired.": "这个提问已失效。",
@@ -13402,6 +13403,7 @@ var FORK_COPY = {
   "tool call": "tool call",
   "{name}’s question was closed before it was answered": "{name}’s question was closed before it was answered",
   "You answered {name}’s question": "You answered {name}’s question",
+  "Open {name}’s chat": "Open {name}’s chat",
   "Answered.": "Answered.",
   "This question expired.": "This question expired.",
   "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.",
@@ -27137,7 +27139,7 @@ function useLiveNote(actions, sessionId, id, entry) {
     return () => actions.noteLive(sessionId, id, null);
   }, [sessionId, id, key]);
 }
-function RelayEvent({ reply, bot, sessionId, actions }) {
+function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
   if (reply.kind === "failed") {
     return (0, import_react34.createElement)(
       "div",
@@ -27185,7 +27187,7 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
   }
   if (reply.kind === "group-question") {
-    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.requestId, reply, bot, actions });
+    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.requestId, reply, bot, actions, settled: settled === true });
   }
   if (reply.kind === "group-question-answer") {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, reply.outcome?.aborted || reply.outcome?.expired ? t("{name}’s question was closed before it was answered", { name: bot.name }) : t("You answered {name}’s question", { name: bot.name }));
@@ -27221,9 +27223,9 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
   }
   return null;
 }
-function GroupQuestionRow({ reply, bot, actions }) {
+function GroupQuestionRow({ reply, bot, actions, settled = false }) {
   const questions = Array.isArray(reply.questions) ? reply.questions : [];
-  const [state2, setState] = (0, import_react34.useState)("open");
+  const [state2, setState] = (0, import_react34.useState)(settled ? "answered" : "open");
   const [error, setError] = (0, import_react34.useState)("");
   const [picked, setPicked] = (0, import_react34.useState)({});
   const answer = (question, label) => {
@@ -27244,6 +27246,7 @@ function GroupQuestionRow({ reply, bot, actions }) {
     );
   };
   const stateLine2 = state2 === "answered" ? t("Answered.") : state2 === "expired" ? t("This question expired.") : null;
+  const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === "function" && reply.sessionId !== void 0;
   return (0, import_react34.createElement)(
     "div",
     { className: "bt-appr" },
@@ -27265,6 +27268,7 @@ function GroupQuestionRow({ reply, bot, actions }) {
         }, option.label))
       )
     )),
+    stateLine2 === null && canOpen ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null,
     stateLine2 !== null ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, stateLine2) : null,
     error !== "" ? (0, import_react34.createElement)("div", { className: "bt-appr-error", role: "alert" }, error) : null
   );
@@ -27402,7 +27406,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       }
       if (reply.kind === "answer") return null;
       if (reply.kind !== void 0) {
-        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions });
+        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some((row) => row?.kind === "group-question-answer" && row.requestId === reply.requestId) });
       }
       if (reply.kind === "goal") {
         return (0, import_react34.createElement)(

@@ -944,7 +944,7 @@ function useLiveNote(actions, sessionId, id, entry) {
 // One non-message row of a group round: the same event line the live view draws
 // for a reply that is not a member's message or the user's own line. `bot` is the
 // resolved member the reply names.
-export function RelayEvent({ reply, bot, sessionId, actions }) {
+export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
   if (reply.kind === 'failed') {
     return h('div', { className: 'bt-event bt-event-error', role: 'status', title: [reply.code, reply.status, reply.text].filter(Boolean).join(' · ') },
       t('{name} stopped: {reason}. Switch its model or ask it to go on.', { name: bot.name, reason: failureLabel(reply.code, reply.text) }))
@@ -987,7 +987,7 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
   }
   if (reply.kind === 'group-question') {
     // The member's Session is hidden, so this card came to the group: answer it here.
-    return h(GroupQuestionRow, { key: reply.requestId, reply, bot, actions })
+    return h(GroupQuestionRow, { key: reply.requestId, reply, bot, actions, settled: settled === true })
   }
   if (reply.kind === 'group-question-answer') {
     return h('div', { className: 'bt-event' }, reply.outcome?.aborted || reply.outcome?.expired
@@ -1018,9 +1018,9 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
 
 // A question a group member asked (cua's "application access", for one): its own Session is
 // hidden, so the group shows the card and answers it. Options are the asker's, verbatim.
-function GroupQuestionRow({ reply, bot, actions }) {
+function GroupQuestionRow({ reply, bot, actions, settled = false }) {
   const questions = Array.isArray(reply.questions) ? reply.questions : []
-  const [state, setState] = useState('open')
+  const [state, setState] = useState(settled ? 'answered' : 'open')
   const [error, setError] = useState('')
   const [picked, setPicked] = useState({})
   const answer = (question, label) => {
@@ -1041,6 +1041,8 @@ function GroupQuestionRow({ reply, bot, actions }) {
     )
   }
   const stateLine = state === 'answered' ? t('Answered.') : state === 'expired' ? t('This question expired.') : null
+  // The second way in: the member's own chat shows the same card, with its context around it.
+  const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === 'function' && reply.sessionId !== undefined
   return h('div', { className: 'bt-appr' },
     questions.map(question => h('div', { key: question.id },
       h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
@@ -1051,6 +1053,9 @@ function GroupQuestionRow({ reply, bot, actions }) {
           'data-picked': picked[question.id] === option.label ? '' : undefined,
           onClick: () => answer(question, option.label),
         }, option.label))))),
+    stateLine === null && canOpen
+      ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
+      : null,
     stateLine !== null ? h('div', { className: 'bt-appr-state' }, stateLine) : null,
     error !== '' ? h('div', { className: 'bt-appr-error', role: 'alert' }, error) : null)
 }
@@ -1180,7 +1185,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       // The answer line rides on its card (room.answers); a separate row would double it.
       if (reply.kind === 'answer') return null
       if (reply.kind !== undefined) {
-        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions })
+        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some(row => row?.kind === 'group-question-answer' && row.requestId === reply.requestId) })
       }
       if (reply.kind === 'goal') {
         return h('div', { key: `goal-${index}`, className: 'bt-event', title: reply.text || undefined },

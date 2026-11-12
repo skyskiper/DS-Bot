@@ -37,7 +37,7 @@ export function install(rt) {
     // the choices the asker offered (cua's "Allow for this task" / "Always allow").
     rt.logRoom?.(room, {
       who: member?.name ?? 'Bot', botId: owner.botId, kind: 'group-question', requestId: id,
-      questions: entry.questions, time: Date.now(),
+      sessionId: owner.sessionId, questions: entry.questions, time: Date.now(),
     })
     void rt.save?.().catch?.(() => {})
     request.signal?.addEventListener?.('abort', () => {
