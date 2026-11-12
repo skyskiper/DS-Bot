@@ -34,7 +34,10 @@ function start(state, { config = {}, services } = {}) {
 test('apply registers listeners and effects in a fixed order', (t) => {
   const { ctx, stop } = start()
   t.after(stop)
-  assert.deepEqual(ctx.calls, [
+  // The browser channel effect registers from an async import, so whether it is already
+  // here depends on timing; it has its own test. This one pins the synchronous order.
+  const calls = ctx.calls.filter(call => call !== 'effect ds-bot: browser channel')
+  assert.deepEqual(calls, [
     'effect ds-bot: diagnostics log',
     'effect ds-bot: state lock',
     'effect ds-bot: ledger',
@@ -67,7 +70,6 @@ test('apply registers listeners and effects in a fixed order', (t) => {
     'effect ds-bot: group step lines',
     'on llm/stream',
     'on approval/request (prepend)',
-    'on user-questions/request (prepend)',
     'on agent/inbox/discarded',
     'on session/event',
     'effect ds-bot: resume interrupted turns',

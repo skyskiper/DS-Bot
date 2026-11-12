@@ -179,19 +179,16 @@ test('a group question offers its own options and a way into the member’s chat
   const actions = { answerGroupQuestion: (id, answers) => { asked.push([id, answers]); return Promise.resolve() }, openRawSession: id => opened.push(id) }
   const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions })
   const labels = buttons(row.tree).map(button => button.children.filter(child => typeof child === 'string').join(''))
-  assert.deepEqual(labels, ['Allow for this task', 'Deny', 'Open Writer’s chat'])
-  buttons(row.tree)[2].props.onClick()
-  assert.deepEqual(opened, ['gb'])
+  assert.deepEqual(labels, ['Open Writer’s chat'], 'the group only offers the way in; the answer belongs to the Bot’s chat')
   buttons(row.tree)[0].props.onClick()
-  await settle()
-  assert.deepEqual(JSON.parse(JSON.stringify(asked)), [['q1', [{ id: 'cua-app-access', selected: ['Allow for this task'] }]]])
-  assert.deepEqual(buttons(row.tree), [], 'answered here, the card takes its buttons away')
+  assert.deepEqual(opened, ['gb'])
+  assert.deepEqual(asked, [])
 })
 
-test('without a way to open the Session the card only offers its options', () => {
-  const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions: { answerGroupQuestion: () => Promise.resolve(), canOpenInDsh: false } })
-  const labels = buttons(row.tree).map(button => button.children.filter(child => typeof child === 'string').join(''))
-  assert.deepEqual(labels, ['Allow for this task', 'Deny'])
+test('without a way to open the Session the card says where the answer is, with nothing to press', () => {
+  const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions: { canOpenInDsh: false } })
+  assert.deepEqual(buttons(row.tree), [])
+  assert.deepEqual(texts(row.tree).includes('Writer is waiting for your answer in its own chat.'), true)
 })
 
 test('a question answered elsewhere shows as answered, with nothing left to press', () => {

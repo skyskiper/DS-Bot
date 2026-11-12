@@ -23,6 +23,12 @@
 - 桌面 App 已装 0.4.0（`/Applications/DS Bot.app`，Apple Development 签名）。
 - 我们的定制功能（合并后全部保留）：群自定义头像、部门树（`state.departments`）+ 主 Bot 磁贴、会话地图、图片翻页（含 Markdown 正文图）、群卡片五态（ledger 行渲染）、卡片答案持久化、UI E2E 通道。
 - 已知有意分歧：上游 `sections` UI 不接（只留 `state.sections` 字段），见 `/Users/xialingpeng/DS Bot/STATUS.md`。
+- 已知技术债（群问题卡读 pending）：群成员待答的提问从 `ctx.get('userQuestions').waits` 读取——那是
+  DSH `UserQuestionService` 的 **TS private** 字段（`packages/interaction/user-questions/src/index.ts`），
+  没有公开 API。读取做了结构探测 + try/catch，拿不到就静默不出卡，不影响 state。上游一旦提供公开 API
+  立刻替换。另：`user-questions/request` 的事件派发为什么到不了本插件（装配/事件名/global/prepend/
+  加载源都已排除，探针从未生成），仍列为待排查，下一步看 `internal/dispatch` 观察者与 `internal/listener`
+  的 bail 链、`scopeTarget(agent, agent)` 的 filter 对比。
 - 已知取舍（群问题卡）：群里接管的用户提问（cua 的「应用访问」）**不设任何超时**，没人回答那张卡
   会让该成员那一轮一直挂着（用户明确选择：有入口就不用替他判死）。以后若出现僵尸轮次，加事件驱动
   清理（例如用户在该群发新消息时把上一轮未答的卡标失效），**不要加定时器**。
