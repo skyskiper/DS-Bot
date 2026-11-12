@@ -944,7 +944,7 @@ function useLiveNote(actions, sessionId, id, entry) {
 // One non-message row of a group round: the same event line the live view draws
 // for a reply that is not a member's message or the user's own line. `bot` is the
 // resolved member the reply names.
-function RelayEvent({ reply, bot, sessionId, actions }) {
+export function RelayEvent({ reply, bot, sessionId, actions }) {
   if (reply.kind === 'failed') {
     return h('div', { className: 'bt-event bt-event-error', role: 'status', title: [reply.code, reply.status, reply.text].filter(Boolean).join(' · ') },
       t('{name} stopped: {reason}. Switch its model or ask it to go on.', { name: bot.name, reason: failureLabel(reply.code, reply.text) }))
@@ -1004,7 +1004,7 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
 
 // A member waiting for the user's approval in a group: the card carries the approval's id, so
 // the group answers it in place. The Bot's own chat keeps DSH's card.
-function ApprovalRow({ reply, bot, actions }) {
+export function ApprovalRow({ reply, bot, actions }) {
   const [state, setState] = useState('open')
   const [error, setError] = useState('')
   const answer = (choice) => {

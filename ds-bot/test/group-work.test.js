@@ -2431,3 +2431,111 @@ test('stopping a group while its round finishes starts nothing afterwards', asyn
   for (let i = 0; i < 20; i += 1) await new Promise(resolve => setImmediate(resolve))
   assert.equal(host.agentOf('gc').calls.length, 0, 'nothing started after the stop')
 })
+
+// A group's approval is answered in the group itself: the row the round writes carries the
+// approval's id, so the chat can answer it where it was asked instead of waiting forever on a
+// card that a hidden group Session never shows.
+const openApproval = (host, sessionId, over = {}) => {
+  const listener = (host.ctx.listeners.get('approval/request') ?? []).at(-1)
+  assert.ok(listener, 'the approvals module listens for approval/request')
+  const request = { toolName: 'pwsh', reason: 'run the tests', callId: 'call-1', agent: { session: { id: sessionId } }, signal: new AbortController().signal, ...over }
+  // DSH's own answerer, which a group request never reaches: it stays pending.
+  const answered = listener(request, () => new Promise(() => {}))
+  const entry = () => rt.approvalsView().find(view => view.sessionId === sessionId)
+  return { request, answered, entry, id: () => entry()?.id }
+}
+const roomRows = () => rt.groupRows('r1', 0, rt.ledger.lastSeq('group-r1'))
+const approvalRow = () => roomRows().find(row => row.kind === 'approval')
+const answerRow = () => roomRows().find(row => row.kind === 'approval-answer')
+
+test('a group approval row carries its id, and allowing it from the group settles the row and the turn', async (t) => {
+  const host = await start(t)
+  const first = host.round('c1', host.say('@Writer 跑一下测试'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  const approval = openApproval(host, 'gb')
+  await settle(() => approvalRow() !== undefined)
+  const approvalId = approval.id()
+  assert.deepEqual([approvalRow().name, approvalRow().botId, approvalRow().approvalId, approvalRow().tool, approvalRow().reason],
+    ['Writer', 'b', approvalId, 'pwsh', 'run the tests'])
+  assert.equal(rt.waitsForApproval('gb'), true)
+
+  rt.answerApproval(approvalId, 'allow')
+  assert.equal(await approval.answered, 'allowed-once')
+  assert.equal(rt.waitsForApproval('gb'), false)
+  await settle(() => answerRow() !== undefined)
+  const settled = answerRow()
+  assert.deepEqual([settled.name, settled.botId, settled.choice, settled.tool, settled.approvalId], ['Writer', 'b', 'allow', 'pwsh', approvalId])
+  assert.equal(typeof settled.time, 'number')
+  // The room's own record says who answered, which the row draws from the member.
+  assert.equal(rt.ledger.records('group-r1').find(record => record.kind === 'approval-answer').who, 'User')
+
+  // The member's turn goes on: what it ends with is posted in the group as before.
+  await settle(() => first() !== undefined)
+  assert.deepEqual(kinds(first()).map(([kind]) => kind), ['approval', 'approval-answer'])
+  host.finish('gb', '测试全过。')
+  await settle(() => host.agentOf('r1').calls.length === 1)
+  assert.match(text(host.takePost()), /测试全过/)
+})
+
+test('rejecting a group approval continues the turn with the rejection on the record', async (t) => {
+  const host = await start(t)
+  host.round('c1', host.say('@Writer 跑一下测试'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  const approval = openApproval(host, 'gb')
+  await settle(() => approvalRow() !== undefined)
+  const approvalId = approval.id()
+  assert.equal(roomRows().filter(row => row.kind === 'approval').length, 1)
+
+  rt.answerApproval(approvalId, 'reject')
+  assert.equal(await approval.answered, 'rejected')
+  await settle(() => answerRow() !== undefined)
+  assert.deepEqual([answerRow().choice, answerRow().approvalId], ['reject', approvalId])
+
+  // Rejected, the turn still ends on its own and posts what it made of it.
+  host.finish('gb', '测试没有跑。')
+  await settle(() => host.agentOf('r1').calls.length === 1)
+  assert.match(text(host.takePost()), /测试没有跑/)
+  assert.equal(roomRows().filter(row => row.kind === 'approval-answer').length, 1)
+})
+
+test('answering an approval that is no longer open reports it as stale', async (t) => {
+  const host = await start(t)
+  const first = host.round('c1', host.say('@Writer 跑一下测试'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  const approval = openApproval(host, 'gb')
+  await settle(() => approvalRow() !== undefined)
+
+  rt.answerApproval(approval.id(), 'allow')
+  assert.throws(() => rt.answerApproval(approval.id(), 'allow'), error => error?.code === 'bot/stale' && /no longer open/.test(error.message))
+
+  // A cancelled approval (the member left the group) is stale too.
+  const second = openApproval(host, 'gb')
+  await settle(() => second.entry() !== undefined)
+  rt.cancelApprovals('gb')
+  assert.throws(() => rt.answerApproval(second.id(), 'reject'), error => error?.code === 'bot/stale')
+  assert.equal(rt.approvalsView().length, 0)
+
+  host.finish('gb', '测试全过。')
+  await settle(() => first() !== undefined)
+})
+
+test('an approval in a Bot\'s own chat is not a group row', async (t) => {
+  const host = await start(t)
+  const first = host.round('c1', host.say('@Writer 跑一下测试'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  // Writer's own chat keeps DSH's card: no room of its own, so no group row.
+  const approval = openApproval(host, 'b')
+  await settle(() => approval.entry() !== undefined)
+  assert.equal(approval.entry().roomId, undefined)
+  const before = roomRows().filter(row => row.kind === 'approval' || row.kind === 'approval-answer').length
+  rt.answerApproval(approval.id(), 'allow')
+  assert.equal(await approval.answered, 'allowed-once')
+  assert.equal(roomRows().filter(row => row.kind === 'approval' || row.kind === 'approval-answer').length, before)
+
+  host.finish('gb', '测试全过。')
+  await settle(() => first() !== undefined)
+})
