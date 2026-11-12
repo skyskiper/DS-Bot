@@ -3,7 +3,9 @@
 // those requests over for group Sessions only: put the card in the room's book, answer from
 // the group, and hand the answer back to `questions.ask`. Every other Session keeps DSH's
 // own card, which is why this always calls `next()` for them.
+import { appendFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 
 export function install(rt) {
   /** @type {Map<string, {id:string, sessionId:string, roomId:string, botId:string, questions:object[], timer:any, resolve:(answer:any)=>void, done:boolean}>} */
@@ -49,6 +51,16 @@ export function install(rt) {
   // A waterfall listener: the first one that answers ends `questions.ask`.
   rt.handleGroupQuestion = async (request, next) => {
     const sessionId = request.agent?.session?.id ?? request.agent?.id
+    // One-off probe: is our listener reached at all, and for which Session? Written before
+    // any decision so a request that never reaches the group still shows up here.
+    try {
+      appendFileSync(join(rt.home, 'group-questions-probe.jsonl'), `${JSON.stringify({
+        at: Date.now(),
+        sessionId: sessionId ?? null,
+        isGroup: sessionId !== undefined && rt.groupOwners.has(sessionId),
+        questions: (request.questions ?? []).map(question => question?.id ?? null),
+      })}\n`)
+    } catch {}
     if (sessionId === undefined || !rt.groupOwners.has(sessionId)) return next()
     const answer = await ask(sessionId, request)
     if (answer === undefined) return next()
