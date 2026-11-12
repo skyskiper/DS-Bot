@@ -116,6 +116,21 @@ bin/run.sh          # 备环境 → 造数据 → 五步 → 判据 → 证据 �
 判据是 `report.md` 里的 PASS/FAIL。窗口一律隐藏 + 挪到屏外；要新帧截图时借左虚拟屏
 `(-1920,-51)`，截完立刻收回（`bin/guard-window.sh`）。
 
+### 进主干之后：哪些改动热更就能用，哪些要重启 App（2026-11-13）
+
+这两类在真机上生效方式不同，别再混着说：
+
+- **client 部分（`ds-bot/src/client/*` → 生成的 `client.js`）**：热更即可。改完
+  `node scripts/build-client.mjs` 生成新的 `client.js`，已打开的页面由 `dsh-client-hmr`
+  换掉（或刷新一次）。这次进主干的部分是：群卡按钮走 `openSession(botId)`（`cells.js`）、
+  已回答状态的匹配字段。**不需要重启进程。**
+- **host 部分（`ds-bot/index.js`、`src/host/*`）**：必须**重启 App**（或 DSH）才会加载，
+  因为 host 代码在进程启动时装进去，热更换不到。这次进主干的部分是：
+  `user-questions/request` 的事件监听与结算（`group-questions.js`）、`appAccessAsk/Done`
+  钩子（`computer/index.js`）、`appNameOf` 的 null key 守卫、群行文案（`groups.js`）。
+- 只 build 不重启 = 界面变了、行为没变；只重启不 build = 行为变了、界面还是旧的。
+  判断现场跑的是哪一版，用 `report.md` 里那种 `<host 提交> / <client 提交>` 两段式写法。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
