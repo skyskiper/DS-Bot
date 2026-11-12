@@ -28,6 +28,10 @@ if [ -z "$APP" ] || [ ! -d "$APP" ]; then
   exit 2
 fi
 
+HERE=$(cd "$(dirname "$0")" && pwd)
+# This machine's settings, ignored by git: sign-app.local.sh (see its .example).
+[ -f "$HERE/sign-app.local.sh" ] && . "$HERE/sign-app.local.sh"
+
 authority() { codesign -dv --verbose=4 "$APP" 2>&1 | sed -n 's/^Authority=//p' | head -1; }
 verify() { codesign --verify --deep --strict "$APP" 2>&1; }
 

@@ -172,6 +172,45 @@ Certificates and private keys never enter this repository: the `.p12` export, it
 password, and the keychain password stay in the keychain, and the scripts and docs name
 no account, team or certificate.
 
+## Machine-private settings
+
+A machine may need values that must never reach the repository: this machine's signing
+identity, another app path, another profile, a token. Each script reads those from a
+local file that git ignores, and the repository keeps only a template:
+
+| script | local file (ignored) | template |
+| --- | --- | --- |
+| `app/scripts/sign-app.sh` | `app/scripts/sign-app.local.sh` | `sign-app.local.sh.example` |
+| `app/scripts/swap-app.sh` | `app/scripts/swap-app.local.sh` | `swap-app.local.sh.example` |
+| `ds-bot/dev/self-host.sh` | `ds-bot/dev/self-host.local.sh` | `self-host.local.sh.example` |
+
+On a new machine:
+
+```sh
+cp app/scripts/sign-app.local.sh.example app/scripts/sign-app.local.sh
+cp app/scripts/swap-app.local.sh.example app/scripts/swap-app.local.sh
+cp ds-bot/dev/self-host.local.sh.example ds-bot/dev/self-host.local.sh
+# open the copies and fill in this machine's values; keep the templates as they are
+
+git check-ignore -v app/scripts/sign-app.local.sh   # prints the rule that ignores it
+git status                                          # shows no *.local.sh
+```
+
+A script sources its local file when the file exists, so no other step is needed: run
+the script as usual. A local file that is not there means the defaults apply.
+
+Before a commit, run the scan that looks for the same values in the machine-private
+files and in everything staged:
+
+```sh
+ds-bot/dev/check-secrets.sh
+# check-secrets: 0 findings
+```
+
+It exits non-zero, with one line per finding, when it meets a token, a private key
+block, an email address, or a certificate file on its way into the commit. Placeholders
+such as `<account>` or `/path/to/...` are fine.
+
 ## Notes
 
 - While the app links the development checkout, `npm run build` rebuilds the

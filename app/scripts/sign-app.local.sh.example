@@ -1,0 +1,14 @@
+#!/bin/sh
+# This machine's settings for sign-app.sh, for a machine with more than one Apple
+# Development certificate or where an unsigned app must stop the swap.
+#
+# Copy it to a name git ignores, then fill in the values:
+#   cp app/scripts/sign-app.local.sh.example app/scripts/sign-app.local.sh
+# The copy is ignored; `git check-ignore -v app/scripts/sign-app.local.sh` shows the rule.
+# Never commit the copy: it is the one file that may name this machine's certificate.
+
+# The exact line `security find-identity -v -p codesigning` prints.
+export DS_BOT_SIGN_IDENTITY='Apple Development: <account> (<team id>)'
+
+# 1: an app without a valid identity is an error, not a warning.
+export DS_BOT_REQUIRE_SIGN=1

@@ -1,0 +1,11 @@
+#!/bin/sh
+# This machine's settings for self-host.sh: where the checkouts and the app's plugin
+# profile live when they are not the defaults.
+#
+#   cp ds-bot/dev/self-host.local.sh.example ds-bot/dev/self-host.local.sh
+# The copy is ignored; never commit it.
+
+export DS_BOT_PROFILE='/path/to/.ds-bot/profiles/ds-bot'
+export DS_BOT_DEV='/path/to/DS-Bot/ds-bot'
+export DS_BOT_STABLE='/path/to/DS-Bot-stable/ds-bot'
+export DS_BOT_PNPM='/path/to/DS Bot.app/Contents/Resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.cjs'

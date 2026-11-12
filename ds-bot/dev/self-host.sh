@@ -31,6 +31,8 @@
 set -u
 
 PLUGIN=$(cd "$(dirname "$0")/.." && pwd)
+# This machine's settings, ignored by git: dev/self-host.local.sh (see its .example).
+[ -f "$PLUGIN/dev/self-host.local.sh" ] && . "$PLUGIN/dev/self-host.local.sh"
 PROFILE=${DS_BOT_PROFILE:-"$HOME/.ds-bot/profiles/ds-bot"}
 DEV=${DS_BOT_DEV:-"$HOME/DS Bot/DS-Bot-dev/ds-bot"}
 STABLE=${DS_BOT_STABLE:-"$HOME/DS Bot/DS-Bot-stable/ds-bot"}

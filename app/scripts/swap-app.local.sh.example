@@ -1,0 +1,12 @@
+#!/bin/sh
+# This machine's settings for swap-app.sh.
+#
+#   cp app/scripts/swap-app.local.sh.example app/scripts/swap-app.local.sh
+# The copy is ignored; never commit it.
+
+# The app to replace, when it is not /Applications/DS Bot.app.
+export DS_BOT_SWAP_TARGET='/Applications/DS Bot.app'
+# Where the old app waits during the swap; deleted as soon as the new one verifies.
+export DS_BOT_SWAP_TMP="$HOME/Library/Caches/ds-bot-swap"
+# 0: leave the app closed after the swap (a test target wants this).
+export DS_BOT_SWAP_OPEN=0

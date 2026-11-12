@@ -39,6 +39,8 @@
 # backup, for the test that checks the pending list).
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+# This machine's settings, ignored by git: swap-app.local.sh (see its .example).
+[ -f "$HERE/swap-app.local.sh" ] && . "$HERE/swap-app.local.sh"
 
 TARGET="${DS_BOT_SWAP_TARGET:-/Applications/DS Bot.app}"
 TMP="${DS_BOT_SWAP_TMP:-$HOME/Library/Caches/ds-bot-swap}"
