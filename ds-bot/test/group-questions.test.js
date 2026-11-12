@@ -17,9 +17,9 @@ const request = (over = {}) => ({
 
 const bench = () => {
   const lines = []
-  const listener = { on: undefined }
+  const listener = { on: undefined, options: undefined }
   const rt = {
-    ctx: { on: (name, fn) => { if (name === 'user-questions/request') listener.on = fn } },
+    ctx: { on: (name, fn, options) => { if (name === 'user-questions/request') { listener.on = fn; listener.options = options } } },
     groupOwners: new Map([['gb', { roomId: 'r1', botId: 'b' }]]),
     roomOf: id => (id === 'r1' ? room : undefined),
     botOf: () => ({ id: 'b', name: 'Writer' }),
@@ -27,7 +27,7 @@ const bench = () => {
     save: async () => {},
   }
   install(rt)
-  return { rt, lines, ask: (req) => listener.on(req, () => Promise.reject(new Error('next'))) }
+  return { rt, lines, listener, ask: (req) => listener.on(req, () => Promise.reject(new Error('next'))) }
 }
 
 test('a group question becomes a card in the room instead of failing', async () => {
@@ -40,6 +40,11 @@ test('a group question becomes a card in the room instead of failing', async () 
   rt.answerGroupQuestion(card.requestId, [{ id: 'cua-app-access', selected: ['Always allow'] }])
   assert.deepEqual(await pending, { answers: [{ id: 'cua-app-access', selected: ['Always allow'] }] })
   assert.deepEqual(lines.at(-1).kind, 'group-question-answer')
+})
+
+test('the listener takes its place ahead of DSH’s own answerer', () => {
+  const { listener } = bench()
+  assert.deepEqual(listener.options, { prepend: true })
 })
 
 test('a Session that is not a group keeps DSH’s own card', async () => {

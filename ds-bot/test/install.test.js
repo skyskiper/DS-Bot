@@ -67,7 +67,7 @@ test('apply registers listeners and effects in a fixed order', (t) => {
     'effect ds-bot: group step lines',
     'on llm/stream',
     'on approval/request (prepend)',
-    'on user-questions/request',
+    'on user-questions/request (prepend)',
     'on agent/inbox/discarded',
     'on session/event',
     'effect ds-bot: resume interrupted turns',
