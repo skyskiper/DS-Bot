@@ -609,6 +609,8 @@ export function install(rt) {
     for (const map of sessionApps.values()) {
       for (const app of map.values()) if (app.key === key) return app.name
     }
+    // A copied home can carry a record whose key was never filled in: name what we have.
+    if (typeof key !== 'string' || key === '') return 'an app'
     return key.startsWith('selector:') ? key.slice(9) : key.startsWith('pid:') ? `pid ${key.slice(4)}` : 'an app'
   }
 
