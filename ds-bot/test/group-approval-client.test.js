@@ -164,3 +164,38 @@ test('the recorded answer draws as one line under the member', () => {
   assert.deepEqual(texts(rejected.tree), ["You rejected Writer's pwsh"])
   assert.deepEqual(buttons(allowed.tree), [])
 })
+
+// A group question (cua's "application access") is answered in the group or in the member's
+// own chat: both ways in, and either answer settles the card.
+const questionReply = (over = {}) => ({
+  kind: 'group-question', requestId: 'q1', botId: 'b', name: 'Writer', sessionId: 'gb',
+  questions: [{ id: 'cua-app-access', question: 'Allow Computer Use to control CuoCuo?', options: [{ label: 'Allow for this task' }, { label: 'Deny' }] }],
+  time: 3, ...over,
+})
+
+test('a group question offers its own options and a way into the member’s chat', async () => {
+  const asked = []
+  const opened = []
+  const actions = { answerGroupQuestion: (id, answers) => { asked.push([id, answers]); return Promise.resolve() }, openRawSession: id => opened.push(id) }
+  const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions })
+  const labels = buttons(row.tree).map(button => button.children.filter(child => typeof child === 'string').join(''))
+  assert.deepEqual(labels, ['Allow for this task', 'Deny', 'Open Writer’s chat'])
+  buttons(row.tree)[2].props.onClick()
+  assert.deepEqual(opened, ['gb'])
+  buttons(row.tree)[0].props.onClick()
+  await settle()
+  assert.deepEqual(JSON.parse(JSON.stringify(asked)), [['q1', [{ id: 'cua-app-access', selected: ['Allow for this task'] }]]])
+  assert.deepEqual(buttons(row.tree), [], 'answered here, the card takes its buttons away')
+})
+
+test('without a way to open the Session the card only offers its options', () => {
+  const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions: { answerGroupQuestion: () => Promise.resolve(), canOpenInDsh: false } })
+  const labels = buttons(row.tree).map(button => button.children.filter(child => typeof child === 'string').join(''))
+  assert.deepEqual(labels, ['Allow for this task', 'Deny'])
+})
+
+test('a question answered elsewhere shows as answered, with nothing left to press', () => {
+  const row = mount(RelayEvent, { reply: questionReply(), bot, sessionId: 'gb', actions: { answerGroupQuestion: () => Promise.resolve() }, settled: true })
+  assert.deepEqual(texts(row.tree).filter(text => text === 'Answered.'), ['Answered.'])
+  assert.deepEqual(buttons(row.tree), [])
+})
