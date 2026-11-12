@@ -90,6 +90,32 @@
 `test/group-question-client.test.js`「the group card opens the Bot chat that can answer,
 not the raw Session」——点群卡按钮后，目标视图里必须真的画出 Deny / This time / Always。
 
+### 「需我处理」里的待处理项从哪来（2026-11-13，查过，不是缺陷）
+
+真机上出现过一次误判：群卡已经「已回答。」，侧栏「需我处理」还挂着「测试丙 等你回答」。
+查清了：那一项**不是 cua 的提问**，是 测试丙 **自己聊天**里一张没回答的 `ask_user` 卡
+（侧栏那行下面的预览文字是它的问题「我接下来重点做什么？」）。
+
+- `state.questions` 只有 `ask_user` 工具写（`src/host/tools.js:733`），会话被换掉时由
+  `parts.js` 迁走；cua 的应用访问（`askAppAccess`）和群问题卡都**不写** `state.questions`
+  （`grep state.questions src/host/computer/index.js src/host/group-questions.js` = 0 行），
+  它的卡在 `pendingAsks`，侧栏那一栏根本不显示它。
+- 那张 ask_user 卡按设计等用户回答：`ask_user` 会 `concludeTurn()` 结束当轮，之后**用户
+  往那个会话发下一条消息**时才清（`src/host/turns.js:931`）。测试脚本一直在群里发消息，
+  没再进 测试丙 自己的聊天，所以它一直挂着——这是对的，不是漏清。
+- 验证配方（不用起 App）：`python3 -c` 读 `<home>/bot/state.json` 的 `questions` 键，
+  再对一下 bot/room 的 session id；cua 的提问不会出现在这里。
+
+### 怎么用测试通道跑一遍验证
+
+```sh
+cd "/Users/xialingpeng/DS Bot/test-channel"
+bin/run.sh          # 备环境 → 造数据 → 五步 → 判据 → 证据 → 清场
+```
+证据落 `~/.ds-bot-test/bot/test-runs/<时间戳>/`（同时在 `test-channel/evidence/` 留副本），
+判据是 `report.md` 里的 PASS/FAIL。窗口一律隐藏 + 挪到屏外；要新帧截图时借左虚拟屏
+`(-1920,-51)`，截完立刻收回（`bin/guard-window.sh`）。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
