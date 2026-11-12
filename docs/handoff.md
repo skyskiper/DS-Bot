@@ -49,18 +49,36 @@
   但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
   下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
   需要把 credentials 服务里的 octo 条目只读复制进副本 home（不允许复制明文密钥到日志/仓库）。
-## 群问题卡：三条根因（2026-11-13）
+## 群问题卡：四条根因（2026-11-13，最后一条是真正的拦路虎）
 
-1. **为什么必须事件驱动**：`UserQuestionService.waits` 只在 `askTimed` 里写入（带超时的提问），
-   cua 的「应用访问」走的是无超时 `ask`，**永远不进 waits**；靠轮询 waits 出卡是死路。
-   正解是挂 `user-questions/request`（`{prepend:true, global:true}`）只观察并在命中群成员会话时
-   立刻写 `group-question` 行，答案仍交给 DSH。
+1. **`waits` 只收定时提问**：`UserQuestionService.waits` 只在 `askTimed` 里写入；
+   cua 的「应用访问」走无超时 `ask`，**永远不进 waits**——靠轮询 waits 出卡是死路。
 2. **`groupQuestionsSync` 取 callId 取错**：内层 Map 的 **key** 才是 callId，value 是
-   `TimedQuestionWait`（没有 id 字段）；改用 `calls.keys()`，timed 路径才能出卡。
+   `TimedQuestionWait`（没有 id 字段）；要用 `calls.keys()`。
 3. **`appNameOf` 的 null key**：`src/host/computer/index.js` 的 `appNameOf(key)` 直接
-   `key.startsWith(...)`；历史/副本数据里可能存下 key 为 null 的 app 记录，state 接口因此抛
-   `Cannot read properties of null (reading 'startsWith')`（stack 落在 `appNameOf`）。
-   已加守卫：非字符串/空串返回 `'an app'`。
+   `key.startsWith(...)`，历史/副本数据里可能有 null key，state 因此抛
+   `Cannot read properties of null (reading 'startsWith')`；已加守卫返回 `'an app'`。
+4. **请求到不了群观察者（真正原因）**：`MODULES` 里 `groupQuestions` 在 `computer` 之前 install，
+   两者都 `prepend`，而 cordis 的 `prepend` 是 `unshift`（`cordis/src/events.ts:264`）——
+   **后注册的排前面**；`computerConsent`（`computer/index.js:674`）命中 cua 的 `cua-app-access`
+   后**直接 return 答案、不调 `next()`**，waterfall 到此结束（`events.ts` 注释原话：不调 next 的
+   监听器否决后面的链）。所以之前「探针文件从不生成」不是 DSH 没派发，是它被本插件自己吃掉。
+   同一个 module 还有第二条路径更彻底：前置 gate（`computer/index.js` 的 `computerGate` →
+   `driverConsent`）在应用已认识时**根本不发 DSH 请求**，只画自己的卡。
+   → 结论：群卡要从 **DS Bot 自己的 `askAppAccess`** 处 raise，在那张卡被 resolve 处 settle，
+   不能只依赖 `user-questions/request`。
+   实现：`computer/index.js` 调 `rt.noteAppAccessAsk` / `rt.noteAppAccessDone`，
+   `group-questions.js` 提供这两个钩子（提交 `5247a59d`）。
+
+### 同一条链上顺手修掉的三个坑（`5247a59d`）
+
+- **兜底会当场结算卡**：`groupQuestionsSync` 原本把「不在 waits 里」当成「问题没了」，
+  而无超时 ask 从来不在 waits 里——第一次 `state` 读（客户端 `pull()` 每 1.5 s 一次，
+  `client/index.js:265`）就把刚出的卡结算成「已回答」。现在只结算 `source === 'waits'` 的记录。
+- **无超时 ask 的 questionId 是常量**：原用 `questions[0].id`（= `cua-app-access`），
+  同一会话第二个问题被 `settled` 挡掉、永不出卡；改为 `cua-app-access-<uuid>`。
+- **客户端「已回答」匹配错字段**：`cells.js` 用 `requestId` 比对，但 `groups.js` 的 `rowOf`
+  不放 `requestId` 出来 → 两边都是 undefined，任何一条回答行会标记同屏所有卡；改用 `questionId`。
 
 ## 真机收口方案（群问题卡，一次打完）
 
@@ -82,9 +100,14 @@
 4. **群里出卡**（自动；判据看 ledger 不看 UI）
    - 判据：`grep '"kind":"group-question"' ~/.ds-bot/bot/ledger/group-session-*.jsonl` 有行（含 `sessionId`/`botId`），
      随后群里可见「{name} 在自己的会话里等你回答。」+「打开 {name} 的会话」。
-5. **点「打开会话」作答**（用户在群里点一次；不需要额外授权）
-   - 判据：DSH 原生卡出现 → 点「Allow for this session」→「这一次」按会话记录
-     （`~/.ds-bot/storages/cua_permissions_*.json` 只增该会话条目）。
+5. **点「打开会话」作答**（脚本点，不用用户；不需要额外授权）
+   - 这版 App 里 cua 的应用访问**没有 DSH 原生卡**：请求由 DS Bot 接管，画的是 DS Bot 的卡
+     （`src/client/computer.js` 的 `PendingAppAccess`），按钮是 **Deny / This time / Always**，
+     出现在**那个 Bot 自己的会话**里。
+   - 判据：点 **This time** → 只写内存里的会话决策（重建数据就干净）；点 Always 会写
+     `bot.computer.apps` 进 state.json，第二次就不出卡了。
+   - macOS TCC 是另一回事：测试 App 换了 bundle id，系统视作另一个 App；真去控制应用时可能弹
+     辅助功能/屏幕录制授权（只能人点）。验「出卡→作答→切已回答」不需要它。
 6. **卡片切「已回答」**
    - 判据：`grep '"kind":"group-question-answer"'` 出现，对应 `questionId`；群里卡片按钮消失、显示「Answered.」。
 
