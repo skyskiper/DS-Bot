@@ -70,8 +70,12 @@ const iconFile = join(assets, process.platform === 'win32' ? 'icon.ico' : 'icon.
 // Linux the plain png.
 const trayIconFile = () => join(assets, process.platform === 'win32' ? 'tray.ico' : process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png')
 // Windows 11 draws Mica behind the page and macOS its sidebar vibrancy; material.css lets it
-// through the sidebar.
-const material = materialOf(process.platform, release())
+// through the sidebar. This fork's own app shell and DS Bot surfaces paint an opaque window,
+// so on macOS the material shows through them and flashes on every repaint; it stays off
+// until the shell carries it. DS_BOT_MATERIAL=vibrancy turns it back on.
+const material = process.platform === 'darwin' && process.env.DS_BOT_MATERIAL !== 'vibrancy'
+  ? undefined
+  : materialOf(process.platform, release())
 configureIdentity(app)
 if (process.env.DS_BOT_SHELL_DATA) app.setPath('userData', process.env.DS_BOT_SHELL_DATA)
 const frameFile = join(app.getPath('userData'), 'start-frame.json')

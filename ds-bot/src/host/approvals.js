@@ -104,6 +104,7 @@ export function install(rt) {
     const outcome = OUTCOMES[choice]
     if (outcome === undefined) throw Object.assign(new Error('Choose allow or reject'), { code: 'bot/invalid' })
     entry.answer(outcome)
+    rt.noteApprovalAnswer?.(entry.sessionId, entry.id, choice, entry.tool)
   }
 
   // A group Session that leaves its group has no card left to answer from.

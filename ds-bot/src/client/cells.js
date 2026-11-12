@@ -944,7 +944,7 @@ function useLiveNote(actions, sessionId, id, entry) {
 // One non-message row of a group round: the same event line the live view draws
 // for a reply that is not a member's message or the user's own line. `bot` is the
 // resolved member the reply names.
-function RelayEvent({ reply, bot, sessionId, actions }) {
+export function RelayEvent({ reply, bot, sessionId, actions }) {
   if (reply.kind === 'failed') {
     return h('div', { className: 'bt-event bt-event-error', role: 'status', title: [reply.code, reply.status, reply.text].filter(Boolean).join(' · ') },
       t('{name} stopped: {reason}. Switch its model or ask it to go on.', { name: bot.name, reason: failureLabel(reply.code, reply.text) }))
@@ -973,10 +973,22 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
   if (reply.kind === 'cut') {
     return h('div', { className: 'bt-event' }, t('{name} was cut off by a restart again and stopped', { name: bot.name }))
   }
-  if (reply.kind === 'approval' || reply.kind === 'working') {
+  if (reply.kind === 'approval') {
+    // A group approval is answered in the group; one without an id has no card to answer.
+    return reply.approvalId === undefined
+      ? h('div', { className: 'bt-event' },
+        h('button', { type: 'button', className: 'bt-event-whole', onClick: () => actions.showDetails(sessionId) },
+          h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-event-name' }, t('{name} paused for your approval', { name: bot.name }))))
+      : h(ApprovalRow, { key: reply.approvalId, reply, bot, actions })
+  }
+  if (reply.kind === 'approval-answer') {
+    const choice = reply.choice === 'allow' ? t('allowed') : t('rejected')
+    return h('div', { className: 'bt-event' }, t('You {choice} {name}\'s {tool}', { choice, name: bot.name, tool: reply.tool ?? t('tool call') }))
+  }
+  if (reply.kind === 'working') {
     return h('div', { className: 'bt-event' },
       h('button', { type: 'button', className: 'bt-event-whole', onClick: () => actions.showDetails(sessionId) },
-        h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-event-name' }, t(reply.kind === 'working' ? '{name} started on it' : '{name} paused for your approval', { name: bot.name }))))
+        h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-event-name' }, t('{name} started on it', { name: bot.name }))))
   }
   if (reply.kind === 'folder') {
     return h('div', { className: 'bt-event' }, reply.text)
@@ -988,6 +1000,41 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     return h('div', { className: 'bt-event' }, t('{name} finished its work', { name: bot.name }))
   }
   return null
+}
+
+// A member waiting for the user's approval in a group: the card carries the approval's id, so
+// the group answers it in place. The Bot's own chat keeps DSH's card.
+export function ApprovalRow({ reply, bot, actions }) {
+  const [state, setState] = useState('open')
+  const [error, setError] = useState('')
+  const answer = (choice) => {
+    if (state !== 'open' || reply.approvalId === undefined) return
+    setState('busy')
+    setError('')
+    void Promise.resolve(actions.answerApproval?.(reply.approvalId, choice)).then(
+      () => setState(choice === 'allow' ? 'allowed' : 'rejected'),
+      (failure) => {
+        const message = String(failure?.message ?? failure)
+        setState(/no longer open/i.test(message) ? 'expired' : 'open')
+        setError(message)
+      },
+    )
+  }
+  const stateLine = state === 'allowed' ? t('You allowed it.') : state === 'rejected' ? t('You rejected it.') : state === 'expired' ? t('This approval expired.') : null
+  return h('div', { className: 'bt-appr', 'data-tool': reply.tool ?? '' },
+    h('div', { className: 'bt-appr-head' },
+      h(BotMark, { bot, size: 16 }),
+      h('span', { className: 'bt-appr-name' }, bot.name),
+      reply.tool ? h('code', { className: 'bt-appr-tool' }, reply.tool) : null),
+    reply.reason ? h('div', { className: 'bt-appr-reason' }, reply.reason) : null,
+    stateLine !== null
+      ? h('div', { className: 'bt-appr-state' }, stateLine)
+      : state === 'open' || state === 'busy'
+        ? h('div', { className: 'bt-appr-actions' },
+          h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy', onClick: () => answer('reject') }, t('Reject')),
+          h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy', onClick: () => answer('allow') }, t('Allow once')))
+        : null,
+    error !== '' ? h('div', { className: 'bt-appr-error', role: 'alert' }, error) : null)
 }
 
 // Rows a later call closed do not change: each is read from the group's book once per page.

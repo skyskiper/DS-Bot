@@ -13362,6 +13362,17 @@ var HOST_ZH = {
   "(skipped)": "（跳过）"
 };
 Object.assign(ZH, HOST_ZH);
+Object.assign(ZH, {
+  "You allowed it.": "已允许。",
+  "You rejected it.": "已拒绝。",
+  "This approval expired.": "这条审批已失效。",
+  Reject: "拒绝",
+  "Allow once": "允许一次",
+  "You {choice} {name}'s {tool}": "你已{choice} {name} 的 {tool}",
+  allowed: "允许",
+  rejected: "拒绝",
+  "tool call": "工具调用"
+});
 var ZH_TW = convertDict(ZH);
 var HOST_ERRORS_ZH_TW = convertHostErrors(HOST_ERRORS);
 var LANGUAGES = [
@@ -13373,6 +13384,15 @@ var LANGUAGES = [
   { id: "de", label: "Deutsch", fallback: "en" }
 ];
 var FORK_COPY = {
+  "You allowed it.": "You allowed it.",
+  "You rejected it.": "You rejected it.",
+  "This approval expired.": "This approval expired.",
+  "Reject": "Reject",
+  "Allow once": "Allow once",
+  "You {choice} {name}'s {tool}": "You {choice} {name}'s {tool}",
+  "allowed": "allowed",
+  "rejected": "rejected",
+  "tool call": "tool call",
   "Without one, the members' characters make the group icon.": "Without one, the members' characters make the group icon.",
   "Department": "Department",
   "Ungrouped": "Ungrouped",
@@ -27138,7 +27158,23 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
   if (reply.kind === "cut") {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("{name} was cut off by a restart again and stopped", { name: bot.name }));
   }
-  if (reply.kind === "approval" || reply.kind === "working") {
+  if (reply.kind === "approval") {
+    return reply.approvalId === void 0 ? (0, import_react34.createElement)(
+      "div",
+      { className: "bt-event" },
+      (0, import_react34.createElement)(
+        "button",
+        { type: "button", className: "bt-event-whole", onClick: () => actions.showDetails(sessionId) },
+        (0, import_react34.createElement)(BotMark, { bot, size: 16 }),
+        (0, import_react34.createElement)("span", { className: "bt-event-name" }, t("{name} paused for your approval", { name: bot.name }))
+      )
+    ) : (0, import_react34.createElement)(ApprovalRow, { key: reply.approvalId, reply, bot, actions });
+  }
+  if (reply.kind === "approval-answer") {
+    const choice = reply.choice === "allow" ? t("allowed") : t("rejected");
+    return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
+  }
+  if (reply.kind === "working") {
     return (0, import_react34.createElement)(
       "div",
       { className: "bt-event" },
@@ -27146,7 +27182,7 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
         "button",
         { type: "button", className: "bt-event-whole", onClick: () => actions.showDetails(sessionId) },
         (0, import_react34.createElement)(BotMark, { bot, size: 16 }),
-        (0, import_react34.createElement)("span", { className: "bt-event-name" }, t(reply.kind === "working" ? "{name} started on it" : "{name} paused for your approval", { name: bot.name }))
+        (0, import_react34.createElement)("span", { className: "bt-event-name" }, t("{name} started on it", { name: bot.name }))
       )
     );
   }
@@ -27160,6 +27196,43 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("{name} finished its work", { name: bot.name }));
   }
   return null;
+}
+function ApprovalRow({ reply, bot, actions }) {
+  const [state, setState] = (0, import_react34.useState)("open");
+  const [error, setError] = (0, import_react34.useState)("");
+  const answer = (choice) => {
+    if (state !== "open" || reply.approvalId === void 0) return;
+    setState("busy");
+    setError("");
+    void Promise.resolve(actions.answerApproval?.(reply.approvalId, choice)).then(
+      () => setState(choice === "allow" ? "allowed" : "rejected"),
+      (failure) => {
+        const message = String(failure?.message ?? failure);
+        setState(/no longer open/i.test(message) ? "expired" : "open");
+        setError(message);
+      }
+    );
+  };
+  const stateLine2 = state === "allowed" ? t("You allowed it.") : state === "rejected" ? t("You rejected it.") : state === "expired" ? t("This approval expired.") : null;
+  return (0, import_react34.createElement)(
+    "div",
+    { className: "bt-appr", "data-tool": reply.tool ?? "" },
+    (0, import_react34.createElement)(
+      "div",
+      { className: "bt-appr-head" },
+      (0, import_react34.createElement)(BotMark, { bot, size: 16 }),
+      (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name),
+      reply.tool ? (0, import_react34.createElement)("code", { className: "bt-appr-tool" }, reply.tool) : null
+    ),
+    reply.reason ? (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, reply.reason) : null,
+    stateLine2 !== null ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, stateLine2) : state === "open" || state === "busy" ? (0, import_react34.createElement)(
+      "div",
+      { className: "bt-appr-actions" },
+      (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: state === "busy", onClick: () => answer("reject") }, t("Reject")),
+      (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: state === "busy", onClick: () => answer("allow") }, t("Allow once"))
+    ) : null,
+    error !== "" ? (0, import_react34.createElement)("div", { className: "bt-appr-error", role: "alert" }, error) : null
+  );
 }
 var settledRows = /* @__PURE__ */ new Map();
 function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi, useWork }) {

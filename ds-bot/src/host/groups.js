@@ -312,6 +312,9 @@ export function install(rt) {
         ...(record.card === undefined ? {} : { card: record.card }),
         ...(record.sessionId === undefined ? {} : { sessionId: record.sessionId }),
         ...(record.questionId === undefined ? {} : { questionId: record.questionId }),
+        ...(record.approvalId === undefined ? {} : { approvalId: record.approvalId }),
+        ...(record.reason === undefined ? {} : { reason: record.reason }),
+        ...(record.choice === undefined ? {} : { choice: record.choice }),
         ...(record.text === undefined ? {} : { text: record.text }),
       }
     }
@@ -1107,9 +1110,14 @@ export function install(rt) {
       round.failed.push(member.name)
       noteFailure(room, member, reply.failure)
     } else if (reply?.approval) {
-      // The member's turn goes on in the background and posts when it ends.
+      // The member's turn goes on in the background and posts when it ends. The card's id
+      // rides along so the group can answer it in place, where the user already is.
       slot.status = 'waiting-approval'
-      say(room, { who: member.name, botId: member.id, kind: 'approval' })
+      const approval = (rt.approvalsView?.() ?? []).find(entry => entry.sessionId === session.id)
+      say(room, {
+        who: member.name, botId: member.id, kind: 'approval',
+        ...(approval === undefined ? {} : { approvalId: approval.id, tool: approval.tool, ...(approval.reason ? { reason: approval.reason } : {}) }),
+      })
     } else if (reply?.waiting) {
       // The card is already in the ledger (groupCardAsked); the round goes on
       // without this member's text, and the turn is not counted as a returned reply.
@@ -1769,6 +1777,20 @@ export function install(rt) {
     await rt.save()
   }
   rt.postGroupAnswer = postGroupAnswer
+
+  // The user answered a group member's approval from the group itself: the room records who
+  // allowed or rejected what, and when, so the row settles instead of staying clickable.
+  rt.noteApprovalAnswer = (sessionId, approvalId, choice, tool) => {
+    const owner = rt.groupOwners.get(sessionId)
+    const room = rt.roomOf(owner?.roomId)
+    if (room === undefined) return
+    const member = rt.botOf(owner?.botId)
+    say(room, {
+      who: 'User', kind: 'approval-answer', approvalId, choice, time: Date.now(),
+      ...(member === undefined ? {} : { botId: member.id }),
+      ...(tool === undefined ? {} : { tool }),
+    })
+  }
 
   rt.lateRoomReply = lateRoomReply
 
