@@ -118,6 +118,10 @@ export const lineText = (line, text = line.text) => {
   if (line.kind === 'stopped') return `[The user stopped ${speakerOf(line)}'s work here]`
   if (line.kind === 'done') return `[${speakerOf(line)} finished the work it was asked for]`
   if (line.kind === 'notice') return `[${noticeText(line)}]`
+  if (line.kind === 'group-question') return `[${speakerOf(line)} asked the user something and waits for the answer in its own chat]`
+  if (line.kind === 'group-question-answer') return line.outcome?.aborted || line.outcome?.expired
+    ? `[${speakerOf(line)}'s question was closed before it was answered]`
+    : `[The user answered ${speakerOf(line)}'s question]`
   return `${speakerOf(line)}: ${text}`
 }
 const transcript = (lines, textOfLine = line => line.text) => lines.map(line => lineText(line, textOfLine(line))).join('\n')

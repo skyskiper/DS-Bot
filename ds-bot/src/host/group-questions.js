@@ -39,17 +39,21 @@ export function install(rt) {
   }
 
   // Both paths name a card the same way, so one question never becomes two cards.
-  const raise = (sessionId, owner, questionId) => {
+  // `source` keeps them apart where it matters: a card raised from the pending set is
+  // settled by that set losing the question, while a card raised from an ask follows
+  // that ask's own answer — the pending set never holds an untimed ask, so reading it
+  // as "gone" would settle a card the user has not answered.
+  const raise = (sessionId, owner, questionId, source, extra) => {
     const key = keyOf(sessionId, questionId)
     if (settled.has(key) || seen.has(key)) return undefined
     const room = rt.roomOf(owner.roomId)
     if (room === undefined) return undefined
     const member = rt.botOf(owner.botId)
-    const record = { key, sessionId, questionId, roomId: owner.roomId }
+    const record = { key, sessionId, questionId, roomId: owner.roomId, source }
     seen.set(key, record)
     rt.logRoom?.(room, {
       who: member?.name ?? 'Bot', botId: owner.botId, kind: 'group-question',
-      sessionId, questionId, requestId: questionId, at: Date.now(), time: Date.now(),
+      sessionId, questionId, requestId: questionId, ...extra, at: Date.now(), time: Date.now(),
     })
     return record
   }
@@ -58,10 +62,14 @@ export function install(rt) {
     if (record === undefined || settled.has(record.key)) return
     rememberSettled(record.key)
     seen.delete(record.key)
-    const room = rt.roomOf(rt.groupOwners.get(record.sessionId)?.roomId ?? record.roomId)
+    const owner = rt.groupOwners.get(record.sessionId)
+    const room = rt.roomOf(owner?.roomId ?? record.roomId)
     if (room === undefined) return
+    const member = owner === undefined ? undefined : rt.botOf(owner.botId)
+    // Named, not owned: the answer is the user's line, so every member reads it,
+    // the one that asked included.
     rt.logRoom?.(room, {
-      who: 'User', kind: 'group-question-answer', sessionId: record.sessionId,
+      who: member?.name ?? 'Bot', kind: 'group-question-answer', sessionId: record.sessionId,
       questionId: record.questionId, requestId: record.questionId, outcome,
       at: Date.now(), time: Date.now(),
     })
@@ -76,9 +84,11 @@ export function install(rt) {
       const sessionId = request?.agent?.session?.id ?? request?.agent?.id
       const owner = sessionId === undefined ? undefined : rt.groupOwners.get(sessionId)
       if (owner === undefined) return undefined
-      // A timed ask knows its callId; an untimed one (cua's) gets an identity of its own.
-      const questionId = request?.wait?.callId ?? request?.callId ?? request?.questions?.[0]?.id ?? randomUUID()
-      return raise(sessionId, owner, questionId)
+      // A timed ask knows its callId; an untimed one (cua's) gets an identity of its own,
+      // because its question id names the kind of question and repeats ask after ask.
+      const questionId = request?.wait?.callId ?? request?.callId
+        ?? `${request?.questions?.[0]?.id ?? 'question'}-${randomUUID()}`
+      return raise(sessionId, owner, questionId, 'ask')
     } catch (error) {
       warnOnce(`ds-bot: a group question could not be recorded: ${error?.message ?? error}`)
       return undefined
@@ -100,6 +110,30 @@ export function install(rt) {
     return answer
   }, { prepend: true, global: true })
 
+  // DS Bot asks for an app itself, in the member's own chat, and answers that question
+  // before the group's observer can see the provider's request; a gate decision asks
+  // with no provider request at all. So the card is taken from the ask itself, and the
+  // ask's own identity is what settles it.
+  rt.noteAppAccessAsk = ({ sessionId, questionId, appName }) => {
+    try {
+      const owner = sessionId === undefined ? undefined : rt.groupOwners.get(sessionId)
+      if (owner === undefined || typeof questionId !== 'string') return undefined
+      // The app rides on the card's line, so the group can say what is being asked.
+      return raise(sessionId, owner, questionId, 'ask', appName === undefined ? undefined : { app: appName })
+    } catch (error) {
+      warnOnce(`ds-bot: a group question could not be recorded: ${error?.message ?? error}`)
+      return undefined
+    }
+  }
+  rt.noteAppAccessDone = ({ sessionId, questionId, answer }) => {
+    try {
+      const record = typeof sessionId === 'string' && typeof questionId === 'string'
+        ? seen.get(keyOf(sessionId, questionId))
+        : undefined
+      settle(record, { answered: true, ...(answer === undefined ? {} : { choice: answer }) })
+    } catch { /* the card's own answer must not break */ }
+  }
+
   // Called while the team state is built; it must never throw into that path.
   rt.groupQuestionsSync = () => {
     try {
@@ -114,12 +148,14 @@ export function install(rt) {
           const questionId = questionOf(callId)
           if (questionId === undefined) continue
           open.set(keyOf(sessionId, questionId), true)
-          raise(sessionId, owner, questionId)
+          raise(sessionId, owner, questionId, 'waits')
         }
       }
-      // A question that is gone settles its card: the user answered it in the Bot's chat.
+      // A question that is gone settles its card only for a card that came from this set:
+      // the user answered it in the Bot's chat. An ask this set never held — an untimed
+      // one — is settled by the ask itself, not by its absence here.
       for (const record of [...seen.values()]) {
-        if (open.has(record.key)) continue
+        if (record.source !== 'waits' || open.has(record.key)) continue
         settle(record, { answered: true })
       }
       void rt.save?.().catch?.(() => {})

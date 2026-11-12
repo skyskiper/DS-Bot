@@ -987,7 +987,7 @@ export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) 
   }
   if (reply.kind === 'group-question') {
     // The member's Session is hidden, so this card came to the group: answer it here.
-    return h(GroupQuestionRow, { key: reply.requestId, reply, bot, actions, settled: settled === true })
+    return h(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, actions, settled: settled === true })
   }
   if (reply.kind === 'group-question-answer') {
     return h('div', { className: 'bt-event' }, reply.outcome?.aborted || reply.outcome?.expired
@@ -1157,7 +1157,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       // The answer line rides on its card (room.answers); a separate row would double it.
       if (reply.kind === 'answer') return null
       if (reply.kind !== undefined) {
-        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some(row => row?.kind === 'group-question-answer' && row.requestId === reply.requestId) })
+        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some(row => row?.kind === 'group-question-answer' && row.questionId === reply.questionId) })
       }
       if (reply.kind === 'goal') {
         return h('div', { key: `goal-${index}`, className: 'bt-event', title: reply.text || undefined },

@@ -650,9 +650,15 @@ export function install(rt) {
         if (ctl.waitingFor === 'app-access') ctl.waitingFor = undefined
         settleControl(botId)
         resolve(answer)
+        // The group card waits on this same answer: settle it with the card.
+        rt.noteAppAccessDone?.({ sessionId, questionId: id, answer })
       },
     }
     pendingAsks.set(id, entry)
+    // This is where the user is asked, so this is where a group learns of it: the
+    // provider's question never reaches the group's own observer (this module answers
+    // it first), and a gate decision below asks without any provider question at all.
+    rt.noteAppAccessAsk?.({ sessionId, botId, questionId: id, appName: app.name, callId })
     const ctl = controlOf(botId)
     if (ctl.state !== 'user') {
       ctl.state = 'waiting'

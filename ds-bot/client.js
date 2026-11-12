@@ -27189,7 +27189,7 @@ function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
   }
   if (reply.kind === "group-question") {
-    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.requestId, reply, bot, actions, settled: settled === true });
+    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, actions, settled: settled === true });
   }
   if (reply.kind === "group-question-answer") {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, reply.outcome?.aborted || reply.outcome?.expired ? t("{name}’s question was closed before it was answered", { name: bot.name }) : t("You answered {name}’s question", { name: bot.name }));
@@ -27368,7 +27368,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       }
       if (reply.kind === "answer") return null;
       if (reply.kind !== void 0) {
-        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some((row) => row?.kind === "group-question-answer" && row.requestId === reply.requestId) });
+        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some((row) => row?.kind === "group-question-answer" && row.questionId === reply.questionId) });
       }
       if (reply.kind === "goal") {
         return (0, import_react34.createElement)(
