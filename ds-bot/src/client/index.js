@@ -19,6 +19,7 @@ import { SIDE_CSS, sideSource } from './side-chat.js'
 import { VOICE_BUNDLE, closingReplyText, requestPreparation } from './speech.js'
 import { sameVersion } from './dsh-offer.js'
 import { QuestionCard, QuestionDock } from './questions.js'
+import { installComposerProbe, noteComposerSelect, probeComposerTakeover } from './composer-probe.js'
 import { AnsweredReply, WidgetDock, WIDGET_CSS } from './widget-cell.js'
 import { HandoffDock, HANDOFF_CSS } from './handoff-card.js'
 import { AppAccessDock, ComputerHandoffDock, ComputerIndicator, COMPUTER_CSS } from './computer.js'
@@ -1148,6 +1149,7 @@ export function apply(ctx) {
     () => installCompiledStyles(CONVERSATION_CSS, 'conversation'),
     () => installCompiledStyles(TURN_ERROR_CSS, 'turn-errors'),
     () => installCompiledStyles(QUEUE_CSS, 'queue'),
+    () => installComposerProbe(),
     () => installMentions(),
     () => installAtMenu(),
     installHeader,
@@ -1184,8 +1186,12 @@ export function apply(ctx) {
     () => shadow('conversation.input.right', { id: 'bot-voice', order: 100, inject: face }, ComposerVoice),
     () => shadow('conversation.composer', {
       priority: BOT_PRIORITY,
-      select: owner => (owner.pendingInteraction?.kind === 'question' ? owner.pendingInteraction : null),
-    }, QuestionCard),
+      select: (owner) => {
+        const matched = owner.pendingInteraction?.kind === 'question' ? owner.pendingInteraction : null
+        noteComposerSelect(matched)
+        return matched
+      },
+    }, probeComposerTakeover(QuestionCard)),
     () => shadow('conversation.input.dock', { id: 'bot-members', order: -120, inject: face }, MemberDock),
     () => shadow('conversation.input.dock', { id: 'bot-model', order: -110, inject: face }, ModelChoiceDock),
     () => shadow('conversation.input.dock', { id: 'bot-question', order: -100, inject: face }, QuestionDock),
