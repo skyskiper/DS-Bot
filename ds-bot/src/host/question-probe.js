@@ -32,30 +32,6 @@ export function install(rt) {
     if (name !== 'user-questions/request') return
     write({ kind: 'dispatch', type, ...describe(args) })
   }, { global: true })
-  // Injected ask for an isolated instance: no model needed. It calls the same service cua
-  // calls, so waits/card/settle are the real downstream; only the asker is injected.
-  if (process.env.DS_QUESTION_PROBE_INJECT === '1') {
-    setTimeout(() => {
-      void (async () => {
-        try {
-          await rt.load?.()
-          const wanted = process.env.DS_QUESTION_PROBE_ROOM
-          const entry = [...rt.groupOwners.entries()].find(([, owner]) => rt.roomOf(owner?.roomId) !== undefined && (wanted === undefined || owner?.roomId === wanted))
-          if (entry === undefined) { write({ kind: 'inject', error: 'no group session' }); return }
-          const [sessionId] = entry
-          const resolved = await rt.ctx.get?.('sessionController')?.resolveAgent?.(sessionId)
-          const agent = resolved?.agent
-          const service = rt.ctx.get?.('userQuestions')
-          write({ kind: 'inject', sessionId, agent: agent !== undefined, ask: typeof service?.ask, waits: shape(service?.waits) })
-          if (agent === undefined || typeof service?.ask !== 'function') return
-          void service.ask({ agent, questions: [{ id: 'cua-app-access', question: 'Inject probe: allow this?', options: [{ label: 'Allow for this session' }, { label: 'Deny' }] }] }).catch(() => {})
-          write({ kind: 'inject-asked', sessionId })
-        } catch (error) {
-          write({ kind: 'inject', error: String(error?.message ?? error) })
-        }
-      })()
-    }, 15000)
-  }
   write({
     kind: 'install',
     service: shape(rt.ctx.get?.('userQuestions')),
