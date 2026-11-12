@@ -1,0 +1,29 @@
+#!/bin/bash
+# The wrapper a launchd job runs to install a packed app, check it and clean up.
+#
+#   cp app/scripts/swap-install-job.example /path/to/swap-install-job.sh
+#   # fill in REPO / NEW below, or pass them in the environment
+#   launchctl submit -l ds-bot-swap -- /bin/bash /path/to/swap-install-job.sh
+#
+# The order is the point: `--install`, then the checks and `--tidy`, and the job is
+# removed LAST. A submitted job stays registered while this script runs, and launchd
+# starts it again about every ten seconds: a wrapper that lets it finish without
+# removing the label installs the app over and over. `swap-app.sh` does not remove
+# another process's job, so that last step belongs here.
+set -u
+
+REPO=${REPO:-/path/to/DS-Bot}
+NEW=${NEW:-"$REPO/app/dist-pack/mac-arm64/DS Bot.app"}
+SWAP="$REPO/app/scripts/swap-app.sh"
+JOB=${DS_BOT_SWAP_JOB:-ds-bot-swap}
+APP=${APP:-/Applications/DS Bot.app}
+export DS_BOT_SWAP_JOB="$JOB"
+
+# Take the job down even when a step above fails, or launchd runs it again.
+finish() { launchctl remove "$JOB" >/dev/null 2>&1 || true; }
+trap finish EXIT
+
+"$SWAP" --install "$NEW"
+"$SWAP" --tidy
+codesign --verify --deep --strict "$APP"
+printf 'swap-install-job: %s done\n' "$JOB"

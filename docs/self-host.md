@@ -120,13 +120,25 @@ build's cache.
 app/scripts/swap-app.sh --stage "app/dist-pack/mac-arm64/DS Bot.app"   # verify and print the plan
 
 # replace it from a job that is NOT a child of the app it replaces, once the user said yes:
-launchctl submit -l ds-bot-swap -- /bin/bash -c \
-  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" --install "/Applications/DS Bot.app"'
+cp app/scripts/swap-install-job.example /path/to/swap-install-job.sh   # fill in REPO and NEW
+launchctl submit -l ds-bot-swap -- /bin/bash /path/to/swap-install-job.sh
 ```
 
 `--stage` takes no lock, writes no log and signs nothing: it verifies the new bundle
 and prints what will move where, so the swap can be shown before it happens. A bare
 `swap-app.sh <app>` refuses; nothing is replaced without `--install`.
+
+A submitted job is not a one-shot: while its label is registered, launchd starts it
+again about every ten seconds. The wrapper therefore removes the job as its last step,
+and `app/scripts/swap-install-job.example` does exactly that — `--install`, the checks
+and `--tidy`, then `launchctl remove "$DS_BOT_SWAP_JOB"`, with a trap so a failed step
+still ends the job. A wrapper that forgets the removal reinstalls the app every ten
+seconds.
+
+`swap-app.sh` removes a job only when it is that job's own process. When a wrapper
+scheduled the job and runs the swap itself, the job belongs to the wrapper, and the
+script leaves it alone: removing it there would end the wrapper and everything queued
+after the swap, such as `--tidy` or a check that reads the installed app.
 
 `--install` verifies the bundle (executable, version), signs it, quits only the app
 running from `DS_BOT_SWAP_TARGET`, unregisters it from LaunchServices, moves it into
