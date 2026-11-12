@@ -150,11 +150,11 @@ test('an approval that expired says so and takes its buttons away', async () => 
   assert.deepEqual(nodes(row.tree).filter(node => node.props?.role === 'alert').length, 1)
 })
 
-test('a row without an approval id stays the passive notice it was', () => {
-  const passive = mount(RelayEvent, { reply: approvalReply({ approvalId: undefined }), bot, sessionId: 'gb', actions: {} })
-  assert.deepEqual(texts(passive.tree), ['Writer paused for your approval'])
-  assert.deepEqual(buttons(passive.tree).map(button => classesOf(button)), [['bt-event-whole']], 'only the row that opens the member')
-  assert.deepEqual(nodes(passive.tree).filter(node => classesOf(node).includes('bt-appr')), [])
+test('a row without an approval id reads as expired and offers nothing to click', () => {
+  const legacy = mount(RelayEvent, { reply: approvalReply({ approvalId: undefined, tool: undefined, reason: undefined }), bot, sessionId: 'gb', actions: {} })
+  assert.deepEqual(texts(legacy.tree), ['Writer paused for your approval, but that approval has expired and cannot be answered here; ask Writer to ask again.'])
+  assert.deepEqual(buttons(legacy.tree), [], 'nothing to answer or open')
+  assert.deepEqual(nodes(legacy.tree).filter(node => classesOf(node).includes('bt-appr')), [])
 })
 
 test('the recorded answer draws as one line under the member', () => {

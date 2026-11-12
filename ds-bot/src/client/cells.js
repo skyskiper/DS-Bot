@@ -974,12 +974,12 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
     return h('div', { className: 'bt-event' }, t('{name} was cut off by a restart again and stopped', { name: bot.name }))
   }
   if (reply.kind === 'approval') {
-    // A group approval is answered in the group; one without an id has no card to answer.
-    return reply.approvalId === undefined
-      ? h('div', { className: 'bt-event' },
-        h('button', { type: 'button', className: 'bt-event-whole', onClick: () => actions.showDetails(sessionId) },
-          h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-event-name' }, t('{name} paused for your approval', { name: bot.name }))))
-      : h(ApprovalRow, { key: reply.approvalId, reply, bot, actions })
+    // The id is what the group answers an approval by. A row written before the host kept
+    // it belongs to a Session generation that is gone: say so instead of looking pending.
+    if (reply.approvalId !== undefined) return h(ApprovalRow, { key: reply.approvalId, reply, bot, actions })
+    return h('div', { className: 'bt-event bt-event-error', role: 'status' },
+      h(BotMark, { bot, size: 16 }),
+      h('span', { className: 'bt-event-name' }, t('{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.', { name: bot.name })))
   }
   if (reply.kind === 'approval-answer') {
     const choice = reply.choice === 'allow' ? t('allowed') : t('rejected')
