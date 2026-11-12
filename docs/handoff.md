@@ -49,6 +49,19 @@
   但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
   下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
   需要把 credentials 服务里的 octo 条目只读复制进副本 home（不允许复制明文密钥到日志/仓库）。
+## 群问题卡：三条根因（2026-11-13）
+
+1. **为什么必须事件驱动**：`UserQuestionService.waits` 只在 `askTimed` 里写入（带超时的提问），
+   cua 的「应用访问」走的是无超时 `ask`，**永远不进 waits**；靠轮询 waits 出卡是死路。
+   正解是挂 `user-questions/request`（`{prepend:true, global:true}`）只观察并在命中群成员会话时
+   立刻写 `group-question` 行，答案仍交给 DSH。
+2. **`groupQuestionsSync` 取 callId 取错**：内层 Map 的 **key** 才是 callId，value 是
+   `TimedQuestionWait`（没有 id 字段）；改用 `calls.keys()`，timed 路径才能出卡。
+3. **`appNameOf` 的 null key**：`src/host/computer/index.js` 的 `appNameOf(key)` 直接
+   `key.startsWith(...)`；历史/副本数据里可能存下 key 为 null 的 app 记录，state 接口因此抛
+   `Cannot read properties of null (reading 'startsWith')`（stack 落在 `appNameOf`）。
+   已加守卫：非字符串/空串返回 `'an app'`。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
