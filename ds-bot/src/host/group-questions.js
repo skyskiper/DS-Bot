@@ -15,10 +15,8 @@ const probeWaits = (rt) => {
   return waits
 }
 
-const questionOf = (entry) => {
-  const id = entry?.callId ?? entry?.id
-  return typeof id === 'string' && id !== '' ? id : undefined
-}
+// The inner map is keyed by callId; its value is a TimedQuestionWait, which has no id.
+const questionOf = (id) => (typeof id === 'string' && id !== '' ? id : undefined)
 
 export function install(rt) {
   let warned = false
@@ -27,6 +25,33 @@ export function install(rt) {
     warned = true
     rt.warn?.(message)
   }
+
+  // The event carries the asker, so the card goes in the room the moment the question is
+  // raised rather than on the next state poll. Observe only: the answer still belongs to
+  // DSH, so the listener passes the request on untouched.
+  rt.noteGroupQuestionRequest = (request) => {
+    try {
+      const sessionId = request?.agent?.session?.id ?? request?.agent?.id
+      const owner = sessionId === undefined ? undefined : rt.groupOwners.get(sessionId)
+      const room = rt.roomOf(owner?.roomId)
+      if (owner === undefined || room === undefined) return
+      const member = rt.botOf(owner.botId)
+      const questionId = request?.questions?.[0]?.id ?? request?.callId ?? `${sessionId}:${Date.now()}`
+      const waits = probeWaits(rt)
+      rt.warn?.(`ds-bot: group question observed session=${sessionId} waits=${waits?.size ?? 'n/a'} callIds=${[...(waits?.values?.() ?? [])].map(inner => [...(inner?.keys?.() ?? [])].join(',')).join('|')}`)
+      rt.logRoom?.(room, {
+        who: member?.name ?? 'Bot', botId: owner.botId, kind: 'group-question',
+        sessionId, questionId, at: Date.now(), time: Date.now(),
+      })
+      void rt.save?.().catch?.(() => {})
+    } catch (error) {
+      warnOnce(`ds-bot: a group question could not be recorded: ${error?.message ?? error}`)
+    }
+  }
+  rt.ctx.on('user-questions/request', function observeGroupQuestion(request, next) {
+    rt.noteGroupQuestionRequest?.(request)
+    return typeof next === 'function' ? next() : undefined
+  }, { prepend: true, global: true })
 
   // Called while the team state is built; it must never throw into that path.
   rt.groupQuestionsSync = () => {
@@ -41,8 +66,8 @@ export function install(rt) {
         const room = rt.roomOf(owner.roomId)
         const member = rt.botOf(owner.botId)
         if (room === undefined) continue
-        for (const entry of calls.values()) {
-          const questionId = questionOf(entry)
+        for (const callId of calls.keys()) {
+          const questionId = questionOf(callId)
           if (questionId === undefined) continue
           const key = `${sessionId}\u0000${questionId}`
           open.set(key, true)

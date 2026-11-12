@@ -10,7 +10,7 @@ const room = { id: 'r1', name: 'Ops' }
 const bench = (waits) => {
   const lines = []
   const rt = {
-    ctx: { get: () => (waits === undefined ? undefined : { waits }) },
+    ctx: { get: () => (waits === undefined ? undefined : { waits }), on: () => {} },
     groupOwners: new Map([['gb', { roomId: 'r1', botId: 'b' }]]),
     roomOf: id => (id === 'r1' ? room : undefined),
     botOf: () => ({ id: 'b', name: 'Writer' }),
@@ -65,4 +65,37 @@ test('a service that cannot be read writes nothing and does not throw', () => {
     assert.doesNotThrow(() => rt.groupQuestionsSync())
     assert.equal(lines.length, 0)
   }
+})
+
+// The event is the data source that covers cua's untimed ask and timed asks alike: the
+// card goes in at the moment the question is raised, and the answer still belongs to DSH.
+const eventBench = () => {
+  const lines = []
+  const handlers = new Map()
+  const rt = {
+    ctx: { get: () => undefined, on: (name, fn) => { handlers.set(name, fn) } },
+    groupOwners: new Map([['gb', { roomId: 'r1', botId: 'b' }]]),
+    roomOf: id => (id === 'r1' ? room : undefined),
+    botOf: () => ({ id: 'b', name: 'Writer' }),
+    logRoom: (_room, line) => lines.push(line),
+    save: async () => {},
+    warn: () => {},
+  }
+  install(rt)
+  return { rt, lines, handler: handlers.get('user-questions/request') }
+}
+
+test('a question raised on the event becomes a card in the room', async () => {
+  const { lines, handler } = eventBench()
+  let passed = false
+  await handler({ agent: { session: { id: 'gb' } }, questions: [{ id: 'cua-app-access' }] }, () => { passed = true })
+  assert.equal(passed, true, 'the request is passed on untouched: the answer stays with DSH')
+  const card = lines.find(line => line.kind === 'group-question')
+  assert.deepEqual([card.sessionId, card.botId, card.questionId], ['gb', 'b', 'cua-app-access'])
+})
+
+test('a question outside a group writes nothing', async () => {
+  const { lines, handler } = eventBench()
+  await handler({ agent: { session: { id: 'own' } }, questions: [{ id: 'q' }] }, () => {})
+  assert.equal(lines.length, 0)
 })
