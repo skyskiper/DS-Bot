@@ -1055,9 +1055,12 @@ export function install(rt) {
   // recording path resolves it again once the session is known as a Bot's; meanwhile
   // the guard refuses the question and delegation tools in any Bot Session, and a
   // goal made there is blocked.
+  if (process.env.DS_ALLOW_ASK_USER_QUESTION === '1') rt.warn('ds-bot: DS_ALLOW_ASK_USER_QUESTION=1 — ask_user_question is open in Bot Sessions for this instance (probe only)')
   ctx.tools.guard((exec) => {
     if (!rt.isBotSession(exec.agent?.id)) return undefined
-    if (exec.name === BLOCKING_QUESTION_TOOL) return `Bots cannot use ${BLOCKING_QUESTION_TOOL}. Ask with ask_user in your own chat, or ask in your reply.`
+    // A取证 switch for an isolated instance only: opening the guard here proves the
+    // downstream chain (waits -> room card -> answer -> settle). It never ships enabled.
+    if (exec.name === BLOCKING_QUESTION_TOOL && process.env.DS_ALLOW_ASK_USER_QUESTION !== '1') return `Bots cannot use ${BLOCKING_QUESTION_TOOL}. Ask with ask_user in your own chat, or ask in your reply.`
     const target = exec.arguments?.target
     if (SCHEDULE_TARGET_TOOLS.includes(exec.name) && target !== undefined && target !== 'this_session') return SCHEDULE_TARGET_REFUSAL
     return DELEGATION_TOOLS.includes(exec.name) ? DELEGATION_REFUSAL : undefined

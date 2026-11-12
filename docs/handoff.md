@@ -23,6 +23,24 @@
 - 桌面 App 已装 0.4.0（`/Applications/DS Bot.app`，Apple Development 签名）。
 - 我们的定制功能（合并后全部保留）：群自定义头像、部门树（`state.departments`）+ 主 Bot 磁贴、会话地图、图片翻页（含 Markdown 正文图）、群卡片五态（ledger 行渲染）、卡片答案持久化、UI E2E 通道。
 - 已知有意分歧：上游 `sections` UI 不接（只留 `state.sections` 字段），见 `/Users/xialingpeng/DS Bot/STATUS.md`。
+- 群问题卡·隔离取证结论（2026-11-13 凌晨，最终）：
+  1. **`user-questions/request` 确实 emit**：注入一次 ask 时 `internal/dispatch` 观测到
+     `{"kind":"dispatch","type":"waterfall","args":2,"thisArg":"object"}`，此前「事件到不了」的结论作废
+     （当时并没有真的 ask 发生）。`hasFilter:false` 是探针用了 `Symbol.for('cordis.filter')`、
+     而 carrier 用的是 `Context.filter`，该项不作数。
+  2. **注入式 ask 会被立刻结束**：`groupQuestionsSync` 的触发点（`channel.js:259`，`case 'state'`）
+     已用页面内 `fetch('/api/bot',{endpoint:'state'})` 实测 200 且执行（返回含 `revision`），
+     但房间 ledger 的 `group-question` 仍为 0 —— 因为 `waits` 一直是空：注入的 ask 在 waterfall 内
+     被拒（`assertLiveRoot`：该成员会话此刻没有在跑的轮次），我们的 `.catch` 吞掉了错误。
+  3. **隔离实例跑不了模型**（本条是取证的天花板）：真实 App 进程（端口反查 pid=85545，正是 Web GUI
+     65101 的宿主）环境里 `OCTO_API_KEY` 命中 **0**；`~/.ds-bot/bot/secrets.json` 的 `secrets` 是
+     list，唯一的键名是 `IM_WEIXIN_9C1EF6_TOKEN`。副本 home 里模型侧因此报
+     `MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "octo"`（ledger notice 原文），
+     轮次 1 秒内失败、`inflight turns: []`。
+  结论：**除「真实轮次触发」外整条链路要素都在**（emit 有、sync 触发点可用、卡片渲染代码就绪），
+  但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
+  下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
+  需要把 credentials 服务里的 octo 条目只读复制进副本 home（不允许复制明文密钥到日志/仓库）。
 - 已知技术债（群问题卡读 pending）：群成员待答的提问从 `ctx.get('userQuestions').waits` 读取——那是
   DSH `UserQuestionService` 的 **TS private** 字段（`packages/interaction/user-questions/src/index.ts`），
   没有公开 API。读取做了结构探测 + try/catch，拿不到就静默不出卡，不影响 state。上游一旦提供公开 API
