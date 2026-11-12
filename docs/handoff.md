@@ -49,6 +49,34 @@
   但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
   下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
   需要把 credentials 服务里的 octo 条目只读复制进副本 home（不允许复制明文密钥到日志/仓库）。
+## 真机收口方案（群问题卡，一次打完）
+
+前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
+仓库 link 只让 DSH 页面拿到新代码，App 里是包内 `client.js`。
+
+1. **打新包**（不需要用户同意；约 1 分钟 Node 22 + 2 分钟 pack）
+   - `git worktree add /tmp/dsb-<commit> origin/personal/main`（或交付分支）；
+   - `cd app && npm install`（`npm ci` 会因 lock 缺 `ws@8.22.2` 失败）→
+     `ELECTRON_BUILDER_CACHE=/tmp/eb-cache DS_BOT_RUNTIME_CACHE=/tmp/dsb-runtime-cache npm run dist`；
+   - 判据：`/tmp/dsb-<commit>/DS Bot.app` + zip 生成；包内 `client.js` 的 sha256 与仓库一致；
+     `swap-app.sh --stage "/tmp/…/DS Bot.app"` 输出 `nothing was changed`。
+2. **安装覆盖 `/Applications/DS Bot.app`** —— **唯一必须用户同意的一步**（会退出当前 App 一次）。
+   - 用 `app/scripts/swap-install-job.example` 起的 launchd job（不要手写脚本、不要 `launchctl submit` 裸跑）；
+   - 判据：装完 `--tidy` 后 `/Applications` 只有一个 `DS Bot.app`、`codesign --verify --deep --strict` exit 0。
+3. **造一次真实 ask**（不需要用户同意；App 重启后由我执行）
+   - 选一个**该会话没授权过**的应用：在群里让某成员调 `cua.getApp("<未授权应用>")`；
+   - 判据：`~/.ds-bot/bot/question-probe.jsonl` 出现 `kind:"dispatch"`，且 `waits` 从 `Map(0)` 变 `Map(1)`。
+4. **群里出卡**（自动；判据看 ledger 不看 UI）
+   - 判据：`grep '"kind":"group-question"' ~/.ds-bot/bot/ledger/group-session-*.jsonl` 有行（含 `sessionId`/`botId`），
+     随后群里可见「{name} 在自己的会话里等你回答。」+「打开 {name} 的会话」。
+5. **点「打开会话」作答**（用户在群里点一次；不需要额外授权）
+   - 判据：DSH 原生卡出现 → 点「Allow for this session」→「这一次」按会话记录
+     （`~/.ds-bot/storages/cua_permissions_*.json` 只增该会话条目）。
+6. **卡片切「已回答」**
+   - 判据：`grep '"kind":"group-question-answer"'` 出现，对应 `questionId`；群里卡片按钮消失、显示「Answered.」。
+
+已知取舍：群卡不设超时（无人回答则那一轮一直挂着）；要清理只做事件驱动（用户在该群发新消息时把上一轮未答的卡标失效），不加定时器。
+
 - 已知技术债（群问题卡读 pending）：群成员待答的提问从 `ctx.get('userQuestions').waits` 读取——那是
   DSH `UserQuestionService` 的 **TS private** 字段（`packages/interaction/user-questions/src/index.ts`），
   没有公开 API。读取做了结构探测 + try/catch，拿不到就静默不出卡，不影响 state。上游一旦提供公开 API
