@@ -14453,7 +14453,7 @@ function latestMemoryChange(news, ids) {
 function summaryBlocks(text) {
   const blocks = [];
   let paragraph = [];
-  const flush = () => {
+  const flush2 = () => {
     if (paragraph.length > 0) blocks.push({ kind: "p", text: paragraph.join(" ") });
     paragraph = [];
   };
@@ -14461,15 +14461,15 @@ function summaryBlocks(text) {
     const line = raw.trim().replace(/\*\*|__/g, "");
     const heading = /^#{1,6}\s+(.+)$/.exec(line);
     if (heading) {
-      flush();
+      flush2();
       blocks.push({ kind: "h", text: heading[1].trim() });
     } else if (line === "") {
-      flush();
+      flush2();
     } else {
       paragraph.push(line.replace(/^[-*•]\s+/, ""));
     }
   }
-  flush();
+  flush2();
   return blocks;
 }
 function isHiddenTurn(roster, sessionId, turn) {
@@ -14834,8 +14834,8 @@ function useLinger(value, ms) {
       setKept(value);
       return void 0;
     }
-    const timer = setTimeout(() => setKept(value), reducedMotion() ? 0 : ms);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setKept(value), reducedMotion() ? 0 : ms);
+    return () => clearTimeout(timer2);
   }, [value]);
   return [value || kept, !value && Boolean(kept)];
 }
@@ -16433,10 +16433,10 @@ function installCompiledStyles(text, tag) {
     if (style.textContent !== next) style.textContent = next;
   };
   render();
-  let timer;
+  let timer2;
   const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(render, 120);
+    clearTimeout(timer2);
+    timer2 = setTimeout(render, 120);
   };
   const onLoad = (event) => {
     if (event.target instanceof HTMLLinkElement) schedule();
@@ -16452,7 +16452,7 @@ function installCompiledStyles(text, tag) {
     disposed = true;
     observer.disconnect();
     document.removeEventListener("load", onLoad, true);
-    clearTimeout(timer);
+    clearTimeout(timer2);
     style.remove();
   };
 }
@@ -16559,8 +16559,8 @@ function useSettled(state2) {
     }
     if (was === "idle" || was === "alert") return void 0;
     setSettled(true);
-    const timer = setTimeout(() => setSettled(false), 1800);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setSettled(false), 1800);
+    return () => clearTimeout(timer2);
   }, [state2]);
   return settled;
 }
@@ -17324,8 +17324,8 @@ function GoalPanel({ goal, view, room: room2, roster, actions, working }) {
   (0, import_react7.useEffect)(() => setSelected(RUNNING.has(view.status) && goal.current < view.stages.length ? goal.current : -1), [view.status, goal.current]);
   (0, import_react7.useEffect)(() => {
     if (!armed) return void 0;
-    const timer = setTimeout(() => setArmed(false), STOP_ARM_MS);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setArmed(false), STOP_ARM_MS);
+    return () => clearTimeout(timer2);
   }, [armed]);
   const stepper = (0, import_react7.useRef)(null);
   (0, import_react7.useEffect)(() => {
@@ -17883,8 +17883,8 @@ function SettledQuestion({ question, answer, closed }) {
   );
 }
 function QuestionCard({ matched }) {
-  const pending = matched;
-  const questions = pending.questions ?? [];
+  const pending2 = matched;
+  const questions = pending2.questions ?? [];
   const [index, setIndex] = (0, import_react10.useState)(0);
   const [answers, setAnswers] = (0, import_react10.useState)([]);
   const question = questions[index];
@@ -17896,9 +17896,9 @@ function QuestionCard({ matched }) {
       setIndex(index + 1);
       return;
     }
-    pending.answer({ answers: next });
+    pending2.answer({ answers: next });
   };
-  return (0, import_react10.createElement)(QuestionView, { key: index, question, onAnswer, onDismiss: () => pending.dismiss(), ownAnswer: true, raised: true });
+  return (0, import_react10.createElement)(QuestionView, { key: index, question, onAnswer, onDismiss: () => pending2.dismiss(), ownAnswer: true, raised: true });
 }
 function PendingQuestion({ sessionId, question, actions, inline, enterToSend = true }) {
   const [answered, setAnswered] = (0, import_react10.useState)(null);
@@ -22593,17 +22593,17 @@ function useSchedules(actions) {
   (0, import_react23.useEffect)(() => {
     listeners.add(setView);
     let stopped = false;
-    let timer;
+    let timer2;
     const load = () => actions.schedules?.().then((next) => {
       if (!stopped) publish(next);
     }).catch(() => {
     }).finally(() => {
-      if (!stopped) timer = setTimeout(load, POLL_MS);
+      if (!stopped) timer2 = setTimeout(load, POLL_MS);
     });
     load();
     return () => {
       stopped = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
       listeners.delete(setView);
     };
   }, []);
@@ -22659,8 +22659,8 @@ function TaskRow2({ task, actions, onView, showBot, roster }) {
   const [busy, setBusy] = (0, import_react23.useState)(false);
   (0, import_react23.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(false), 3e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(false), 3e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const remove = () => {
     if (!confirming) {
@@ -23082,8 +23082,8 @@ function CapabilitiesPage({ roster, actions, run: run2 }) {
   const [confirming, setConfirming] = (0, import_react24.useState)("");
   (0, import_react24.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(""), 4e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(""), 4e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const startNew = () => setDraft(blank());
   const edit = (item) => setDraft({
@@ -23454,8 +23454,8 @@ function EntryRow({ entry, remove, pin, layer, openMove }) {
   const [busy, setBusy] = (0, import_react26.useState)(false);
   (0, import_react26.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(false), 3e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(false), 3e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const by = entry.source === "memory panel" ? t("by you") : entry.by ? t("by {name}", { name: entry.by }) : null;
   const until = entry.until ? t(entry.expired ? "ended {day}" : "until {day}", { day: entry.until }) : null;
@@ -23596,8 +23596,8 @@ function HistoryRow({ row, undo, now }) {
   const [busy, setBusy] = (0, import_react26.useState)(false);
   (0, import_react26.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(false), 3e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(false), 3e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const when3 = ago(Date.parse(row.time), now) ?? t("just now");
   const meta = [when3, row.by === "user" ? t("by you") : t("by {name}", { name: row.by })].join(" · ");
@@ -23690,7 +23690,7 @@ function Reply({ answer, dismiss }) {
 function useMemoryView(id, actions) {
   const [view, setView] = (0, import_react26.useState)(null);
   const [error, setError] = (0, import_react26.useState)("");
-  const timer = (0, import_react26.useRef)(0);
+  const timer2 = (0, import_react26.useRef)(0);
   const latest = (0, import_react26.useRef)(0);
   const alive = (0, import_react26.useRef)(true);
   const show2 = (0, import_react26.useCallback)((next) => {
@@ -23699,13 +23699,13 @@ function useMemoryView(id, actions) {
     noteCount(id, next.entries.length);
   }, [id]);
   const load = (0, import_react26.useCallback)(async (flags = {}) => {
-    clearTimeout(timer.current);
+    clearTimeout(timer2.current);
     const ticket = ++latest.current;
     try {
       const next = await actions.memoryView(id, flags);
       if (!alive.current || ticket !== latest.current) return;
       show2(next);
-      if (next.summarizing) timer.current = setTimeout(() => void load({ summarize: flags.summarize || flags.regenerate }), POLL_MS2);
+      if (next.summarizing) timer2.current = setTimeout(() => void load({ summarize: flags.summarize || flags.regenerate }), POLL_MS2);
     } catch (failure) {
       if (alive.current && ticket === latest.current) setError(failure?.message ?? String(failure));
     }
@@ -23715,7 +23715,7 @@ function useMemoryView(id, actions) {
     void load({ summarize: true });
     return () => {
       alive.current = false;
-      clearTimeout(timer.current);
+      clearTimeout(timer2.current);
     };
   }, [id]);
   return { view, error, load, show: show2 };
@@ -24155,8 +24155,8 @@ function BotSettingsForm({ bot, roster, actions, run: run2 }) {
   const closeEditor = (0, import_react27.useCallback)(() => setEditing(false), []);
   (0, import_react27.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(false), 4e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(false), 4e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const isMainBot = isMainOf(roster, bot.id);
   const onlyMain = isMainBot && (roster.mainBotIds ?? []).length === 1;
@@ -24665,10 +24665,10 @@ function TokenPanel({ connector, actions, run: run2, onDone }) {
   );
 }
 var openSignIn = (win, id, view) => {
-  const pending = view?.connectors?.find((entry) => entry.id === id)?.pending;
-  if (pending?.kind === "browser") return void win.go(pending.url);
-  if (pending?.kind === "device") {
-    return void Promise.resolve(copyCode(pending.userCode)).then(() => win.go(pending.verificationUri));
+  const pending2 = view?.connectors?.find((entry) => entry.id === id)?.pending;
+  if (pending2?.kind === "browser") return void win.go(pending2.url);
+  if (pending2?.kind === "device") {
+    return void Promise.resolve(copyCode(pending2.userCode)).then(() => win.go(pending2.verificationUri));
   }
   win.close();
 };
@@ -24687,9 +24687,9 @@ function ConnectorRow({ connector, actions }) {
     }).finally(() => setBusy(false));
   };
   const on = connector.state !== "off" && connector.state !== "needs-client";
-  const pending = connector.pending;
+  const pending2 = connector.pending;
   const row = (0, import_react29.useRef)(null);
-  useMorph(row, `${form}:${error !== null}:${connector.state}:${pending?.kind ?? ""}`);
+  useMorph(row, `${form}:${error !== null}:${connector.state}:${pending2?.kind ?? ""}`);
   const signIn = () => {
     const win = reserveWindow();
     void run2(actions.connectorConnect(connector.id, {}), (view) => openSignIn(win, connector.id, view), () => win.close());
@@ -24702,7 +24702,7 @@ function ConnectorRow({ connector, actions }) {
   };
   const button = (label, onClick) => (0, import_react29.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: busy, onClick }, label);
   let actionsNode = null;
-  if (pending || form) actionsNode = null;
+  if (pending2 || form) actionsNode = null;
   else if (connector.state === "needs-sign-in") actionsNode = [button(t("Sign in again"), signIn), button(t("Disconnect"), () => void run2(actions.connectorDisconnect(connector.id)))];
   else if (connector.state === "error") actionsNode = [button(t("Try again"), () => void run2(actions.connectorRetry(connector.id))), button(connector.custom ? t("Remove") : t("Disconnect"), () => void run2(actions.connectorDisconnect(connector.id)))];
   else if (on) actionsNode = button(connector.custom ? t("Remove") : t("Disconnect"), () => void run2(actions.connectorDisconnect(connector.id)));
@@ -24733,7 +24733,7 @@ function ConnectorRow({ connector, actions }) {
       (0, import_react29.createElement)(SwitchRow, { label: t("Read-only"), on: connector.readOnly === true, onChange: (checked) => void run2(actions.connectorSet(connector.id, { readOnly: checked })) })
     ) : null,
     (0, import_react29.createElement)(SignInPanel, { connector, actions, run: run2, onUseToken: () => setForm("token") }),
-    connector.state === "needs-client" && !pending?.kind ? (0, import_react29.createElement)(ClientPanel, { connector, actions, run: run2 }) : null,
+    connector.state === "needs-client" && !pending2?.kind ? (0, import_react29.createElement)(ClientPanel, { connector, actions, run: run2 }) : null,
     form === "token" ? (0, import_react29.createElement)(TokenPanel, { connector, actions, run: run2, onDone: () => {
       setForm(null);
       setError(null);
@@ -24813,7 +24813,7 @@ function MailAccount({ account, actions, run: run2 }) {
     )
   );
 }
-function MailPending({ pending }) {
+function MailPending({ pending: pending2 }) {
   return (0, import_react29.createElement)(
     "div",
     { className: "bt-connector", "data-state": "connecting" },
@@ -24824,13 +24824,13 @@ function MailPending({ pending }) {
       (0, import_react29.createElement)(
         "span",
         { className: "bt-connector-text" },
-        (0, import_react29.createElement)("span", { className: "bt-connector-name" }, pending.address ?? "Gmail"),
+        (0, import_react29.createElement)("span", { className: "bt-connector-name" }, pending2.address ?? "Gmail"),
         (0, import_react29.createElement)("span", { className: "bt-connector-status" }, t("Finish signing in in your browser."))
       ),
       (0, import_react29.createElement)(
         "span",
         { className: "bt-connector-actions" },
-        (0, import_react29.createElement)("button", { type: "button", className: "bt-connector-link", onClick: () => openPage(pending.url) }, t("Open again"))
+        (0, import_react29.createElement)("button", { type: "button", className: "bt-connector-link", onClick: () => openPage(pending2.url) }, t("Open again"))
       )
     )
   );
@@ -25832,8 +25832,8 @@ function ownerSegment(card, content) {
 var btwRow = (card) => ({ kind: "btw", card });
 function withBtwRows(items, cards) {
   const list = Array.isArray(items) ? items : [];
-  const pending = (Array.isArray(cards) ? cards : []).filter((card) => card && card.id !== void 0 && card.id !== null);
-  if (pending.length === 0) return list;
+  const pending2 = (Array.isArray(cards) ? cards : []).filter((card) => card && card.id !== void 0 && card.id !== null);
+  if (pending2.length === 0) return list;
   const segments = segmentsOf(list);
   const content = segments.filter((segment) => segment.kind === "rows");
   let floor;
@@ -25843,7 +25843,7 @@ function withBtwRows(items, cards) {
   }
   const buckets = /* @__PURE__ */ new Map();
   const aside = [];
-  for (const card of pending) {
+  for (const card of pending2) {
     const owner = ownerSegment(card, content);
     if (owner) {
       const bucket = buckets.get(owner) ?? [];
@@ -26764,9 +26764,9 @@ function EarlierParts({ sessionId, roster, actions }) {
     };
   }, [sessionId, closedEarlier]);
   (0, import_react34.useLayoutEffect)(() => {
-    const pending = restore.current;
+    const pending2 = restore.current;
     restore.current = null;
-    if (pending) pending.scroller.scrollTop = pending.scroller.scrollHeight - pending.fromEnd;
+    if (pending2) pending2.scroller.scrollTop = pending2.scroller.scrollHeight - pending2.fromEnd;
   }, [view.pages]);
   (0, import_react34.useEffect)(() => {
     const node = top.current;
@@ -27038,14 +27038,14 @@ function Shimmer({ children }) {
 function Elapsed({ at, className }) {
   const [now, setNow] = (0, import_react34.useState)(Date.now);
   (0, import_react34.useEffect)(() => {
-    let timer = 0;
+    let timer2 = 0;
     const tick = () => {
       const time = Date.now();
       setNow(time);
-      timer = setTimeout(tick, 1e3 - ((time - at) % 1e3 + 1e3) % 1e3);
+      timer2 = setTimeout(tick, 1e3 - ((time - at) % 1e3 + 1e3) % 1e3);
     };
     tick();
-    return () => clearTimeout(timer);
+    return () => clearTimeout(timer2);
   }, [at]);
   return (0, import_react34.createElement)("span", { className }, `· ${elapsedLabel(Math.max(1e3, now - at))}`);
 }
@@ -27238,7 +27238,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
   (0, import_react34.useEffect)(() => {
     if (done) return void 0;
     let stop = false;
-    let timer;
+    let timer2;
     let seen = "";
     const tick = async () => {
       const result = await actions.roomProgress(sessionId);
@@ -27249,12 +27249,12 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
         seen = key;
         setLive({ replies: entry.replies ?? [], speaking: [entry.speaking ?? []].flat() });
       }
-      timer = setTimeout(tick, document.hidden ? 5e3 : 1e3);
+      timer2 = setTimeout(tick, document.hidden ? 5e3 : 1e3);
     };
     void tick();
     return () => {
       stop = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, [done, sessionId, callId]);
   const resultText = done ? contentText(content) : "";
@@ -27270,7 +27270,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       return void 0;
     }
     let stop = false;
-    let timer;
+    let timer2;
     let seen = "";
     const tick = async () => {
       const next = await actions.groupRows(sessionId, range.from, range.to, range.anchor);
@@ -27284,12 +27284,12 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
         }
         if (!next.open || next.active !== true) return;
       }
-      timer = setTimeout(tick, document.hidden ? 5e3 : 1e3);
+      timer2 = setTimeout(tick, document.hidden ? 5e3 : 1e3);
     };
     void tick();
     return () => {
       stop = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, [rowsKey, quietKey]);
   let replies = live.replies;
@@ -27301,12 +27301,12 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
     replies = parsed.replies.length ? parsed.replies : live.replies;
     broken = parsed.broken;
   }
-  const pending = range !== void 0 ? view?.open ? view.speaking ?? [] : [] : done ? [] : live.speaking;
-  const doing = JSON.parse(useWork?.((work) => JSON.stringify(pending.map((id) => {
+  const pending2 = range !== void 0 ? view?.open ? view.speaking ?? [] : [] : done ? [] : live.speaking;
+  const doing = JSON.parse(useWork?.((work) => JSON.stringify(pending2.map((id) => {
     const tool = work.bots?.[id]?.tool;
     return tool ? [tool, workPhrase(work.bots[id])] : [];
   }))) ?? "[]");
-  if (replies.length === 0 && pending.length === 0) {
+  if (replies.length === 0 && pending2.length === 0) {
     return broken ? (0, import_react34.createElement)("div", { className: "bt-group-replies" }, (0, import_react34.createElement)("div", { className: "bt-event" }, t("The group replies could not be shown"))) : (0, import_react34.createElement)(CellEmpty);
   }
   const room2 = roster.roomsById[sessionId];
@@ -27340,7 +27340,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       }
       return (0, import_react34.createElement)(GroupMessage, { key: `${reply.botId}-${index}`, bot, texts: texts2, room: room2, roster, actions, msgKey: callId ? `${sessionId}:${callId}:${index}` : void 0, useUi, time, duration });
     }),
-    pending.map((id, at) => {
+    pending2.map((id, at) => {
       const bot = roster.byId[id];
       if (!bot) return null;
       const [tool, phrase] = doing[at] ?? [];
@@ -27630,8 +27630,8 @@ function ActivityIndicator({ sessionId, useRoster, useSessionStatus, useLive, us
       make();
       return void 0;
     }
-    const timer = setTimeout(make, wait);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(make, wait);
+    return () => clearTimeout(timer2);
   }, [wantKey, shown]);
   const [phase, setPhase] = (0, import_react35.useState)(null);
   const endedAt = (0, import_react35.useRef)(0);
@@ -27644,11 +27644,11 @@ function ActivityIndicator({ sessionId, useRoster, useSessionStatus, useLive, us
       return void 0;
     }
     setPhase((current) => current === "in" ? "out" : current);
-    const timer = setTimeout(() => {
+    const timer2 = setTimeout(() => {
       shift.current = document.querySelector("[data-conversation-scroll]")?.scrollTop ?? null;
       setPhase((current) => current === "out" ? null : current);
     }, 140);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(timer2);
   }, [visible]);
   (0, import_react35.useLayoutEffect)(() => {
     if (phase !== null) return;
@@ -28934,8 +28934,8 @@ function useLandOnMainBot(roster, useSessions, actions) {
       return void 0;
     }
     const last = lastBot.current;
-    const timer = setTimeout(() => actions.landOn(roster.mainBotId, last), last ? 0 : 400);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => actions.landOn(roster.mainBotId, last), last ? 0 : 400);
+    return () => clearTimeout(timer2);
   }, [mainView, roster]);
 }
 function PluginsButton({ actions }) {
@@ -29094,12 +29094,12 @@ var DANGER = /* @__PURE__ */ new Set(["danger-full-access"]);
 var presetDanger = (value) => DANGER.has(value);
 var presetName = (value, catalog) => LABELS[value] ? t(LABELS[value]) : catalog?.options?.find((option) => option.value === value)?.name ?? value;
 function PermissionPicker({ catalog, saved, onPick, repick = false }) {
-  const [pending, setPending] = (0, import_react37.useState)(null);
+  const [pending2, setPending] = (0, import_react37.useState)(null);
   const flight = (0, import_react37.useRef)({ value: void 0, latest: void 0 });
   (0, import_react37.useEffect)(() => {
     const flying = flight.current.value;
-    if (pending === saved && (flying === void 0 || flying === pending)) setPending(null);
-  }, [pending, saved]);
+    if (pending2 === saved && (flying === void 0 || flying === pending2)) setPending(null);
+  }, [pending2, saved]);
   const send = (value) => {
     flight.current.value = value;
     void Promise.resolve(onPick(value)).then((done) => done !== false, () => false).then((ok) => {
@@ -29113,7 +29113,7 @@ function PermissionPicker({ catalog, saved, onPick, repick = false }) {
       if (!ok) setPending(null);
     });
   };
-  const current = pending ?? saved;
+  const current = pending2 ?? saved;
   const pick2 = (value) => {
     if (value === current && !repick) return;
     setPending(value);
@@ -29208,8 +29208,8 @@ function GroupSettingsForm({ room: room2, roster, actions, run: run2, onDeleted 
   const [confirming, setConfirming] = (0, import_react38.useState)(false);
   (0, import_react38.useEffect)(() => {
     if (!confirming) return void 0;
-    const timer = setTimeout(() => setConfirming(false), 4e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(false), 4e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   const members = room2.members.map((id) => roster.byId[id]).filter(Boolean);
   const outside = roster.bots.filter((bot) => !room2.members.includes(bot.id));
@@ -29732,8 +29732,8 @@ function KeptPrivateSection({ roster, actions, run: run2, Section: Section2, Row
   const [confirming, setConfirming] = (0, import_react40.useState)(null);
   (0, import_react40.useEffect)(() => {
     if (confirming === null) return void 0;
-    const timer = setTimeout(() => setConfirming(null), 4e3);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setConfirming(null), 4e3);
+    return () => clearTimeout(timer2);
   }, [confirming]);
   if (kept.length === 0) return null;
   const release = (entry) => {
@@ -30383,24 +30383,24 @@ function UsagePage({ roster, actions, focusId }) {
   const focus = focusOf(focusId);
   (0, import_react41.useEffect)(() => {
     let stopped = false;
-    let timer;
+    let timer2;
     const load = async () => {
       try {
         const value = await actions.usage();
         if (stopped) return;
         (0, import_react41.startTransition)(() => setView(value));
         setError("");
-        timer = setTimeout(load, value.scanning ? 3e3 : 2e4);
+        timer2 = setTimeout(load, value.scanning ? 3e3 : 2e4);
       } catch (failure) {
         if (stopped) return;
         setError(failure?.message ?? String(failure));
-        timer = setTimeout(load, 1e4);
+        timer2 = setTimeout(load, 1e4);
       }
     };
     void load();
     return () => {
       stopped = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, []);
   const today = view?.now.slice(0, 10);
@@ -30777,8 +30777,8 @@ function useJustConnected(state2) {
     last.current = state2;
     if (state2 !== "ready" || was === "ready") return void 0;
     setFresh(true);
-    const timer = setTimeout(() => setFresh(false), 1100);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setFresh(false), 1100);
+    return () => clearTimeout(timer2);
   }, [state2]);
   return fresh;
 }
@@ -32753,8 +32753,8 @@ function PhonePage({ roster, actions, Section: Section2, Row: Row4 }) {
   }, [phone.server]);
   (0, import_react43.useEffect)(() => {
     if (!phone.pairing) return void 0;
-    const timer = setInterval(() => tick((count) => count + 1), 15e3);
-    return () => clearInterval(timer);
+    const timer2 = setInterval(() => tick((count) => count + 1), 15e3);
+    return () => clearInterval(timer2);
   }, [phone.pairing]);
   const run2 = (task) => {
     setBusy(true);
@@ -33787,8 +33787,8 @@ function AboutPage({ useUpdate, actions, run: run2, Section: Section2, Row: Row4
   const [cheer, setCheer] = (0, import_react47.useState)(true);
   (0, import_react47.useEffect)(() => {
     if (!cheer) return void 0;
-    const timer = setTimeout(() => setCheer(false), CHEER_MS);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setCheer(false), CHEER_MS);
+    return () => clearTimeout(timer2);
   }, [cheer]);
   const check = () => {
     setChecking(true);
@@ -34383,27 +34383,27 @@ function Choice({ label, value, options, pick: pick2 }) {
 }
 function WidthSlider({ label, value, save }) {
   const [width, setWidth] = (0, import_react50.useState)(value);
-  const pending = (0, import_react50.useRef)(null);
-  const timer = (0, import_react50.useRef)(0);
+  const pending2 = (0, import_react50.useRef)(null);
+  const timer2 = (0, import_react50.useRef)(0);
   const saveRef = (0, import_react50.useRef)(save);
   saveRef.current = save;
   (0, import_react50.useEffect)(() => {
-    if (pending.current === null) setWidth(value);
+    if (pending2.current === null) setWidth(value);
   }, [value]);
-  const flush = () => {
-    const next = pending.current;
-    pending.current = null;
+  const flush2 = () => {
+    const next = pending2.current;
+    pending2.current = null;
     if (next !== null) saveRef.current(next);
   };
   (0, import_react50.useEffect)(() => () => {
-    clearTimeout(timer.current);
-    flush();
+    clearTimeout(timer2.current);
+    flush2();
   }, []);
   const pick2 = (next) => {
     setWidth(next);
-    pending.current = next;
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 350);
+    pending2.current = next;
+    clearTimeout(timer2.current);
+    timer2.current = setTimeout(flush2, 350);
   };
   const { min, max, step } = MESSAGE_WIDTH;
   return (0, import_react50.createElement)(
@@ -34421,12 +34421,12 @@ function GeneralPage({ roster, actions, run: run2, dsh }) {
   const themes = allThemes();
   const current = themes[prefs.theme] ? prefs.theme : "deepseek";
   const [custom, setCustom] = (0, import_react50.useState)(prefs.accent ?? "#4d6bfe");
-  const timer = (0, import_react50.useRef)(0);
-  (0, import_react50.useEffect)(() => () => clearTimeout(timer.current), []);
+  const timer2 = (0, import_react50.useRef)(0);
+  (0, import_react50.useEffect)(() => () => clearTimeout(timer2.current), []);
   const pickCustom = (value) => {
     setCustom(value);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => run2(actions.setPrefs({ accent: value })), 350);
+    clearTimeout(timer2.current);
+    timer2.current = setTimeout(() => run2(actions.setPrefs({ accent: value })), 350);
   };
   return [
     (0, import_react50.createElement)(
@@ -34939,8 +34939,8 @@ function useConnectionView(state2) {
   }, [state2]);
   (0, import_react51.useLayoutEffect)(() => {
     if (!recovered || holdConnecting) return void 0;
-    const timer = setTimeout(() => setRecovered(false), RECOVERY_CONFIRMATION_MS);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setRecovered(false), RECOVERY_CONFIRMATION_MS);
+    return () => clearTimeout(timer2);
   }, [recovered, holdConnecting]);
   (0, import_react51.useLayoutEffect)(() => {
     if (state2 === "connecting") {
@@ -34953,9 +34953,9 @@ function useConnectionView(state2) {
     const remaining = CONNECTING_MIN_VISIBLE_MS - (Date.now() - shownAt);
     if (remaining <= 0) return void 0;
     setHoldConnecting(true);
-    const timer = setTimeout(() => setHoldConnecting(false), remaining);
+    const timer2 = setTimeout(() => setHoldConnecting(false), remaining);
     return () => {
-      clearTimeout(timer);
+      clearTimeout(timer2);
       setHoldConnecting(false);
     };
   }, [state2]);
@@ -35446,8 +35446,8 @@ function useMemoryNotice(ids, useMemoryNews) {
     const left = seen + MEMORY_NOTICE_MS - Date.now();
     setShown(seen > 0 && left > 0);
     if (seen === 0 || left <= 0) return void 0;
-    const timer = setTimeout(() => setShown(false), left);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setShown(false), left);
+    return () => clearTimeout(timer2);
   }, [seen]);
   return shown;
 }
@@ -35718,8 +35718,8 @@ function useDictation(onText) {
   (0, import_react53.useEffect)(() => () => recognition.current?.abort(), []);
   (0, import_react53.useEffect)(() => {
     if (!note) return void 0;
-    const timer = setTimeout(() => setNote(""), 2600);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setNote(""), 2600);
+    return () => clearTimeout(timer2);
   }, [note]);
   const start = ({ continuous = true, onEnd } = {}) => {
     const Api = speechApi();
@@ -36516,6 +36516,26 @@ function wanted() {
 function record(list, entry) {
   list.push(entry);
   if (list.length > MAX2) list.shift();
+  ship(entry);
+}
+var pending = [];
+var timer = 0;
+function flush() {
+  timer = 0;
+  if (pending.length === 0) return;
+  const events = pending.splice(0, pending.length);
+  void fetch("api/bot", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json", "x-ds-bot-composer-debug": "1" },
+    body: JSON.stringify({ endpoint: "debug-composer", payload: { events } })
+  }).catch(() => {
+  });
+}
+function ship(entry) {
+  if (!state.on) return;
+  pending.push(entry);
+  if (timer === 0) timer = setTimeout(flush, 250);
 }
 function installComposerProbe() {
   state.on = wanted();
@@ -36862,11 +36882,11 @@ function FailureCell({ node, sessionId, useRoster, useTurnClock, actions }) {
       return void 0;
     }
     void actions.refreshModels?.();
-    const timer = setTimeout(() => {
+    const timer2 = setTimeout(() => {
       setJoining(null);
       actions.showDetails?.(sessionId);
     }, ACCOUNT_MODELS_WAIT_MS);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(timer2);
   }, [joining, signedIn, listed]);
   const settled = () => (0, import_react56.createElement)(
     "div",
@@ -37424,7 +37444,7 @@ function ExchangeDialog({ pair, paneLeft, roster, actions }) {
   useEscape(close);
   (0, import_react59.useEffect)(() => {
     let stop = false;
-    let timer;
+    let timer2;
     let seen = null;
     atEnd.current = true;
     setEntries(null);
@@ -37436,12 +37456,12 @@ function ExchangeDialog({ pair, paneLeft, roster, actions }) {
         seen = key;
         setEntries(result ?? []);
       }
-      timer = setTimeout(load, document.hidden ? 8e3 : 2e3);
+      timer2 = setTimeout(load, document.hidden ? 8e3 : 2e3);
     };
     void load();
     return () => {
       stop = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, [pair[0], pair[1]]);
   const left = roster.byId[pair[0]];
@@ -37609,8 +37629,8 @@ function VoiceMode({ sessionId, paneLeft, roster, actions, useSessions, useSessi
   });
   (0, import_react60.useEffect)(() => {
     if (!note) return void 0;
-    const timer = setTimeout(() => setNote(""), 2600);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setNote(""), 2600);
+    return () => clearTimeout(timer2);
   }, [note]);
   (0, import_react60.useEffect)(() => {
     if (!speech) return void 0;
@@ -37629,9 +37649,9 @@ function VoiceMode({ sessionId, paneLeft, roster, actions, useSessions, useSessi
   const listen = phase === "listening";
   (0, import_react60.useEffect)(() => {
     if (speech || !listen || dictation.listening) return void 0;
-    const timer = setTimeout(() => dictation.start({ continuous: false, onEnd: () => {
+    const timer2 = setTimeout(() => dictation.start({ continuous: false, onEnd: () => {
     } }), 250);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(timer2);
   }, [listen, dictation.listening]);
   (0, import_react60.useEffect)(() => {
     if (phase !== "listening") dictation.stop();
@@ -37750,7 +37770,7 @@ function VoiceMode({ sessionId, paneLeft, roster, actions, useSessions, useSessi
   (0, import_react60.useEffect)(() => {
     if (phase !== "preparing" || !speech) return void 0;
     let stopped = false;
-    let timer;
+    let timer2;
     const tick = async () => {
       try {
         const { catalog: next } = await speechCatalog(speech);
@@ -37773,12 +37793,12 @@ function VoiceMode({ sessionId, paneLeft, roster, actions, useSessions, useSessi
           return;
         }
       }
-      timer = setTimeout(tick, 1500);
+      timer2 = setTimeout(tick, 1500);
     };
-    timer = setTimeout(tick, 800);
+    timer2 = setTimeout(tick, 800);
     return () => {
       stopped = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, [phase, speech]);
   const openSetup = phase === "setup" ? actions.voiceSetup(catalog?.selection?.providerId) : null;
@@ -39714,17 +39734,17 @@ function BotPanel({ pane, leaving, room: room2, overlay, roster, actions, useSes
       return void 0;
     }
     setResizing(true);
-    const timer = setTimeout(() => setResizing(false), 160);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setResizing(false), 160);
+    return () => clearTimeout(timer2);
   }, [room2]);
   (0, import_react65.useEffect)(() => {
     if (!settling) return void 0;
-    const timer = setTimeout(() => setSettling(false), SPRING_SHAPE.duration + 40);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setSettling(false), SPRING_SHAPE.duration + 40);
+    return () => clearTimeout(timer2);
   }, [settling, view]);
   (0, import_react65.useEffect)(() => {
-    const timer = setTimeout(() => setLanded(true), 360);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setLanded(true), 360);
+    return () => clearTimeout(timer2);
   }, []);
   (0, import_react65.useEffect)(() => {
     if (canBrowse) actions.browserEnsure(bot.id);
@@ -39744,8 +39764,8 @@ function BotPanel({ pane, leaving, room: room2, overlay, roster, actions, useSes
   (0, import_react65.useEffect)(() => {
     if (!page.readAt || Date.now() - page.readAt > READ_FLASH_MS) return void 0;
     setReading(true);
-    const timer = setTimeout(() => setReading(false), READ_FLASH_MS);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setReading(false), READ_FLASH_MS);
+    return () => clearTimeout(timer2);
   }, [page.readAt]);
   const beginSwitch = (next) => {
     if (reducedMotion2()) return;
@@ -40470,8 +40490,8 @@ function Overlays({ useRoster, useUi, useSessions, useSessionStatus, useActivity
       setKept(shown);
       return void 0;
     }
-    const timer = setTimeout(() => setKept(null), PANEL_LINGER_MS);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => setKept(null), PANEL_LINGER_MS);
+    return () => clearTimeout(timer2);
   }, [ui2.details, ui2.view, ui2.renaming, ui2.tab, shown === null]);
   const pane = shown ?? kept;
   const shellHeld = useSettingsShellHeld ? useSettingsShellHeld((value) => value) : false;
@@ -41105,9 +41125,9 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
   async function preview(tabId) {
     const entry = views.get(tabId);
     if (entry === void 0 || !entry.ready || !/^https?:/i.test(entry.element.getURL())) return false;
-    let timer;
+    let timer2;
     const timeout = new Promise((resolve2) => {
-      timer = setTimeout(() => resolve2(""), PREVIEW_TIMEOUT_MS);
+      timer2 = setTimeout(() => resolve2(""), PREVIEW_TIMEOUT_MS);
     });
     try {
       const excerpt = await Promise.race([entry.element.executeJavaScript(PREVIEW_SCRIPT), timeout]);
@@ -41117,7 +41137,7 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
     } catch {
       return false;
     } finally {
-      clearTimeout(timer);
+      clearTimeout(timer2);
     }
   }
   const observe = (entry) => {
@@ -41136,7 +41156,7 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
   async function create(tabId) {
     const botId = owner.get(tabId);
     const guest = await makeGuest({ bridge, document: doc, botId, tabId });
-    const pending = pages.getSnapshot()[tabId]?.url || savedTab(botId, tabId)?.url;
+    const pending2 = pages.getSnapshot()[tabId]?.url || savedTab(botId, tabId)?.url;
     const reservation = guest.appView ? void 0 : await bridge.acquire(`bot:${botId}`);
     if (disposed) {
       if (reservation) await bridge.release(reservation.lease).catch(() => {
@@ -41145,7 +41165,7 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
       });
       return void 0;
     }
-    if (guest.appView) await bridge.views.create(botId, tabId, pending ?? "");
+    if (guest.appView) await bridge.views.create(botId, tabId, pending2 ?? "");
     const element = guest.element;
     element.dataset.sidebarBrowserFrame = "webview";
     Object.assign(element.style, { position: "fixed", display: "flex", border: "0", pointerEvents: "auto", background: "#fff" });
@@ -41156,7 +41176,7 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
       element.setAttribute("allowpopups", "");
       element.setAttribute("src", `about:blank#${reservation.lease}`);
     }
-    const entry = { botId, tabId, element, lease: reservation?.lease, appView: guest.appView, botAttached: false, ready: false, fresh: !guest.appView, pending: guest.appView ? void 0 : pending, usedAt: Date.now() };
+    const entry = { botId, tabId, element, lease: reservation?.lease, appView: guest.appView, botAttached: false, ready: false, fresh: !guest.appView, pending: guest.appView ? void 0 : pending2, usedAt: Date.now() };
     const lifetime = new AbortController();
     entry.stop = () => lifetime.abort();
     const { signal } = lifetime;
@@ -41404,14 +41424,14 @@ function createBotBrowsers({ bridge, createSource: createSource2, storage = glob
       const tabId = activeTab(botId);
       const entry = tabId ? views.get(tabId) : void 0;
       if (!entry?.ready) throw new Error("This Bot has no browser page open.");
-      let timer;
+      let timer2;
       const timeout = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error("The page took too long to read.")), READ_TIMEOUT_MS);
+        timer2 = setTimeout(() => reject(new Error("The page took too long to read.")), READ_TIMEOUT_MS);
       });
       try {
         return await Promise.race([entry.element.executeJavaScript(READ_PAGE_SCRIPT), timeout]);
       } finally {
-        clearTimeout(timer);
+        clearTimeout(timer2);
       }
     },
     noteRead(botId) {
@@ -42130,8 +42150,8 @@ function listedOpener({ list, open, refresh, current }) {
 }
 
 // src/client/agent-new.js
-function agentSessionToReuse(list, latest, pending) {
-  if (pending !== void 0 && list.byId[pending] === void 0) return pending;
+function agentSessionToReuse(list, latest, pending2) {
+  if (pending2 !== void 0 && list.byId[pending2] === void 0) return pending2;
   return latest !== void 0 && list.byId[latest]?.blank === true ? latest : void 0;
 }
 function singleFlight(map, key, run2) {
@@ -42306,10 +42326,10 @@ function apply(ctx) {
   ctx.effect(() => {
     let stopped = false;
     let running = false;
-    let timer;
+    let timer2;
     let misses = 0;
     const loop = async () => {
-      clearTimeout(timer);
+      clearTimeout(timer2);
       if (running || stopped) return;
       running = true;
       try {
@@ -42327,7 +42347,7 @@ function apply(ctx) {
       } finally {
         running = false;
       }
-      if (!stopped) timer = setTimeout(loop, document.hidden ? 1e4 : 1500);
+      if (!stopped) timer2 = setTimeout(loop, document.hidden ? 1e4 : 1500);
     };
     const wake = () => {
       if (!document.hidden) void loop();
@@ -42336,7 +42356,7 @@ function apply(ctx) {
     void loop();
     return () => {
       stopped = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
       document.removeEventListener("visibilitychange", wake);
     };
   }, "ds-bot: roster poll");
@@ -42345,20 +42365,20 @@ function apply(ctx) {
   };
   ctx.effect(() => {
     let stopped = false;
-    let timer;
+    let timer2;
     const loop = async () => {
-      clearTimeout(timer);
+      clearTimeout(timer2);
       if (stopped) return;
       const value = await call("update-check", { fresh: false }).catch(() => null);
       if (stopped) return;
       if (value) update.set((previous) => ({ ...value, app: previous.app, ownApp: previous.ownApp }));
-      timer = setTimeout(loop, value?.phase === "installing" || value?.dsh?.phase === "installing" ? 2e3 : 60 * 6e4);
+      timer2 = setTimeout(loop, value?.phase === "installing" || value?.dsh?.phase === "installing" ? 2e3 : 60 * 6e4);
     };
     wakeUpdate = loop;
     void loop();
     return () => {
       stopped = true;
-      clearTimeout(timer);
+      clearTimeout(timer2);
       wakeUpdate = () => {
       };
     };
@@ -42638,9 +42658,9 @@ function apply(ctx) {
       return singleFlight(agentNewInFlight, agentId, async () => {
         const list = ctx.sessions.list.getSnapshot();
         const latest = latestAgentSession(agentId, list);
-        const pending = pendingAgentSession.get(agentId);
-        if (pending !== void 0 && list.byId[pending] !== void 0) pendingAgentSession.delete(agentId);
-        const reuse = agentSessionToReuse(list, latest, pending);
+        const pending2 = pendingAgentSession.get(agentId);
+        if (pending2 !== void 0 && list.byId[pending2] !== void 0) pendingAgentSession.delete(agentId);
+        const reuse = agentSessionToReuse(list, latest, pending2);
         if (reuse !== void 0) {
           actions.openAgentSession(reuse);
           return reuse;
@@ -42802,8 +42822,8 @@ function apply(ctx) {
         sources: () => bridge.importSources(),
         pick: () => bridge.importPick(),
         live: (source, close) => bridge.importLive(source, close),
-        apply: (botId, pending) => bridge.importApply(`bot:${botId}`, pending),
-        cancel: (pending) => bridge.importCancel(pending)
+        apply: (botId, pending2) => bridge.importApply(`bot:${botId}`, pending2),
+        cancel: (pending2) => bridge.importCancel(pending2)
       } : null
     });
   }
@@ -42931,9 +42951,9 @@ function apply(ctx) {
         }).catch(() => {
         });
       };
-      const timer = setInterval(push, 2e3);
+      const timer2 = setInterval(push, 2e3);
       return () => {
-        clearInterval(timer);
+        clearInterval(timer2);
       };
     }, "ds-bot: computer user active");
   }

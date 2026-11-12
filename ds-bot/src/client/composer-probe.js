@@ -20,6 +20,28 @@ function wanted() {
 function record(list, entry) {
   list.push(entry)
   if (list.length > MAX) list.shift()
+  ship(entry)
+}
+
+// The host appends these to ~/.ds-bot/bot/composer-flaps.jsonl, so whoever asked for the
+// probe reads them without a console. Sent in small batches while the switch is on.
+let pending = []
+let timer = 0
+function flush() {
+  timer = 0
+  if (pending.length === 0) return
+  const events = pending.splice(0, pending.length)
+  void fetch('api/bot', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json', 'x-ds-bot-composer-debug': '1' },
+    body: JSON.stringify({ endpoint: 'debug-composer', payload: { events } }),
+  }).catch(() => {})
+}
+function ship(entry) {
+  if (!state.on) return
+  pending.push(entry)
+  if (timer === 0) timer = setTimeout(flush, 250)
 }
 
 export function installComposerProbe() {
