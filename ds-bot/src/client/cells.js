@@ -1019,45 +1019,17 @@ export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) 
 // A question a group member asked (cua's "application access", for one): its own Session is
 // hidden, so the group shows the card and answers it. Options are the asker's, verbatim.
 function GroupQuestionRow({ reply, bot, actions, settled = false }) {
-  const questions = Array.isArray(reply.questions) ? reply.questions : []
-  const [state, setState] = useState(settled ? 'answered' : 'open')
-  const [error, setError] = useState('')
-  const [picked, setPicked] = useState({})
-  const answer = (question, label) => {
-    if (state !== 'open') return
-    const next = { ...picked, [question.id]: label }
-    setPicked(next)
-    if (questions.some(item => next[item.id] === undefined)) return
-    setState('busy')
-    setError('')
-    const answers = questions.map(item => ({ id: item.id, selected: [next[item.id]] }))
-    void Promise.resolve(actions.answerGroupQuestion?.(reply.requestId, answers)).then(
-      () => setState('answered'),
-      (failure) => {
-        const message = String(failure?.message ?? failure)
-        setState(/no longer open/i.test(message) ? 'expired' : 'open')
-        setError(message)
-      },
-    )
-  }
-  const stateLine = state === 'answered' ? t('Answered.') : state === 'expired' ? t('This question expired.') : null
-  // The second way in: the member's own chat shows the same card, with its context around it.
+  // Path only: the question itself is DSH's card in the Bot's own chat, which is where it
+  // can be answered. The group shows where that is and settles once it is gone.
   const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === 'function' && reply.sessionId !== undefined
   return h('div', { className: 'bt-appr' },
-    questions.map(question => h('div', { key: question.id },
-      h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
-      h('div', { className: 'bt-appr-reason' }, question.question ?? ''),
-      stateLine !== null ? null : h('div', { className: 'bt-appr-actions' },
-        (question.options ?? []).map(option => h('button', {
-          key: option.label, type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy',
-          'data-picked': picked[question.id] === option.label ? '' : undefined,
-          onClick: () => answer(question, option.label),
-        }, option.label))))),
-    stateLine === null && canOpen
-      ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
-      : null,
-    stateLine !== null ? h('div', { className: 'bt-appr-state' }, stateLine) : null,
-    error !== '' ? h('div', { className: 'bt-appr-error', role: 'alert' }, error) : null)
+    h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
+    h('div', { className: 'bt-appr-reason' }, t('{name} is waiting for your answer in its own chat.', { name: bot.name })),
+    settled
+      ? h('div', { className: 'bt-appr-state' }, t('Answered.'))
+      : canOpen
+        ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
+        : null)
 }
 
 // A member waiting for the user's approval in a group: the card carries the approval's id, so

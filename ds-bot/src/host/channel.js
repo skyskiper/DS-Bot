@@ -248,15 +248,15 @@ export function install(rt) {
       const readOnly = rt.readOnly()
       if (readOnly !== undefined && !READS.has(endpoint)) return fail(readOnly, 'bot/read-only')
       switch (endpoint) {
-        case 'answer-group-question': {
-          return ok(rt.answerGroupQuestion(body.requestId, body.answers))
-        }
         case 'debug-composer': {
           const result = await rt.appendComposerFlaps(body.events, { enabled: composerFlapsRequested || process.env.DS_BOT_COMPOSER_DEBUG === '1' })
           if (result.status === 403) return fail(result.message, 'bot/refused')
           return ok(result)
         }
         case 'state': {
+          // A group member waiting on a question gets a card in the room; the read is
+          // guarded, so a DSH shape change means no card rather than a failed state.
+          rt.groupQuestionsSync?.()
           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
           if (readOnly === undefined) await rt.bootstrap()
           await rt.catalog()

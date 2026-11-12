@@ -12478,6 +12478,7 @@ var ZH = {
   "{name}’s question was closed before it was answered": "{name} 的提问在回答前已关闭",
   "You answered {name}’s question": "你已回答 {name} 的提问",
   "Open {name}’s chat": "打开 {name} 的会话",
+  "{name} is waiting for your answer in its own chat.": "{name} 在自己的会话里等你回答。",
   Answered: "已回答",
   "Answered.": "已回答。",
   "This question expired.": "这个提问已失效。",
@@ -13404,6 +13405,7 @@ var FORK_COPY = {
   "{name}’s question was closed before it was answered": "{name}’s question was closed before it was answered",
   "You answered {name}’s question": "You answered {name}’s question",
   "Open {name}’s chat": "Open {name}’s chat",
+  "{name} is waiting for your answer in its own chat.": "{name} is waiting for your answer in its own chat.",
   "Answered.": "Answered.",
   "This question expired.": "This question expired.",
   "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.",
@@ -27224,53 +27226,13 @@ function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
   return null;
 }
 function GroupQuestionRow({ reply, bot, actions, settled = false }) {
-  const questions = Array.isArray(reply.questions) ? reply.questions : [];
-  const [state2, setState] = (0, import_react34.useState)(settled ? "answered" : "open");
-  const [error, setError] = (0, import_react34.useState)("");
-  const [picked, setPicked] = (0, import_react34.useState)({});
-  const answer = (question, label) => {
-    if (state2 !== "open") return;
-    const next = { ...picked, [question.id]: label };
-    setPicked(next);
-    if (questions.some((item) => next[item.id] === void 0)) return;
-    setState("busy");
-    setError("");
-    const answers = questions.map((item) => ({ id: item.id, selected: [next[item.id]] }));
-    void Promise.resolve(actions.answerGroupQuestion?.(reply.requestId, answers)).then(
-      () => setState("answered"),
-      (failure) => {
-        const message = String(failure?.message ?? failure);
-        setState(/no longer open/i.test(message) ? "expired" : "open");
-        setError(message);
-      }
-    );
-  };
-  const stateLine2 = state2 === "answered" ? t("Answered.") : state2 === "expired" ? t("This question expired.") : null;
   const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === "function" && reply.sessionId !== void 0;
   return (0, import_react34.createElement)(
     "div",
     { className: "bt-appr" },
-    questions.map((question) => (0, import_react34.createElement)(
-      "div",
-      { key: question.id },
-      (0, import_react34.createElement)("div", { className: "bt-appr-head" }, (0, import_react34.createElement)(BotMark, { bot, size: 16 }), (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name)),
-      (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, question.question ?? ""),
-      stateLine2 !== null ? null : (0, import_react34.createElement)(
-        "div",
-        { className: "bt-appr-actions" },
-        (question.options ?? []).map((option) => (0, import_react34.createElement)("button", {
-          key: option.label,
-          type: "button",
-          className: "bt-soft bt-soft-sm",
-          disabled: state2 === "busy",
-          "data-picked": picked[question.id] === option.label ? "" : void 0,
-          onClick: () => answer(question, option.label)
-        }, option.label))
-      )
-    )),
-    stateLine2 === null && canOpen ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null,
-    stateLine2 !== null ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, stateLine2) : null,
-    error !== "" ? (0, import_react34.createElement)("div", { className: "bt-appr-error", role: "alert" }, error) : null
+    (0, import_react34.createElement)("div", { className: "bt-appr-head" }, (0, import_react34.createElement)(BotMark, { bot, size: 16 }), (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name)),
+    (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, t("{name} is waiting for your answer in its own chat.", { name: bot.name })),
+    settled ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, t("Answered.")) : canOpen ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null
   );
 }
 function ApprovalRow({ reply, bot, actions }) {
