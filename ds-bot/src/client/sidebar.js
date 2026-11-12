@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { FishLogo } from './dsh-primitives.js'
 import { isMainOf } from './sources.js'
 import { currentPart, previewOf, relativeShort } from './text.js'
-import { PlusIcon, SearchIcon, SidebarIcon, GaugeIcon, ClockIcon, GearIcon, PinMarkIcon, ConnectorIcon, CloudDownloadIcon, SignInIcon, SignOutIcon, SlidersIcon, ChevronDownIcon, ChevronRightIcon, PeopleIcon } from './icons.js'
+import { PlusIcon, SearchIcon, SidebarIcon, GaugeIcon, ClockIcon, GearIcon, PinMarkIcon, ConnectorIcon, CloudDownloadIcon, SignInIcon, SignOutIcon, SlidersIcon, ChevronDownIcon, ChevronRightIcon, PeopleIcon, SwitchIcon, FolderIcon, PlugIcon } from './icons.js'
 import { lookOf, MAIN_LOOK } from './characters.js'
 import { botState, BotMark, BotAvatar, RoomAvatar } from './mark.js'
 import { AgentBadge } from './agent-badge.js'
@@ -62,7 +62,7 @@ const waitingFor = (roster, waits) => {
   return names.length === 0 ? '' : t('Waiting for {names}', { names: names.join(t(' and ')) })
 }
 
-function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useActivity, useWork, wide, marked }) {
+function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useActivity, useWork, wide, marked, onDragStart }) {
   const id = bot.id
   const part = currentPart(bot)
   const preview = useSessions(list => previewOf(list, part, roster.exchangeTurns[part]))
@@ -104,7 +104,10 @@ function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessio
   }
   return h('button', {
     type: 'button', className: 'bt-row', 'aria-label': label, 'aria-current': active ? 'page' : undefined,
-    'data-bot-id': id, title: wide ? undefined : bot.name, onMouseEnter: wide ? nameIfCut : undefined, onClick: () => actions.openSession(id), onContextMenu,
+    'data-bot-id': id, title: wide ? undefined : bot.name,
+    draggable: wide && !tile && onDragStart ? true : undefined,
+    onDragStart: wide && !tile && onDragStart ? event => onDragStart(event, id) : undefined,
+    onMouseEnter: wide ? nameIfCut : undefined, onClick: () => actions.openSession(id), onContextMenu,
   },
   h(BotAvatar, { bot, size: wide ? 36 : 44, state, main }),
   pinned && !wide ? h(PinMark) : null,
@@ -118,7 +121,7 @@ function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessio
     : !wide && !active && (alert || unread) ? h('span', { className: `bt-dot${alert ? ' bt-dot-wait' : ''}`, 'aria-hidden': true }) : null)
 }
 
-function RoomRow({ room, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useWork, wide, marked }) {
+function RoomRow({ room, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useWork, wide, marked, onDragStart }) {
   const id = room.id
   // The group's own Session is a chain of parts; the row shows the current one.
   const sessionId = room.sessionId ?? id
@@ -136,7 +139,10 @@ function RoomRow({ room, roster, actions, useSessions, useSessionStatus, useSess
   const label = [room.name, pinned ? t('Pinned') : '', members.length > 0 ? t('Working') : '', approval ? t('Waiting for your approval') : ''].filter(Boolean).join(', ')
   return h('button', {
     type: 'button', className: 'bt-row', 'aria-label': label, 'aria-current': active ? 'page' : undefined,
-    'data-room-id': id, title: wide ? undefined : room.name, onMouseEnter: wide ? nameIfCut : undefined, onClick: () => actions.openSession(id),
+    'data-room-id': id, title: wide ? undefined : room.name,
+    draggable: wide && onDragStart ? true : undefined,
+    onDragStart: wide && onDragStart ? event => onDragStart(event, id) : undefined,
+    onMouseEnter: wide ? nameIfCut : undefined, onClick: () => actions.openSession(id),
     onContextMenu: (event) => { event.preventDefault(); actions.openMenu({ kind: 'room', id, x: event.clientX, y: event.clientY }) },
   },
   h(RoomAvatar, { room, roster, size: wide ? 36 : 44 }),
@@ -243,7 +249,7 @@ function AgentSessionRow({ session, agent, actions, renaming, index }) {
 
 // The DSH Agent row: a plain dsh Session list lives in the Bot workspace, so it
 // sits among the Bots with the harness's own whale mark.
-function AgentRow({ agent, actions, useSessions, useSessionStatus, useUi, wide, marked }) {
+function AgentRow({ agent, actions, useSessions, useSessionStatus, useUi, wide, marked, onDragStart }) {
   const info = useSessions(list => JSON.stringify(agent.sessions.map((id) => {
     const row = list.byId[id]
     return {
@@ -277,7 +283,10 @@ function AgentRow({ agent, actions, useSessions, useSessionStatus, useUi, wide, 
   return h('div', { className: 'bt-agent' },
     h('button', {
       type: 'button', className: 'bt-row', 'aria-label': label, 'aria-current': active ? 'page' : undefined,
-      'data-agent-id': agent.id, title: wide ? undefined : 'DSH Agent', onClick: () => actions.openAgent(agent.id),
+      'data-agent-id': agent.id, title: wide ? undefined : 'DSH Agent',
+      draggable: wide && onDragStart ? true : undefined,
+      onDragStart: wide && onDragStart ? event => onDragStart(event, agent.id) : undefined,
+      onClick: () => actions.openAgent(agent.id),
       onContextMenu: (event) => { event.preventDefault(); actions.openMenu({ kind: 'agent', id: agent.id, x: event.clientX, y: event.clientY }) },
     },
     h('span', { className: `bt-agent-ava${running ? ' bt-run' : ''}` }, h(FishLogo, { size: wide ? 22 : 24 })),
@@ -303,8 +312,9 @@ function useListGlide(listRef, layout, key) {
     if (!list) return
     const next = new Map()
     const still = reducedMotion() || tops.current.layout !== layout
-    for (const row of list.querySelectorAll('[data-bot-id],[data-room-id],[data-agent-id]')) {
-      const id = row.dataset.botId ?? row.dataset.roomId ?? row.dataset.agentId
+    for (const row of list.querySelectorAll('[data-bot-id],[data-room-id],[data-agent-id],[data-sec-id]')) {
+      if (row.closest?.('[aria-hidden="true"]')) continue
+      const id = row.dataset.secId ? `sec:${row.dataset.secId}` : (row.dataset.botId ?? row.dataset.roomId ?? row.dataset.agentId)
       // offsetTop ignores transforms, so a glide in flight does not skew the next one.
       const top = row.offsetTop
       next.set(id, top)
@@ -356,6 +366,8 @@ export function TeamSidebar(props) {
   const { wide, useRoster, useUi, useSessions, actions } = props
   const listRef = useRef(null)
   const roster = useRoster(value => value)
+  // Upstream sections stay data only: the org tree by department is this fork's UI.
+  const sections = Array.isArray(roster.sections) ? roster.sections : []
   const markedUnread = useUi(value => value.unread)
   const leftDrawer = useUi(value => value.leftDrawer === true)
   const details = useUi(value => value.details ?? null)
@@ -439,9 +451,21 @@ export function TeamSidebar(props) {
   const recentItems = [...pinnedItems, ...restItems.slice(0, RECENT_ITEMS)]
   const olderItems = restItems.slice(RECENT_ITEMS)
   const main = roster.byId[roster.mainBotId]
-  useListGlide(listRef, wideContent, order.map(entry => entry.item.id).join(','))
+  const glideKey = useMemo(
+    () => `${sections.map(s => `${s.id}:${s.collapsed ? 1 : 0}`).join(',')}|${order.map(entry => `${entry.item.id}:${entry.item.sectionId ?? ''}`).join(',')}`,
+    [sections, order],
+  )
+  useListGlide(listRef, wideContent, glideKey)
   useLandOnMainBot(roster, useSessions, actions)
   useReportReady(roster.ready, roster)
+
+
+
+  const createNewSection = () => {
+    void Promise.resolve(actions.saveSection({}))
+      .then((sec) => { if (sec?.id) actions.beginSectionRename(sec.id) })
+      .catch(error => actions.reportError(error, 'section'))
+  }
 
   // Our column pushes the conversation over by what it takes beyond the shell's
   // collapsed track; a drawer floats over the rail's place, so it pushes as much
@@ -478,6 +502,7 @@ export function TeamSidebar(props) {
     chatRoom.hold(true)
     const columns = chatRoom.columns()
     for (const col of columns) col.style.setProperty('transition', 'none', 'important')
+    const panes = [...document.querySelectorAll('.bt-pane')]
     const offLeft = frameSnap.collapsedWidth ?? 0
     let last = null
     let liveLeft = mode
@@ -486,8 +511,10 @@ export function TeamSidebar(props) {
       const width = at.left === 'rail' ? RAIL_WIDTH : at.width
       column.style.width = `${width}px`
       column.style.setProperty('--bt-lc-w', `${width}px`)
-      const push = Math.max(0, (at.left === 'open' ? width : RAIL_WIDTH) - offLeft)
+      const occupied = at.left === 'open' ? width : RAIL_WIDTH
+      const push = Math.max(0, occupied - offLeft)
       for (const col of columns) col.style.setProperty('margin-left', `${push}px`, 'important')
+      for (const pane of panes) pane.style.left = `${occupied}px`
     }
     // A snap crossing arms the spring for the switch's glide; the timer takes it
     // back off once the switch has had its duration.
@@ -662,6 +689,7 @@ export function TeamSidebar(props) {
     ? h('div', { className: 'bt-side-top' },
         h('span', { className: 'bt-brand' }, h(BrandName)),
         h(UpdateButton, { useUpdate: props.useUpdate, actions }),
+        h('button', { type: 'button', className: 'bt-round', 'aria-label': t('New section'), title: t('New section'), onClick: createNewSection }, h(FolderIcon)),
         h('button', { type: 'button', className: 'bt-round', 'aria-label': t('Search'), title: t('Search'), onClick: () => actions.openPalette() }, h(SearchIcon)),
         h('button', { type: 'button', className: 'bt-round', 'aria-label': t('New…'), title: t('New…'), onClick: () => actions.openNewChat('new') }, h(PlusIcon)),
         h('button', { type: 'button', className: 'bt-round bt-side-collapse', 'aria-label': t('Collapse sidebar'), title: t('Collapse sidebar'), onClick: onToggle }, h(SidebarIcon)))
@@ -709,8 +737,7 @@ export function TeamSidebar(props) {
     mainTile,
     wideContent && roster.readOnly ? h('div', { className: 'bt-hint bt-read-only', role: 'status' }, hostText(roster.readOnly)) : null,
     h('div', { ref: listRef, className: 'bt-list', role: 'region', 'aria-label': wideContent ? t('Items') : t('Bot list') },
-      wideContent ? sideList : order.map(rowFor)),
-    foot)
+      wideContent ? sideList : order.map(rowFor)),    foot)
   return h(Fragment, null,
     h(TitleToggle, { hidden: mode === 'hidden', onToggle }),
     shown === 'hidden' ? null : h(LeftColumn, { mode: shown, width: ourWidth, onGrip: startDrag, leaving }, content))
@@ -816,76 +843,11 @@ export function YouAvatar() {
     h('span', { style: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } }, t('Settings')))
 }
 
-let openShellSettings = null
-let openShellOnboarding = null
 let shellShortcuts = null
 
 export function holdShellShortcuts(shortcuts) {
   shellShortcuts = shortcuts
   return () => { if (shellShortcuts === shortcuts) shellShortcuts = null }
-}
-
-// DeepSeek Harness hands its settings opener only to the settings.launcher seat. When
-// the Desktop's account menu holds that seat, its first item (Settings) is the way in;
-// the Desktop on Windows and macOS takes shortcuts natively, so a synthetic key press
-// reaches the shell only where the page delivers them (the Web, Linux).
-export function openHarnessSettings() {
-  // A frame first, so a Bot dialog that closes on this click leaves the modal stack.
-  requestAnimationFrame(() => {
-    if (openShellSettings) { openShellSettings(); return }
-    const desktop = document.querySelector('button[aria-haspopup="menu"][data-signed-out]')
-    if (desktop) openThroughMenu(desktop)
-    else pressSettingsShortcut()
-  })
-}
-
-// Opens one of the shell's own onboarding editors, such as the DeepSeek API key form.
-export function openHarnessOnboarding(id) {
-  requestAnimationFrame(() => {
-    if (openShellOnboarding) openShellOnboarding(id)
-    else openHarnessSettings()
-  })
-}
-
-// The launcher seat can only open DSH's settings on their first section. This onboarding
-// step of DS Bot's own, opened by id, hands the shell's openSection the Models page; the
-// first-run pass meets it last and it steps aside at once.
-export const MODELS_STEP = 'ds-bot-models'
-export const MODELS_STEP_ORDER = 1000
-
-export function OpenModelsStep({ explicit, complete, openSection }) {
-  useEffect(() => {
-    if (explicit) {
-      if (typeof openSection === 'function') openSection('models')
-      else openHarnessSettings()
-    }
-    complete()
-  }, [explicit])
-  return null
-}
-
-function openThroughMenu(trigger) {
-  const before = new Set(document.querySelectorAll('[role="menu"]'))
-  trigger.click()
-  let frames = 0
-  const look = () => {
-    const menu = [...document.querySelectorAll('[role="menu"]')].find(node => !before.has(node))
-    const item = menu?.querySelector('button[role="menuitem"]')
-    if (item) item.click()
-    else if (++frames < 30) requestAnimationFrame(look)
-    else pressSettingsShortcut()
-  }
-  requestAnimationFrame(look)
-}
-
-function pressSettingsShortcut() {
-  const binding = shellShortcuts?.catalog.getSnapshot().find(row => row.id === 'settings.open')?.binding
-  if (!binding) return
-  const held = new Set(binding.modifiers)
-  window.dispatchEvent(new KeyboardEvent('keydown', {
-    code: binding.code, key: binding.code === 'Comma' ? ',' : '', bubbles: true, cancelable: true,
-    ctrlKey: held.has('control'), altKey: held.has('alt'), shiftKey: held.has('shift'), metaKey: held.has('meta'),
-  }))
 }
 
 // Whether a key press is the shell's current binding for one of its shortcuts.
@@ -905,7 +867,7 @@ const NO_SNAPSHOT = () => null
 // `seat` is the shell's settings.launcher seat: at priority -10 the whale wins it
 // over a shell account plugin's own launcher (the Desktop's "··· More"), which comes
 // back in Agent mode; FooterAccount stands in while no seat exists at all.
-export function AccountLauncher({ seat = true, settingsOpen, openSettings, openOnboarding, actions }) {
+export function AccountLauncher({ seat = true, settingsOpen, actions }) {
   const [open, setOpen] = useState(false)
   useLayoutEffect(() => {
     if (!seat) return undefined
@@ -916,17 +878,6 @@ export function AccountLauncher({ seat = true, settingsOpen, openSettings, openO
   const button = useRef(null)
   const menuRef = useRef(null)
   useEffect(() => { if (settingsOpen) setOpen(false) }, [settingsOpen])
-  // The settings dialog links back to the shell's own settings (models, providers).
-  useEffect(() => {
-    if (!openSettings) return undefined
-    openShellSettings = openSettings
-    return () => { if (openShellSettings === openSettings) openShellSettings = null }
-  }, [openSettings])
-  useEffect(() => {
-    if (!openOnboarding) return undefined
-    openShellOnboarding = openOnboarding
-    return () => { if (openShellOnboarding === openOnboarding) openShellOnboarding = null }
-  }, [openOnboarding])
   useEffect(() => {
     if (!open) return undefined
     const onDown = (event) => {
@@ -990,17 +941,17 @@ export function AccountLauncher({ seat = true, settingsOpen, openSettings, openO
     setSignOutError('')
     setBusy(false)
   }, [open])
-  // DS Bot's Models page where the host serves the providers, else DSH's own.
-  const openModels = actions.providers ? actions.openModels : actions.openHarnessModels
+  const openModels = actions.openModels
   const groups = [
     [
       [t('Usage'), GaugeIcon, () => actions.openSettings('usage')],
       openModels ? [t('Models and API keys'), SlidersIcon, () => openModels()] : null,
       [t('Connectors'), ConnectorIcon, () => actions.openConnectors()],
       [t('Automation tasks'), ClockIcon, () => actions.selectPanel('schedules')],
-      [t('Bot settings'), GearIcon, () => actions.openSettings('general')],
+      [t('Settings'), GearIcon, () => actions.openSettings('general')],
     ].filter(Boolean),
-  ]
+    typeof actions.setSurface === 'function' ? [[t('Classic Agent mode'), SwitchIcon, () => actions.setSurface('agent')]] : null,
+  ].filter(Boolean)
   if (signedIn) groups.push([[accountT('signOut'), SignOutIcon, askSignOut, undefined, true]])
   else if (signedOut) groups.push([[t('Sign in to DeepSeek'), SignInIcon, () => actions.signIn()]])
   return h(Fragment, null,
@@ -1159,6 +1110,15 @@ function useLandOnMainBot(roster, useSessions, actions) {
   }, [mainView, roster])
 }
 
+// The Plugins icon beside the foot's account gear: it opens the shell's plugin
+// manager panel. Wherever that panel's navigation face is absent — such as a
+// profile the peer may not list bundles in — nothing renders.
+export function PluginsButton({ actions }) {
+  if (!actions.hasPlugins?.()) return null
+  return h('button', { type: 'button', className: 'bt-account', 'aria-label': t('Plugins'), title: t('Plugins'), onClick: () => actions.openPlugins() },
+    h('span', { className: 'bt-you', 'aria-hidden': true }, h(PlugIcon)))
+}
+
 export function FooterAccount(props) {
   const seated = props.useUi(value => value.accountSeated === true)
   if (seated) return null
@@ -1183,21 +1143,25 @@ export function BotReturn({ wide, useSurface, useRoster, actions }) {
       wide ? h('span', { className: 'bt-return-name' }, t('Back to Bot')) : null)
   }
   if (mode !== 'agent') return null
-  return h('button', { type: 'button', className: 'bt-return', 'aria-label': t('DS Bot'), title: t('DS Bot'), onClick: () => actions.setSurface('bot') },
+  const label = t('Back to DS Bot')
+  return h('button', { type: 'button', className: 'bt-return', 'aria-label': label, title: label, onClick: () => actions.setSurface('bot') },
     h(BotMark, { look: MAIN_LOOK, size: 20 }),
-    wide ? h('span', { className: 'bt-return-name' }, t('DS Bot')) : null)
+    wide ? h('span', { className: 'bt-return-name' }, label) : null,
+    wide ? h('span', { className: 'bt-return-swap', 'aria-hidden': true }, h(SwitchIcon)) : null)
 }
 
 // Agent mode has none of the shell-group styles, so the return button carries its own.
 export const RETURN_CSS = `
-.bt-return{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:none;color:inherit;font:inherit;font-size:14px;line-height:20px;cursor:pointer;transition:background-color .12s ease}
-.bt-return:hover{background:rgba(127,127,127,.14)}
+.bt-return{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--bt-return-fill);color:inherit;font:inherit;font-size:14px;line-height:20px;cursor:pointer;transition:background-color .12s ease}
+.bt-return:hover{background:var(--bt-return-fill-hover)}
 .bt-return:active{transform:scale(.96)}
 .bt-return .bt-mark{display:inline-flex;flex:none;line-height:0}
 .bt-return .bt-mark svg{width:100%;height:100%;overflow:visible}
 /* Shell styles carry --bt-ink-deepseek and Agent mode withdraws them; pin it here. */
 .bt-return .bt-mark{--bt-ink-deepseek:#4D6BFE}
 .bt-return-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-return-swap{display:inline-flex;flex:none;line-height:0;opacity:.55}
+.bt-return-swap svg{width:16px;height:16px}
 `
 
 export function BrandMark({ size = 24 }) {
@@ -1298,5 +1262,4 @@ export const SIDEBAR_CSS = `
 .bt-team-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
 .bt-team-title{font-size:13px;line-height:18px;font-weight:500}
 .bt-team-sub{font-size:11px;line-height:15px;color:var(--bt-ink-3)}
-.bt-team-go{flex:none;display:inline-flex;color:var(--bt-ink-3)}
-`
+.bt-team-go{flex:none;display:inline-flex;color:var(--bt-ink-3)}`
