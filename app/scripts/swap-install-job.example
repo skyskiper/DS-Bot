@@ -19,6 +19,19 @@ JOB=${DS_BOT_SWAP_JOB:-ds-bot-swap}
 APP=${APP:-/Applications/DS Bot.app}
 export DS_BOT_SWAP_JOB="$JOB"
 
+# `-l` on the job and DS_BOT_SWAP_JOB must name the same job: the removal at the end
+# takes down the label in this variable, and launchd keeps starting the job it was given.
+# A dry run outside launchd sets DS_BOT_SWAP_JOB_PID; launchd itself does not.
+EXPECTED=${DS_BOT_SWAP_JOB_PID:-$$}
+export DS_BOT_SWAP_JOB_PID="$EXPECTED"
+job_pid() { launchctl list 2>/dev/null | awk -v name="$JOB" '$3 == name { print $1; exit }'; }
+PID=$(job_pid)
+if [ "$PID" != "$EXPECTED" ]; then
+  printf 'swap-install-job: launchd job %s is pid %s, but this script is pid %s.\n' "$JOB" "${PID:-not listed}" "$EXPECTED" >&2
+  printf '  Use the same name for `-l` and DS_BOT_SWAP_JOB; nothing was changed.\n' >&2
+  exit 2
+fi
+
 # Take the job down even when a step above fails, or launchd runs it again.
 finish() { launchctl remove "$JOB" >/dev/null 2>&1 || true; }
 trap finish EXIT

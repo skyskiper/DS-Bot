@@ -135,6 +135,11 @@ and `--tidy`, then `launchctl remove "$DS_BOT_SWAP_JOB"`, with a trap so a faile
 still ends the job. A wrapper that forgets the removal reinstalls the app every ten
 seconds.
 
+The label passed to `launchctl submit -l` and `DS_BOT_SWAP_JOB` must be the same name.
+Before doing anything, the template compares the pid launchd lists for that label with
+its own and exits when they differ, because the removal at the end would then take down
+another label and leave the running job to be started again.
+
 `swap-app.sh` removes a job only when it is that job's own process. When a wrapper
 scheduled the job and runs the swap itself, the job belongs to the wrapper, and the
 script leaves it alone: removing it there would end the wrapper and everything queued
