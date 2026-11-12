@@ -27141,7 +27141,7 @@ function useLiveNote(actions, sessionId, id, entry) {
     return () => actions.noteLive(sessionId, id, null);
   }, [sessionId, id, key]);
 }
-function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
+function RelayEvent({ reply, bot, sessionId, actions, botKnown = false, settled = false }) {
   if (reply.kind === "failed") {
     return (0, import_react34.createElement)(
       "div",
@@ -27189,7 +27189,7 @@ function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
   }
   if (reply.kind === "group-question") {
-    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, actions, settled: settled === true });
+    return (0, import_react34.createElement)(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, botKnown, actions, settled: settled === true });
   }
   if (reply.kind === "group-question-answer") {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, reply.outcome?.aborted || reply.outcome?.expired ? t("{name}’s question was closed before it was answered", { name: bot.name }) : t("You answered {name}’s question", { name: bot.name }));
@@ -27225,14 +27225,15 @@ function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
   }
   return null;
 }
-function GroupQuestionRow({ reply, bot, actions, settled = false }) {
-  const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === "function" && reply.sessionId !== void 0;
+function GroupQuestionRow({ reply, bot, botKnown = true, actions, settled = false }) {
+  const canOpenBot = botKnown && bot?.id !== void 0 && typeof actions.openSession === "function";
+  const canOpenRaw = actions.canOpenInDsh !== false && typeof actions.openRawSession === "function" && reply.sessionId !== void 0;
   return (0, import_react34.createElement)(
     "div",
     { className: "bt-appr" },
     (0, import_react34.createElement)("div", { className: "bt-appr-head" }, (0, import_react34.createElement)(BotMark, { bot, size: 16 }), (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name)),
     (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, t("{name} is waiting for your answer in its own chat.", { name: bot.name })),
-    settled ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, t("Answered.")) : canOpen ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null
+    settled ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, t("Answered.")) : canOpenBot ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openSession(bot.id) }, t("Open {name}’s chat", { name: bot.name })) : canOpenRaw ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null
   );
 }
 function ApprovalRow({ reply, bot, actions }) {
@@ -27368,7 +27369,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       }
       if (reply.kind === "answer") return null;
       if (reply.kind !== void 0) {
-        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some((row) => row?.kind === "group-question-answer" && row.questionId === reply.questionId) });
+        return (0, import_react34.createElement)(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, botKnown: reply.botId === void 0 ? false : roster.byId[reply.botId] !== void 0, settled: (Array.isArray(replies) ? replies : []).some((row) => row?.kind === "group-question-answer" && row.questionId === reply.questionId) });
       }
       if (reply.kind === "goal") {
         return (0, import_react34.createElement)(

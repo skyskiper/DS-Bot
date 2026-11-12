@@ -944,7 +944,7 @@ function useLiveNote(actions, sessionId, id, entry) {
 // One non-message row of a group round: the same event line the live view draws
 // for a reply that is not a member's message or the user's own line. `bot` is the
 // resolved member the reply names.
-export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) {
+export function RelayEvent({ reply, bot, sessionId, actions, botKnown = false, settled = false }) {
   if (reply.kind === 'failed') {
     return h('div', { className: 'bt-event bt-event-error', role: 'status', title: [reply.code, reply.status, reply.text].filter(Boolean).join(' · ') },
       t('{name} stopped: {reason}. Switch its model or ask it to go on.', { name: bot.name, reason: failureLabel(reply.code, reply.text) }))
@@ -987,7 +987,7 @@ export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) 
   }
   if (reply.kind === 'group-question') {
     // The member's Session is hidden, so this card came to the group: answer it here.
-    return h(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, actions, settled: settled === true })
+    return h(GroupQuestionRow, { key: reply.questionId ?? reply.sessionId, reply, bot, botKnown, actions, settled: settled === true })
   }
   if (reply.kind === 'group-question-answer') {
     return h('div', { className: 'bt-event' }, reply.outcome?.aborted || reply.outcome?.expired
@@ -1018,18 +1018,22 @@ export function RelayEvent({ reply, bot, sessionId, actions, settled = false }) 
 
 // A question a group member asked (cua's "application access", for one): its own Session is
 // hidden, so the group shows the card and answers it. Options are the asker's, verbatim.
-function GroupQuestionRow({ reply, bot, actions, settled = false }) {
-  // Path only: the question itself is DSH's card in the Bot's own chat, which is where it
-  // can be answered. The group shows where that is and settles once it is gone.
-  const canOpen = actions.canOpenInDsh !== false && typeof actions.openRawSession === 'function' && reply.sessionId !== undefined
+export function GroupQuestionRow({ reply, bot, botKnown = true, actions, settled = false }) {
+  // The card that answers is DS Bot's own, drawn in the Bot's chat: open that, which is
+  // what the sidebar opens. The shell's raw view of the Session never draws it, so it is
+  // only the fallback, for a Bot that left the roster and has no chat left to open.
+  const canOpenBot = botKnown && bot?.id !== undefined && typeof actions.openSession === 'function'
+  const canOpenRaw = actions.canOpenInDsh !== false && typeof actions.openRawSession === 'function' && reply.sessionId !== undefined
   return h('div', { className: 'bt-appr' },
     h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
     h('div', { className: 'bt-appr-reason' }, t('{name} is waiting for your answer in its own chat.', { name: bot.name })),
     settled
       ? h('div', { className: 'bt-appr-state' }, t('Answered.'))
-      : canOpen
-        ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
-        : null)
+      : canOpenBot
+        ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openSession(bot.id) }, t('Open {name}’s chat', { name: bot.name }))
+        : canOpenRaw
+          ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
+          : null)
 }
 
 // A member waiting for the user's approval in a group: the card carries the approval's id, so
@@ -1157,7 +1161,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       // The answer line rides on its card (room.answers); a separate row would double it.
       if (reply.kind === 'answer') return null
       if (reply.kind !== undefined) {
-        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, settled: (Array.isArray(replies) ? replies : []).some(row => row?.kind === 'group-question-answer' && row.questionId === reply.questionId) })
+        return h(RelayEvent, { key: `${reply.botId ?? reply.kind}-${index}`, reply, bot, sessionId, actions, botKnown: reply.botId === undefined ? false : roster.byId[reply.botId] !== undefined, settled: (Array.isArray(replies) ? replies : []).some(row => row?.kind === 'group-question-answer' && row.questionId === reply.questionId) })
       }
       if (reply.kind === 'goal') {
         return h('div', { key: `goal-${index}`, className: 'bt-event', title: reply.text || undefined },

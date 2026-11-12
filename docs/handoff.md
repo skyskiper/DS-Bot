@@ -80,6 +80,16 @@
 - **客户端「已回答」匹配错字段**：`cells.js` 用 `requestId` 比对，但 `groups.js` 的 `rowOf`
   不放 `requestId` 出来 → 两边都是 undefined，任何一条回答行会标记同屏所有卡；改用 `questionId`。
 
+### 群卡按钮必须落在可作答的视图（2026-11-13，真机验出的缺陷）
+
+可作答的 `PendingAppAccess` 只在 **DS Bot 自己的聊天面**渲染（`client/computer.js` 的
+`AppAccessDock` 挂在 `conversation.input.dock`，`AppAccessCall` 挂在会话里），shell 的
+**raw 视图不画它**。原来群卡唯一按钮走 `openRawSession(sessionId)`，点进去是一张点不动的卡，
+用户根本没法作答。现在按钮走 `openSession(botId)`（等同侧栏点这个 Bot），**raw 只做兜底**，
+仅当该 Bot 已不在 roster、没有聊天面可开时使用。回归用例：
+`test/group-question-client.test.js`「the group card opens the Bot chat that can answer,
+not the raw Session」——点群卡按钮后，目标视图里必须真的画出 Deny / This time / Always。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
