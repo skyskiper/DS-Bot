@@ -20,12 +20,15 @@
 #   * one swap at a time: lock directory, stale after 15 minutes;
 #   * the old app is kept as "DS Bot.app.bak-YYYYmmdd-HHMMSS", never overwritten;
 #     the newest three are kept;
-#   * the new bundle is verified (executable, signature, version) BEFORE the old
-#     one is moved, and the installed copy is verified after the move;
+#   * the new bundle is verified (executable, signature, version) and signed with this
+#     machine's Apple Development identity BEFORE the old one is moved, so the TCC
+#     grants follow it; the installed copy is verified again after the move
+#     (app/scripts/sign-app.sh);
 #   * a failure after the move puts the old app back and opens it again;
 #   * a 4th swap of the same bundle within 10 minutes is refused as a restart loop;
 #   * every step lands in /tmp/ds-bot-swap.log (DS_BOT_SWAP_LOG overrides).
 set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
 
 # DS_BOT_APP belongs to the app itself (it is 1 inside the desktop app), never a path.
 TARGET="${DS_BOT_SWAP_TARGET:-/Applications/DS Bot.app}"
@@ -75,11 +78,32 @@ NEWVER=$(version_of "$NEW")
 [ -n "$NEWVER" ] || fail "new app has no CFBundleShortVersionString"
 say "swap: new=$NEW version=${NEWVER:-?} target=$TARGET check=$CHECK force=$FORCE pid=$$ parent=$(ps -o command= -p "$PPID" 2>/dev/null | cut -c1-120)"
 
+# The grants the user gave the app (Screen Recording, Accessibility) follow the signing
+# identity, and a packed app comes ad-hoc: sign it before it lands, or every swap resets
+# them. A missing identity is reported, not fatal, unless DS_BOT_REQUIRE_SIGN=1.
+sign_new() {
+  [ -x "$HERE/sign-app.sh" ] || return 0
+  if [ "$CHECK" -eq 1 ]; then
+    "$HERE/sign-app.sh" --check "$NEW" 2>&1 | while read -r line; do say "check: $line"; done
+    return 0
+  fi
+  say "swap: signing the new app"
+  local out
+  if ! out=$("$HERE/sign-app.sh" "$NEW" 2>&1); then
+    printf '%s\n' "$out" >>"$LOG"
+    fail "could not sign the new app: $NEW"
+  fi
+  printf '%s\n' "$out" | while read -r line; do say "swap: $line"; done
+}
+
 if [ "$CHECK" -eq 1 ]; then
+  sign_new
   say "check: ok — would back up $TARGET as $TARGET.bak-<timestamp> and replace it"
   printf 'swap-app: check ok: %s (%s) is ready to replace %s\n' "$NEW" "$NEWVER" "$TARGET"
   exit 0
 fi
+
+sign_new
 
 [ -d "$TARGET" ] || fail "the installed app is missing: $TARGET"
 
@@ -116,17 +140,24 @@ printf '%s\t%s\n' "$NOW" "$NEW" >>"$HISTORY"
 awk -F'\t' -v now="$NOW" '$1 >= now-600' "$HISTORY" >"$HISTORY.tmp" && mv "$HISTORY.tmp" "$HISTORY"
 
 # --- quit the running app -------------------------------------------------------
-say "swap: quitting the running app"
-osascript -e 'quit app "DS Bot"' >>"$LOG" 2>&1 || true
-for _ in $(seq 1 40); do
-  pgrep -f "$TARGET/Contents/MacOS/DS Bot" >/dev/null || break
-  sleep 0.5
-done
-pkill -f "$TARGET/Contents/MacOS/DS Bot" 2>/dev/null || true
-pkill -f "$TARGET/Contents/Frameworks/DS Bot Helper" 2>/dev/null || true
-sleep 2
-if pgrep -f "$TARGET/Contents/MacOS/DS Bot" >/dev/null; then
-  fail "the app did not quit"
+# Only the copy at $TARGET is quit: a swap into another folder (a test target, a second
+# install) must not take down the app the user is running from /Applications.
+running_from_target() { pgrep -f "$TARGET/Contents/MacOS/DS Bot" >/dev/null; }
+if running_from_target; then
+  say "swap: quitting the running app"
+  osascript -e 'quit app "DS Bot"' >>"$LOG" 2>&1 || true
+  for _ in $(seq 1 40); do
+    running_from_target || break
+    sleep 0.5
+  done
+  pkill -f "$TARGET/Contents/MacOS/DS Bot" 2>/dev/null || true
+  pkill -f "$TARGET/Contents/Frameworks/DS Bot Helper" 2>/dev/null || true
+  sleep 2
+  if running_from_target; then
+    fail "the app did not quit"
+  fi
+else
+  say "swap: nothing runs from $TARGET; not quitting anything"
 fi
 
 # --- move the old aside, install the new, and check the copy --------------------
@@ -138,17 +169,17 @@ if ! ditto "$NEW" "$TARGET" 2>>"$LOG"; then
   say "swap: copying the new app failed; putting the old one back"
   rm -rf "$TARGET"
   mv "$BACKUP" "$TARGET"
-  open "$TARGET" >/dev/null 2>&1 || true
+  [ "${DS_BOT_SWAP_OPEN:-1}" = "1" ] && open "$TARGET" >/dev/null 2>&1 || true
   fail "copying the new app failed; the old app was restored"
 fi
-if ! codesign -v "$TARGET" 2>>"$LOG" || [ ! -x "$(executable_of "$TARGET")" ]; then
+if ! codesign --verify --deep --strict "$TARGET" 2>>"$LOG" || [ ! -x "$(executable_of "$TARGET")" ]; then
   say "swap: the installed copy does not verify; rolling back"
   rm -rf "$TARGET"
   mv "$BACKUP" "$TARGET"
-  open "$TARGET" >/dev/null 2>&1 || true
+  [ "${DS_BOT_SWAP_OPEN:-1}" = "1" ] && open "$TARGET" >/dev/null 2>&1 || true
   fail "the installed copy failed verification; the old app was restored"
 fi
-say "swap: installed $(version_of "$TARGET") at $TARGET (signature ok)"
+say "swap: installed $(version_of "$TARGET") at $TARGET (signature $(codesign -dv --verbose=4 "$TARGET" 2>&1 | sed -n 's/^Authority=//p' | head -1))"
 
 # Keep the newest backups only.
 ls -1d "$TARGET".bak-* 2>/dev/null | sort -r | tail -n +$((KEEP_BACKUPS + 1)) | while read -r old; do
@@ -156,6 +187,8 @@ ls -1d "$TARGET".bak-* 2>/dev/null | sort -r | tail -n +$((KEEP_BACKUPS + 1)) | 
   rm -rf "$old"
 done
 
-open "$TARGET" >/dev/null 2>&1 || say "swap: warning: could not open $TARGET"
+if [ "${DS_BOT_SWAP_OPEN:-1}" = "1" ]; then
+  open "$TARGET" >/dev/null 2>&1 || say "swap: warning: could not open $TARGET"
+fi
 say "swap: done"
 printf 'swap-app: installed %s (%s)\n' "$TARGET" "$(version_of "$TARGET")"

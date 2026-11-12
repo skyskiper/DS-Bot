@@ -130,6 +130,24 @@ rolls back and reopens it when the copy fails verification, refuses a fourth swa
 the same bundle within ten minutes, and logs to `/tmp/ds-bot-swap.log`. `DS_BOT_SWAP_TARGET`
 overrides the installed app path.
 
+A packed app is signed ad hoc, and the macOS privacy grants (Screen Recording,
+Accessibility) follow the signing identity: every ad-hoc build looks like a new app to
+TCC. The swap therefore signs the new bundle with this machine's Apple Development
+identity before it lands (`app/scripts/sign-app.sh`, which uses
+`~/githubProjects/decision-graph/scripts/sign-dsbot.sh` when that exists), and installs
+nothing that does not pass `codesign --verify --deep --strict`. Without an identity the
+app stays ad hoc and the log says so; `DS_BOT_REQUIRE_SIGN=1` turns that into a failure
+instead. After a swap nobody has to re-sign by hand; open **System Settings → Privacy &
+Security → Screen Recording / Accessibility**, remove the old DS Bot rows, and add the
+new app again. To sign an app that was copied into place by hand:
+
+```sh
+app/scripts/sign-app.sh "/Applications/DS Bot.app"
+```
+
+`DS_BOT_SWAP_OPEN=0` leaves the installed app closed after the swap, which is what a
+test target wants; the swap only quits the app running from `DS_BOT_SWAP_TARGET`.
+
 ## Notes
 
 - While the app links the development checkout, `npm run build` rebuilds the
