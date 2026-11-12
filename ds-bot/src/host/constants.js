@@ -81,6 +81,9 @@ export const GOAL_IDLE_NUDGES = 2
 // A member still at work this long after its first tool call lets the round go on; it
 // posts its reply when the work is done.
 export const ROOM_WORK_GRACE_MS = 15_000
+// A tool call that makes no progress for this long ends the group turn instead of holding
+// the round forever: a hidden Session can wait on a card nobody sees (cua's app access).
+export const GROUP_TOOL_TIMEOUT_MS = 10 * 60 * 1000
 // Consecutive Bot-to-Bot relays with no tool call and only repetitive or ack text
 // before the round parks the remaining calls and asks the user before continuing.
 export const ROOM_IDLE_RELAY_LIMIT = 6

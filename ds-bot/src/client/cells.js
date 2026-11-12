@@ -985,6 +985,11 @@ export function RelayEvent({ reply, bot, sessionId, actions }) {
     const choice = reply.choice === 'allow' ? t('allowed') : t('rejected')
     return h('div', { className: 'bt-event' }, t('You {choice} {name}\'s {tool}', { choice, name: bot.name, tool: reply.tool ?? t('tool call') }))
   }
+  if (reply.kind === 'stalled') {
+    const minutes = Math.max(1, Math.round((reply.waitedMs ?? 0) / 60000))
+    return h('div', { className: 'bt-event bt-event-error', role: 'status' },
+      t('{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.', { name: bot.name, minutes, tool: reply.tool ?? t('tool call') }))
+  }
   if (reply.kind === 'working') {
     return h('div', { className: 'bt-event' },
       h('button', { type: 'button', className: 'bt-event-whole', onClick: () => actions.showDetails(sessionId) },
