@@ -71,7 +71,6 @@ test('apply registers listeners and effects in a fixed order', (t) => {
     'on llm/stream',
     'on approval/request (prepend)',
     'on user-questions/request (prepend)',
-    'on internal/dispatch',
     'on agent/inbox/discarded',
     'on session/event',
     'effect ds-bot: resume interrupted turns',
