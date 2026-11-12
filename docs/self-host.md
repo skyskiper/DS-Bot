@@ -128,6 +128,12 @@ launchctl submit -l ds-bot-swap -- /bin/bash -c \
 and prints what will move where, so the swap can be shown before it happens. A bare
 `swap-app.sh <app>` refuses; nothing is replaced without `--install`.
 
+The job above is a one-shot: the script removes it at the end only when it is the job's
+own process. When a wrapper schedules the job and runs the swap itself, the job belongs
+to that wrapper, and the script leaves it alone — removing it would end the wrapper and
+everything queued after the swap, such as a `--tidy` or a check that reads the installed
+app. Keep those steps in the same wrapper, after `--install`.
+
 `--install` verifies the bundle (executable, version), signs it, quits only the app
 running from `DS_BOT_SWAP_TARGET`, unregisters it from LaunchServices, moves it into
 `~/Library/Caches/ds-bot-swap/`, copies the new one, verifies the copy with

@@ -14,7 +14,9 @@
 #   launchctl submit -l ds-bot-swap -- /bin/bash -c \
 #     'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap /path/to/app/scripts/swap-app.sh --install "/path/to/DS Bot.app"'
 #
-# `DS_BOT_SWAP_JOB` names that launchd job so the script takes it down at exit.
+# `DS_BOT_SWAP_JOB` names that launchd job, so the script can take it down when it ends
+# as the job's own process. A wrapper that scheduled the job keeps it: this script only
+# removes a job whose running process is itself, so steps after it still run.
 #
 # How it stays safe:
 #   * --stage verifies the new bundle, says what will move where, and touches nothing
@@ -55,7 +57,7 @@ MODE=""
 NEW=""
 FORCE=0
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
 }
 for arg in "$@"; do
   case "$arg" in
@@ -223,10 +225,25 @@ install() {
       fail "another swap is running (lock $LOCK)"
     fi
   fi
-  cleanup() {
-    if [ -n "${DS_BOT_SWAP_JOB:-}" ]; then
+  # A launchd job started directly holds this script as its process, and removing it at
+  # the end is how that one-shot job goes away. A wrapper holds the job instead; removing
+  # it there would kill the wrapper and every step after this script.
+  job_pid() {
+    [ -n "${DS_BOT_SWAP_JOB:-}" ] || return 0
+    launchctl list 2>/dev/null | awk -v name="$DS_BOT_SWAP_JOB" '$3 == name { print $1; exit }'
+  }
+  release_job() {
+    [ -n "${DS_BOT_SWAP_JOB:-}" ] || return 0
+    local pid
+    pid=$(job_pid)
+    if [ "$pid" = "$$" ]; then
       launchctl remove "$DS_BOT_SWAP_JOB" >/dev/null 2>&1 || true
+    else
+      say "swap: job $DS_BOT_SWAP_JOB belongs to another process (pid ${pid:-not listed}); not removing it"
     fi
+  }
+  cleanup() {
+    release_job
     rmdir "$LOCK" 2>/dev/null
   }
   trap cleanup EXIT
