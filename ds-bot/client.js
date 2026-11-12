@@ -12475,6 +12475,7 @@ var ZH = {
   "Paused after {count} Bot relays. Waiting: {names}": "Bot 之间已接力 {count} 次，先停下了。还在等：{names}",
   "{names} went back and forth {count} times without progress and paused. Write here to go on": "{names} 来回 {count} 次没有进展，先停下了。你发言后继续",
   "{name} paused for your approval": "{name} 停下来等你批准",
+  "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} 在 {tool} 上等了 {minutes} 分钟没有进展，已放弃；请在它自己的会话里执行这一步。",
   "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} 停下来等你批准，但这条审批已失效，无法在这里批准；请让 {name} 重新发起。",
   "{name} started on it": "{name} 开始做了",
   "You stopped {name}'s work": "你停下了 {name} 的工作",
@@ -13394,6 +13395,7 @@ var FORK_COPY = {
   "allowed": "allowed",
   "rejected": "rejected",
   "tool call": "tool call",
+  "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.": "{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.",
   "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.",
   "Without one, the members' characters make the group icon.": "Without one, the members' characters make the group icon.",
   "Department": "Department",
@@ -27171,6 +27173,14 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
   if (reply.kind === "approval-answer") {
     const choice = reply.choice === "allow" ? t("allowed") : t("rejected");
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("You {choice} {name}'s {tool}", { choice, name: bot.name, tool: reply.tool ?? t("tool call") }));
+  }
+  if (reply.kind === "stalled") {
+    const minutes = Math.max(1, Math.round((reply.waitedMs ?? 0) / 6e4));
+    return (0, import_react34.createElement)(
+      "div",
+      { className: "bt-event bt-event-error", role: "status" },
+      t("{name} was waiting {minutes} min on {tool} and gave up. Run that step in its own chat.", { name: bot.name, minutes, tool: reply.tool ?? t("tool call") })
+    );
   }
   if (reply.kind === "working") {
     return (0, import_react34.createElement)(

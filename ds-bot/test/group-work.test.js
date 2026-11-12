@@ -2539,3 +2539,47 @@ test('an approval in a Bot\'s own chat is not a group row', async (t) => {
   host.finish('gb', '测试全过。')
   await settle(() => first() !== undefined)
 })
+
+// A tool that answers the user with a card (cua's "application access") cannot work in a
+// group member's hidden Session: refuse it there, before the call waits forever.
+test('a group member cannot call a tool that waits for the user to answer a card', async (t) => {
+  const host = await start(t)
+  host.round('c1', host.say('@Writer 看一下应用'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  const refusal = exec => rt.ctx.guards.map(guard => guard(exec)).find(text => text !== undefined)
+  assert.match(refusal({ agent: { id: 'gb' }, name: 'cua', arguments: {} }), /application access/)
+  // A Bot's own chat keeps it: the card has somewhere to show there.
+  assert.equal(refusal({ agent: { id: 'b' }, name: 'cua', arguments: {} }), undefined)
+})
+
+// A tool that never comes back (a card nobody can answer) ends the turn as stalled instead
+// of holding the round forever.
+test('a group tool that never comes back ends the turn as stalled', async (t) => {
+  process.env.DS_BOT_GROUP_TOOL_TIMEOUT_MS = '80'
+  t.after(() => { delete process.env.DS_BOT_GROUP_TOOL_TIMEOUT_MS })
+  const host = await start(t)
+  const first = host.round('c1', host.say('@Writer 跑一下'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  host.emit('gb', 'tool/call', { callId: 'k1', name: 'bash', arguments: '{}' })
+  await settle(() => rt.groupRows('r1', 0, rt.ledger.lastSeq('group-r1')).some(row => row.kind === 'stalled'))
+  const stalled = rt.groupRows('r1', 0, rt.ledger.lastSeq('group-r1')).find(row => row.kind === 'stalled')
+  assert.deepEqual([stalled.name, stalled.tool], ['Writer', 'bash'])
+  assert.ok(stalled.waitedMs >= 60, `waitedMs ${stalled.waitedMs}`)
+  await settle(() => first() !== undefined)
+})
+
+test('a group tool that answers in time is not called stalled', async (t) => {
+  process.env.DS_BOT_GROUP_TOOL_TIMEOUT_MS = '400'
+  t.after(() => { delete process.env.DS_BOT_GROUP_TOOL_TIMEOUT_MS })
+  const host = await start(t)
+  const first = host.round('c1', host.say('@Writer 跑一下'))
+  await settle(() => host.agentOf('gb').calls.length === 1)
+  host.begin('gb')
+  host.emit('gb', 'tool/call', { callId: 'k1', name: 'bash', arguments: '{}' })
+  await settle(() => rt.workRoomTurn !== undefined)
+  host.emit('gb', 'tool/result', { callId: 'k1' })
+  host.finish('gb', '跑完了。')
+  await settle(() => first() !== undefined)
+  assert.equal(rt.groupRows('r1', 0, rt.ledger.lastSeq('group-r1')).some(row => row.kind === 'stalled'), false)
+})

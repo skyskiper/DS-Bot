@@ -24,7 +24,7 @@ import { join } from 'node:path'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { recordCardAnswer } from './card-answers.js'
-import { GROUP_LINE_READ, LATE_ANSWER, ROOM_IDLE_RELAY_LIMIT, ROOM_REPLY_TIMEOUT_MS, ROOM_STEP_GAP_MS, ROOM_WORK_GRACE_MS, SOURCE_KIND, TEAM_TOOLS, TEXT_KEPT } from './constants.js'
+import { GROUP_LINE_READ, GROUP_TOOL_TIMEOUT_MS, LATE_ANSWER, ROOM_IDLE_RELAY_LIMIT, ROOM_REPLY_TIMEOUT_MS, ROOM_STEP_GAP_MS, ROOM_WORK_GRACE_MS, SOURCE_KIND, TEAM_TOOLS, TEXT_KEPT } from './constants.js'
 import { escapeRegExp, headOf, splitRef, textOf } from './text.js'
 import { viaOf } from '../shared/im-platforms.js'
 import { mentionSpans, speakerOf } from '../shared/mentions.js'
@@ -315,6 +315,7 @@ export function install(rt) {
         ...(record.approvalId === undefined ? {} : { approvalId: record.approvalId }),
         ...(record.reason === undefined ? {} : { reason: record.reason }),
         ...(record.choice === undefined ? {} : { choice: record.choice }),
+        ...(record.waitedMs === undefined ? {} : { waitedMs: record.waitedMs }),
         ...(record.text === undefined ? {} : { text: record.text }),
       }
     }
@@ -729,9 +730,27 @@ export function install(rt) {
       const finish = (value) => {
         clearTimeout(timer)
         clearTimeout(grace)
+        clearTimeout(toolTimer)
         rt.roomWaiters.delete(exchangeId)
         // A turn that ended on a card waits for the user; its text is not a reply.
         resolve(card === undefined ? value : { waiting: true })
+      }
+      // Long-hanging tool calls: a group member's Session is hidden, so a call that waits
+      // on a card or a dialog can never finish. Report it as stalled instead of holding the
+      // round; the tool name and the wait go into the room's book.
+      let toolTimer
+      let toolWaiting
+      const groupToolTimeout = () => {
+        const set = Number(process.env.DS_BOT_GROUP_TOOL_TIMEOUT_MS)
+        return Number.isFinite(set) && set > 0 ? set : GROUP_TOOL_TIMEOUT_MS
+      }
+      const settleTool = () => { clearTimeout(toolTimer); toolTimer = undefined; toolWaiting = undefined }
+      const watchTool = (tool) => {
+        clearTimeout(toolTimer)
+        toolWaiting = { tool: String(tool ?? ''), at: Date.now() }
+        toolTimer = setTimeout(() => {
+          finish({ stalled: { tool: toolWaiting.tool, waitedMs: Date.now() - toolWaiting.at } })
+        }, groupToolTimeout())
       }
       const touch = () => {
         clearTimeout(timer)
@@ -750,7 +769,7 @@ export function install(rt) {
       }
       touch()
       rt.roomWaiters.set(exchangeId, {
-        sessionId, botId: member.id, roomId: room.id, resolve: finish, fail: failure => finish({ failure }), touch, work, say, approval: () => finish({ approval: true }),
+        sessionId, botId: member.id, roomId: room.id, resolve: finish, fail: failure => finish({ failure }), touch, work, say, approval: () => finish({ approval: true }), watchTool, settleTool,
         get card() { return card },
         set card(next) { card = next },
       })
@@ -789,7 +808,7 @@ export function install(rt) {
     return [...rt.roomWaiters.values()].filter(waiter => waiter.sessionId === sessionId
       || (owner !== undefined && waiter.botId === owner.botId && waiter.roomId === owner.roomId))
   }
-  rt.touchRoomTurn = (sessionId) => { for (const waiter of waitersOf(sessionId)) waiter.touch() }
+  rt.touchRoomTurn = (sessionId) => { for (const waiter of waitersOf(sessionId)) { waiter.touch(); waiter.settleTool?.() } }
   rt.failRoomTurn = (sessionId, failure) => {
     const waiters = waitersOf(sessionId)
     for (const waiter of waiters) waiter.fail(failure)
@@ -801,7 +820,7 @@ export function install(rt) {
   rt.workRoomTurn = (sessionId, tool) => {
     if (QUICK_TOOLS.has(tool)) return
     const waiters = waitersOf(sessionId)
-    for (const waiter of waiters) waiter.work()
+    for (const waiter of waiters) { waiter.work(); waiter.watchTool?.(tool) }
     // A member that gave up its place in the round (it waits for an approval, or the round
     // moved on) still works for the call its turn answers.
     const owner = rt.groupOwners.get(sessionId)
@@ -1118,6 +1137,11 @@ export function install(rt) {
         who: member.name, botId: member.id, kind: 'approval',
         ...(approval === undefined ? {} : { approvalId: approval.id, tool: approval.tool, ...(approval.reason ? { reason: approval.reason } : {}) }),
       })
+    } else if (reply?.stalled) {
+      // A tool that never came back: the group says so and the round goes on.
+      slot.status = 'failed'
+      room.failed?.push?.(member.name)
+      say(room, { who: member.name, botId: member.id, kind: 'stalled', tool: reply.stalled.tool, waitedMs: reply.stalled.waitedMs })
     } else if (reply?.waiting) {
       // The card is already in the ledger (groupCardAsked); the round goes on
       // without this member's text, and the turn is not counted as a returned reply.
