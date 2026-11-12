@@ -37,6 +37,14 @@
      list，唯一的键名是 `IM_WEIXIN_9C1EF6_TOKEN`。副本 home 里模型侧因此报
      `MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "octo"`（ledger notice 原文），
      轮次 1 秒内失败、`inflight turns: []`。
+  **已验证**：`user-questions/request` 会 emit（dispatch 行）；`groupQuestionsSync` 触发点可用
+  （页面内 `state` 200 且执行）；`ctx.get('userQuestions')` 为 object、`waits` 为 Map；卡片渲染代码
+  （`cells.js` 的 `group-question` 分支）已就绪；兜底同步逻辑四检通过。
+  **待真机验证**：一次真实轮次里的 `waits` 条目、房间 ledger 的 `group-question` 行、群里卡片渲染、
+  点「打开会话」作答后切「已回答」。
+  **复现配方**：`cp -Rc ~/.ds-bot /tmp/gq-src` → `cp -Rc /tmp/gq-src/profiles/ds-bot
+  /tmp/gq-src/profiles/desktop` → `DSH_E2E_SOURCE=/tmp/gq-src node dev/ui-e2e.mjs serve --keep`
+  （只重启隔离实例；用完 `pkill -f "ui-e2e.mjs serve"` + `rm -rf /tmp/gq-src`）。
   结论：**除「真实轮次触发」外整条链路要素都在**（emit 有、sync 触发点可用、卡片渲染代码就绪），
   但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
   下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
