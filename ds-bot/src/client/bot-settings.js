@@ -5,6 +5,7 @@ import { isMainOf } from './sources.js'
 import { PencilIcon, ChevronRightIcon } from './icons.js'
 import { lookOf, BotMark } from './mark.js'
 import { ModelMenu, modelOf } from './model-menu.js'
+import { RunModeCard } from './agent-cards.js'
 import { FolderMenu } from './folder-menu.js'
 import { BotSchedules } from './schedules.js'
 import { BotCapabilitiesCard } from './capability-settings.js'
@@ -219,6 +220,7 @@ export function BotSettingsForm({ bot, roster, actions, run }) {
             'aria-pressed': (bot.department ?? null) === entry.id,
             onClick: () => save({ department: entry.id ?? '' }),
           }, entry.name))))),
+    h(RunModeCard, { bot, roster, actions, run, Card }),
     h(Card, { title: t('Model') },
       h('div', { className: 'bt-set-row bt-bs-row' },
         h('span', { className: 'bt-set-copy' }, h('span', { className: 'bt-bs-label' }, t('Model')), h('span', { className: 'bt-set-hint' }, modelHint(bot, roster))),
