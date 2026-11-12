@@ -90,7 +90,9 @@ export function install(rt) {
     return { answered: true }
   }
 
-  rt.ctx.on('user-questions/request', rt.handleGroupQuestion)
+  // Ahead of DSH's own answerer, which would put the card in a Session nobody is watching
+  // and hold the ask there forever. Our listener still passes every other Session on.
+  rt.ctx.on('user-questions/request', rt.handleGroupQuestion, { prepend: true })
   rt.groupQuestionsOpen = () => [...pending.values()].map(({ resolve: _resolve, ...entry }) => entry)
   rt.cancelGroupQuestions = (sessionId) => {
     for (const entry of [...pending.values()]) {
