@@ -61,3 +61,12 @@ test('a theme id does not reach the native theme', () => {
   assert.equal(nativeThemeSource('moonlight'), undefined)
   assert.equal(nativeThemeSource(null), undefined)
 })
+
+// The fork's shell paints an opaque window; upstream's macOS vibrancy shows through its
+// repaints (a working Bot's status shimmer) and makes the whole window flash. materialOf
+// still offers vibrancy, and the window frame only takes it when the material is asked for.
+test('the macOS window stays opaque unless vibrancy is asked for', () => {
+  assert.equal(frameOptions('darwin', undefined, {}).vibrancy, undefined)
+  assert.equal(frameOptions('darwin', 'vibrancy', {}).vibrancy, 'sidebar')
+  assert.equal(frameOptions('darwin', undefined, {}).titleBarStyle, 'hidden')
+})

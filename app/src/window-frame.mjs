@@ -27,7 +27,11 @@ export function frameOptions(platform, material, caption) {
     return { titleBarStyle: 'hidden', titleBarOverlay: { height: CAPTION_HEIGHT, ...caption }, ...(material === 'mica' ? { backgroundMaterial: 'mica' } : {}) }
   }
   // 'active' keeps the material when the window loses the focus; 'followWindow' washes it out.
-  if (platform === 'darwin') return { titleBarStyle: 'hidden', trafficLightPosition: TRAFFIC_LIGHTS, vibrancy: 'sidebar', visualEffectState: 'active' }
+  // No material, no vibrancy: an opaque window is what the fork's shell paints on.
+  if (platform === 'darwin') {
+    const frame = { titleBarStyle: 'hidden', trafficLightPosition: TRAFFIC_LIGHTS }
+    return material === 'vibrancy' ? { ...frame, vibrancy: 'sidebar', visualEffectState: 'active' } : frame
+  }
   return {}
 }
 
