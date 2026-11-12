@@ -1,0 +1,17 @@
+app/test/profile-shadow.test.mjs
+  d4b9e23a20366d08 1,3-41,43-45,51-54,57,83
+app/src/start/start.html
+  d4b9e23a20366d08 42
+app/src/profile-shadow.mjs
+  d4b9e23a20366d08 1-3,6-29,36-38,44-45
+app/src/main.mjs
+  d4b9e23a20366d08 82,105-107,312,622-627,634,636
+app/src/start/text.mjs
+  d4b9e23a20366d08 37-38,102-103,223-224,288-289,408-409,473-474,593-594,658-659,778-779,843-844,963-964,1028-1029,1148-1149,1213-1214,1333-1334,1398-1399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "62909d678805bb0f6a1024d8fbfcd88f19760a8d",
+  "prompts": {}
+}
