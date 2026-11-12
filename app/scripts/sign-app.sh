@@ -1,15 +1,16 @@
 #!/bin/bash
-# Sign a DS Bot app copy with this machine's Apple Development identity, so the TCC grants
+# Sign a DS Bot app with this machine's Apple Development identity, so the TCC grants
 # (Screen Recording, Accessibility) survive the next rebuild: they follow the signing
 # identity, and an ad-hoc signature changes its cdhash on every build.
 #
 #   app/scripts/sign-app.sh <new .app>          sign in place, then verify strictly
 #   app/scripts/sign-app.sh --check <new .app>  verify only; change nothing
 #
-# The shared script at ~/githubProjects/decision-graph/scripts/sign-dsbot.sh signs the
-# same way; it is used when it is executable (DS_BOT_SIGN_SCRIPT names another path).
-# Without an Apple Development identity the app stays ad-hoc and this says so: set
-# DS_BOT_REQUIRE_SIGN=1 where an unsigned app is worse than no swap at all.
+# The identity is the first "Apple Development:" line of
+# `security find-identity -v -p codesigning`, or the exact text in DS_BOT_SIGN_IDENTITY
+# on a machine with several. Nothing here reads a certificate or a password: the
+# one-time setup is in docs/self-host.md. Without a valid identity the app stays ad-hoc
+# and this says so on one line; DS_BOT_REQUIRE_SIGN=1 makes that an error instead.
 set -u
 
 CHECK=0
@@ -17,7 +18,7 @@ APP=""
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK=1 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) printf 'sign-app: unknown option %s\n' "$arg" >&2; exit 2 ;;
     *) APP="$arg" ;;
   esac
@@ -36,21 +37,24 @@ if [ "$CHECK" -eq 1 ]; then
   exit 0
 fi
 
-SHARED="${DS_BOT_SIGN_SCRIPT:-$HOME/githubProjects/decision-graph/scripts/sign-dsbot.sh}"
-if [ -x "$SHARED" ]; then
-  if APP="$APP" "$SHARED"; then
-    exit 0
+identities() { security find-identity -v -p codesigning 2>/dev/null; }
+identity() {
+  if [ -n "${DS_BOT_SIGN_IDENTITY:-}" ]; then
+    printf '%s' "$DS_BOT_SIGN_IDENTITY"
+    return 0
   fi
-  printf 'sign-app: %s failed; signing here instead\n' "$SHARED" >&2
-fi
+  identities | sed -n 's/.*"\(Apple Development: .*\)".*/\1/p' | head -1
+}
 
-IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: .*\)".*/\1/p' | head -1)
-if [ -z "$IDENTITY" ]; then
+IDENTITY=$(identity)
+if [ -z "$IDENTITY" ] || ! identities | grep -F "\"$IDENTITY\"" >/dev/null 2>&1; then
   if [ "${DS_BOT_REQUIRE_SIGN:-0}" = "1" ]; then
-    printf 'sign-app: no Apple Development identity, and DS_BOT_REQUIRE_SIGN=1\n' >&2
+    printf 'sign-app: no valid Apple Development identity%s, and DS_BOT_REQUIRE_SIGN=1\n' \
+      "${DS_BOT_SIGN_IDENTITY:+ for \"$DS_BOT_SIGN_IDENTITY\"}" >&2
     exit 1
   fi
-  printf 'sign-app: no Apple Development identity; %s stays ad-hoc (TCC grants follow the old one)\n' "$APP" >&2
+  printf 'sign-app: no valid Apple Development identity%s; %s stays ad-hoc (TCC grants follow the old one)\n' \
+    "${DS_BOT_SIGN_IDENTITY:+ for \"$DS_BOT_SIGN_IDENTITY\"}" "$APP" >&2
   exit 0
 fi
 

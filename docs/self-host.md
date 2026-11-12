@@ -114,39 +114,63 @@ The `before-pack` hook stops the build when the two `client.js` files differ. On
 app also drops its HTTP caches, so an updated `client.js` is never served from the old
 build's cache.
 
-`app/scripts/swap-app.sh` installs such a bundle over the running app:
+`app/scripts/swap-app.sh` installs such a bundle over the running app, in two steps:
 
 ```sh
-app/scripts/swap-app.sh "app/dist-pack/mac-arm64/DS Bot.app" --check   # verify only
+app/scripts/swap-app.sh --stage "app/dist-pack/mac-arm64/DS Bot.app"   # verify and print the plan
 
-# replace it from a job that is NOT a child of the app it replaces:
+# replace it from a job that is NOT a child of the app it replaces, once the user said yes:
 launchctl submit -l ds-bot-swap -- /bin/bash -c \
-  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" "/Applications/DS Bot.app"'
+  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" --install "/Applications/DS Bot.app"'
 ```
 
-The script verifies the new bundle (executable, signature, version) before the old one
-moves, keeps the old app as `DS Bot.app.bak-YYYYmmdd-HHMMSS` (the newest three),
-rolls back and reopens it when the copy fails verification, refuses a fourth swap of
-the same bundle within ten minutes, and logs to `/tmp/ds-bot-swap.log`. `DS_BOT_SWAP_TARGET`
-overrides the installed app path.
+`--stage` takes no lock, writes no log and signs nothing: it verifies the new bundle
+and prints what will move where, so the swap can be shown before it happens. A bare
+`swap-app.sh <app>` refuses; nothing is replaced without `--install`.
 
-A packed app is signed ad hoc, and the macOS privacy grants (Screen Recording,
-Accessibility) follow the signing identity: every ad-hoc build looks like a new app to
-TCC. The swap therefore signs the new bundle with this machine's Apple Development
-identity before it lands (`app/scripts/sign-app.sh`, which uses
-`~/githubProjects/decision-graph/scripts/sign-dsbot.sh` when that exists), and installs
-nothing that does not pass `codesign --verify --deep --strict`. Without an identity the
-app stays ad hoc and the log says so; `DS_BOT_REQUIRE_SIGN=1` turns that into a failure
-instead. After a swap nobody has to re-sign by hand; open **System Settings → Privacy &
-Security → Screen Recording / Accessibility**, remove the old DS Bot rows, and add the
-new app again. To sign an app that was copied into place by hand:
+`--install` verifies the bundle (executable, version), signs it, quits only the app
+running from `DS_BOT_SWAP_TARGET`, unregisters it from LaunchServices, moves it into
+`~/Library/Caches/ds-bot-swap/`, copies the new one, verifies the copy with
+`codesign --verify --deep --strict`, registers it again, and then deletes the copy it
+moved aside. A failed step puts the old app back and reopens it; a fourth swap of one
+bundle within ten minutes is refused as a restart loop (`--force` skips that check).
+Everything lands in `/tmp/ds-bot-swap.log`, and `DS_BOT_SWAP_TARGET` overrides the
+installed app path.
 
-```sh
-app/scripts/sign-app.sh "/Applications/DS Bot.app"
-```
+A copy that cannot be deleted at that moment is written to
+`~/.ds-bot/swap-pending.json`, and `--tidy` deletes exactly those paths once they are
+free; running it twice is harmless. `--tidy` also reports how many DS Bot apps
+`/Applications` holds, which should be one.
 
-`DS_BOT_SWAP_OPEN=0` leaves the installed app closed after the swap, which is what a
-test target wants; the swap only quits the app running from `DS_BOT_SWAP_TARGET`.
+The swap cache is a cache, not a backup: it holds the old app only for the swap
+window, so LaunchServices never sees a second bundle with this application's
+identifier.
+
+## Signing the app
+
+macOS keys the Screen Recording and Accessibility grants to the signing identity. An
+ad-hoc build gets a new cdhash every time, so the grants are asked for again after each
+rebuild; a build signed with a real certificate keeps them. The scripts expect a local
+Apple Development certificate:
+
+1. In Xcode, **Settings → Accounts** adds the Apple ID, then **Manage Certificates →
+   "+" → Apple Development** (it lands in the login keychain with its WWDR
+   intermediate).
+2. `security find-identity -v -p codesigning` lists one
+   `"Apple Development: <account> (<id>)"` line.
+3. `app/scripts/sign-app.sh "/path/to/DS Bot.app"` signs and verifies it; the swap runs
+   the same script before installing anything.
+
+`sign-app.sh` reads the identity from `security find-identity` at run time; on a machine
+with several, `DS_BOT_SIGN_IDENTITY` names the exact line to use. Without a valid
+identity the app stays ad-hoc and the script says so on one line;
+`DS_BOT_REQUIRE_SIGN=1` turns that into a failure, so nothing unsigned is installed.
+After a swap, open **System Settings → Privacy & Security → Screen Recording /
+Accessibility**, remove the old DS Bot rows, and add the new app again.
+
+Certificates and private keys never enter this repository: the `.p12` export, its
+password, and the keychain password stay in the keychain, and the scripts and docs name
+no account, team or certificate.
 
 ## Notes
 
