@@ -12475,6 +12475,7 @@ var ZH = {
   "Paused after {count} Bot relays. Waiting: {names}": "Bot 之间已接力 {count} 次，先停下了。还在等：{names}",
   "{names} went back and forth {count} times without progress and paused. Write here to go on": "{names} 来回 {count} 次没有进展，先停下了。你发言后继续",
   "{name} paused for your approval": "{name} 停下来等你批准",
+  "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} 停下来等你批准，但这条审批已失效，无法在这里批准；请让 {name} 重新发起。",
   "{name} started on it": "{name} 开始做了",
   "You stopped {name}'s work": "你停下了 {name} 的工作",
   "{name} finished its work": "{name} 做完了",
@@ -13393,6 +13394,7 @@ var FORK_COPY = {
   "allowed": "allowed",
   "rejected": "rejected",
   "tool call": "tool call",
+  "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.": "{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.",
   "Without one, the members' characters make the group icon.": "Without one, the members' characters make the group icon.",
   "Department": "Department",
   "Ungrouped": "Ungrouped",
@@ -27159,16 +27161,13 @@ function RelayEvent({ reply, bot, sessionId, actions }) {
     return (0, import_react34.createElement)("div", { className: "bt-event" }, t("{name} was cut off by a restart again and stopped", { name: bot.name }));
   }
   if (reply.kind === "approval") {
-    return reply.approvalId === void 0 ? (0, import_react34.createElement)(
+    if (reply.approvalId !== void 0) return (0, import_react34.createElement)(ApprovalRow, { key: reply.approvalId, reply, bot, actions });
+    return (0, import_react34.createElement)(
       "div",
-      { className: "bt-event" },
-      (0, import_react34.createElement)(
-        "button",
-        { type: "button", className: "bt-event-whole", onClick: () => actions.showDetails(sessionId) },
-        (0, import_react34.createElement)(BotMark, { bot, size: 16 }),
-        (0, import_react34.createElement)("span", { className: "bt-event-name" }, t("{name} paused for your approval", { name: bot.name }))
-      )
-    ) : (0, import_react34.createElement)(ApprovalRow, { key: reply.approvalId, reply, bot, actions });
+      { className: "bt-event bt-event-error", role: "status" },
+      (0, import_react34.createElement)(BotMark, { bot, size: 16 }),
+      (0, import_react34.createElement)("span", { className: "bt-event-name" }, t("{name} paused for your approval, but that approval has expired and cannot be answered here; ask {name} to ask again.", { name: bot.name }))
+    );
   }
   if (reply.kind === "approval-answer") {
     const choice = reply.choice === "allow" ? t("allowed") : t("rejected");
