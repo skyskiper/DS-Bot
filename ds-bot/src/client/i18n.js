@@ -1755,6 +1755,20 @@ const HOST_ZH = {
 }
 Object.assign(ZH, HOST_ZH)
 
+
+// Group approvals answered where they were asked.
+Object.assign(ZH, {
+  "You allowed it.": "已允许。",
+  "You rejected it.": "已拒绝。",
+  "This approval expired.": "这条审批已失效。",
+  Reject: "拒绝",
+  "Allow once": "允许一次",
+  "You {choice} {name}'s {tool}": "你已{choice} {name} 的 {tool}",
+  allowed: "允许",
+  rejected: "拒绝",
+  "tool call": "工具调用",
+})
+
 const ZH_TW = convertDict(ZH)
 const HOST_ERRORS_ZH_TW = convertHostErrors(HOST_ERRORS)
 
@@ -1771,6 +1785,15 @@ export const LANGUAGES = [
 // cards) is English in the other languages until someone translates it: the key is
 // the English copy, so an untranslated entry reads as English instead of the key.
 const FORK_COPY = {
+  "You allowed it.": "You allowed it.",
+  "You rejected it.": "You rejected it.",
+  "This approval expired.": "This approval expired.",
+  "Reject": "Reject",
+  "Allow once": "Allow once",
+  "You {choice} {name}'s {tool}": "You {choice} {name}'s {tool}",
+  "allowed": "allowed",
+  "rejected": "rejected",
+  "tool call": "tool call",
   "Without one, the members' characters make the group icon.": "Without one, the members' characters make the group icon.",
   'Department': 'Department',
   'Ungrouped': 'Ungrouped',
