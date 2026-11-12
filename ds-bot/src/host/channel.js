@@ -62,6 +62,8 @@ export function install(rt) {
   const modelsKey = () => `${rt.cachedCatalog().map(entry => `${entry.ref}${entry.needsKey ? '!' : ''}${entry.reasoning ? `:${JSON.stringify(entry.reasoning)}` : ''}`).join(',')}|${rt.cachedDefault() ?? ''}`
   const view = () => ({
     revision: state.revision,
+    // The composer probe follows this instead of a console: touch the flag to ask for it.
+    composerDebug: rt.composerDebugFlag?.() === true,
     workspaceId: state.workspaceId ?? null,
     // The sidebar's org tree: the four built-ins in their fixed order, then the
     // departments the user made. A Bot names its own by `department`, or null.
@@ -237,6 +239,8 @@ export function install(rt) {
     return rt.save()
   }
 
+  // Set per request from the probe's header, so the debug sink stays closed by default.
+  let composerFlapsRequested = false
   const handle = async (endpoint, payload, signal) => {
     try {
       const body = payload ?? {}
@@ -244,6 +248,11 @@ export function install(rt) {
       const readOnly = rt.readOnly()
       if (readOnly !== undefined && !READS.has(endpoint)) return fail(readOnly, 'bot/read-only')
       switch (endpoint) {
+        case 'debug-composer': {
+          const result = await rt.appendComposerFlaps(body.events, { enabled: composerFlapsRequested || process.env.DS_BOT_COMPOSER_DEBUG === '1' })
+          if (result.status === 403) return fail(result.message, 'bot/refused')
+          return ok(result)
+        }
         case 'state': {
           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
           if (readOnly === undefined) await rt.bootstrap()
@@ -886,8 +895,13 @@ export function install(rt) {
     fetch: async (request) => {
       let body
       try { body = await request.json() } catch { body = {} }
+      // Read once per request: the composer probe's debug switch rides on this header.
+      composerFlapsRequested = request.headers?.get?.('x-ds-bot-composer-debug') === '1'
       const result = await handle(String(body?.endpoint ?? ''), body?.payload, request.signal)
-      return new Response(JSON.stringify(result), { status: 200, headers: { 'content-type': 'application/json' } })
+      // The debug sink answers a real 403 when it is closed, so a caller that forgot the
+      // switch cannot mistake the refusal for a written record.
+      const status = body?.endpoint === 'debug-composer' && result.ok === false ? 403 : 200
+      return new Response(JSON.stringify(result), { status, headers: { 'content-type': 'application/json' } })
     },
   }), 'ds-bot: api route')
 
