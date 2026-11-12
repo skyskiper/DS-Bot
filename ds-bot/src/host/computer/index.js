@@ -609,6 +609,8 @@ export function install(rt) {
     for (const map of sessionApps.values()) {
       for (const app of map.values()) if (app.key === key) return app.name
     }
+    // A copied home can carry a record whose key was never filled in: name what we have.
+    if (typeof key !== 'string' || key === '') return 'an app'
     return key.startsWith('selector:') ? key.slice(9) : key.startsWith('pid:') ? `pid ${key.slice(4)}` : 'an app'
   }
 
@@ -648,9 +650,15 @@ export function install(rt) {
         if (ctl.waitingFor === 'app-access') ctl.waitingFor = undefined
         settleControl(botId)
         resolve(answer)
+        // The group card waits on this same answer: settle it with the card.
+        rt.noteAppAccessDone?.({ sessionId, questionId: id, answer })
       },
     }
     pendingAsks.set(id, entry)
+    // This is where the user is asked, so this is where a group learns of it: the
+    // provider's question never reaches the group's own observer (this module answers
+    // it first), and a gate decision below asks without any provider question at all.
+    rt.noteAppAccessAsk?.({ sessionId, botId, questionId: id, appName: app.name, callId })
     const ctl = controlOf(botId)
     if (ctl.state !== 'user') {
       ctl.state = 'waiting'

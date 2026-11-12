@@ -23,6 +23,132 @@
 - 桌面 App 已装 0.4.0（`/Applications/DS Bot.app`，Apple Development 签名）。
 - 我们的定制功能（合并后全部保留）：群自定义头像、部门树（`state.departments`）+ 主 Bot 磁贴、会话地图、图片翻页（含 Markdown 正文图）、群卡片五态（ledger 行渲染）、卡片答案持久化、UI E2E 通道。
 - 已知有意分歧：上游 `sections` UI 不接（只留 `state.sections` 字段），见 `/Users/xialingpeng/DS Bot/STATUS.md`。
+- 群问题卡·隔离取证结论（2026-11-13 凌晨，最终）：
+  1. **`user-questions/request` 确实 emit**：注入一次 ask 时 `internal/dispatch` 观测到
+     `{"kind":"dispatch","type":"waterfall","args":2,"thisArg":"object"}`，此前「事件到不了」的结论作废
+     （当时并没有真的 ask 发生）。`hasFilter:false` 是探针用了 `Symbol.for('cordis.filter')`、
+     而 carrier 用的是 `Context.filter`，该项不作数。
+  2. **注入式 ask 会被立刻结束**：`groupQuestionsSync` 的触发点（`channel.js:259`，`case 'state'`）
+     已用页面内 `fetch('/api/bot',{endpoint:'state'})` 实测 200 且执行（返回含 `revision`），
+     但房间 ledger 的 `group-question` 仍为 0 —— 因为 `waits` 一直是空：注入的 ask 在 waterfall 内
+     被拒（`assertLiveRoot`：该成员会话此刻没有在跑的轮次），我们的 `.catch` 吞掉了错误。
+  3. **隔离实例跑不了模型**（本条是取证的天花板）：真实 App 进程（端口反查 pid=85545，正是 Web GUI
+     65101 的宿主）环境里 `OCTO_API_KEY` 命中 **0**；`~/.ds-bot/bot/secrets.json` 的 `secrets` 是
+     list，唯一的键名是 `IM_WEIXIN_9C1EF6_TOKEN`。副本 home 里模型侧因此报
+     `MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "octo"`（ledger notice 原文），
+     轮次 1 秒内失败、`inflight turns: []`。
+  **已验证**：`user-questions/request` 会 emit（dispatch 行）；`groupQuestionsSync` 触发点可用
+  （页面内 `state` 200 且执行）；`ctx.get('userQuestions')` 为 object、`waits` 为 Map；卡片渲染代码
+  （`cells.js` 的 `group-question` 分支）已就绪；兜底同步逻辑四检通过。
+  **待真机验证**：一次真实轮次里的 `waits` 条目、房间 ledger 的 `group-question` 行、群里卡片渲染、
+  点「打开会话」作答后切「已回答」。
+  **复现配方**：`cp -Rc ~/.ds-bot /tmp/gq-src` → `cp -Rc /tmp/gq-src/profiles/ds-bot
+  /tmp/gq-src/profiles/desktop` → `DSH_E2E_SOURCE=/tmp/gq-src node dev/ui-e2e.mjs serve --keep`
+  （只重启隔离实例；用完 `pkill -f "ui-e2e.mjs serve"` + `rm -rf /tmp/gq-src`）。
+  结论：**除「真实轮次触发」外整条链路要素都在**（emit 有、sync 触发点可用、卡片渲染代码就绪），
+  但要拿到「waits 有条目 → 群里落卡 → 作答 → 结算」的端到端证据，必须在有真实模型轮次的环境里做一次。
+  下一步（阶段二）：按「只给路径」方案交付，并把「真实触发一次」单列为开放项；若要做隔离端到端，
+  需要把 credentials 服务里的 octo 条目只读复制进副本 home（不允许复制明文密钥到日志/仓库）。
+## 群问题卡：四条根因（2026-11-13，最后一条是真正的拦路虎）
+
+1. **`waits` 只收定时提问**：`UserQuestionService.waits` 只在 `askTimed` 里写入；
+   cua 的「应用访问」走无超时 `ask`，**永远不进 waits**——靠轮询 waits 出卡是死路。
+2. **`groupQuestionsSync` 取 callId 取错**：内层 Map 的 **key** 才是 callId，value 是
+   `TimedQuestionWait`（没有 id 字段）；要用 `calls.keys()`。
+3. **`appNameOf` 的 null key**：`src/host/computer/index.js` 的 `appNameOf(key)` 直接
+   `key.startsWith(...)`，历史/副本数据里可能有 null key，state 因此抛
+   `Cannot read properties of null (reading 'startsWith')`；已加守卫返回 `'an app'`。
+4. **请求到不了群观察者（真正原因）**：`MODULES` 里 `groupQuestions` 在 `computer` 之前 install，
+   两者都 `prepend`，而 cordis 的 `prepend` 是 `unshift`（`cordis/src/events.ts:264`）——
+   **后注册的排前面**；`computerConsent`（`computer/index.js:674`）命中 cua 的 `cua-app-access`
+   后**直接 return 答案、不调 `next()`**，waterfall 到此结束（`events.ts` 注释原话：不调 next 的
+   监听器否决后面的链）。所以之前「探针文件从不生成」不是 DSH 没派发，是它被本插件自己吃掉。
+   同一个 module 还有第二条路径更彻底：前置 gate（`computer/index.js` 的 `computerGate` →
+   `driverConsent`）在应用已认识时**根本不发 DSH 请求**，只画自己的卡。
+   → 结论：群卡要从 **DS Bot 自己的 `askAppAccess`** 处 raise，在那张卡被 resolve 处 settle，
+   不能只依赖 `user-questions/request`。
+   实现：`computer/index.js` 调 `rt.noteAppAccessAsk` / `rt.noteAppAccessDone`，
+   `group-questions.js` 提供这两个钩子（提交 `5247a59d`）。
+
+### 同一条链上顺手修掉的三个坑（`5247a59d`）
+
+- **兜底会当场结算卡**：`groupQuestionsSync` 原本把「不在 waits 里」当成「问题没了」，
+  而无超时 ask 从来不在 waits 里——第一次 `state` 读（客户端 `pull()` 每 1.5 s 一次，
+  `client/index.js:265`）就把刚出的卡结算成「已回答」。现在只结算 `source === 'waits'` 的记录。
+- **无超时 ask 的 questionId 是常量**：原用 `questions[0].id`（= `cua-app-access`），
+  同一会话第二个问题被 `settled` 挡掉、永不出卡；改为 `cua-app-access-<uuid>`。
+- **客户端「已回答」匹配错字段**：`cells.js` 用 `requestId` 比对，但 `groups.js` 的 `rowOf`
+  不放 `requestId` 出来 → 两边都是 undefined，任何一条回答行会标记同屏所有卡；改用 `questionId`。
+
+### 群卡按钮必须落在可作答的视图（2026-11-13，真机验出的缺陷）
+
+可作答的 `PendingAppAccess` 只在 **DS Bot 自己的聊天面**渲染（`client/computer.js` 的
+`AppAccessDock` 挂在 `conversation.input.dock`，`AppAccessCall` 挂在会话里），shell 的
+**raw 视图不画它**。原来群卡唯一按钮走 `openRawSession(sessionId)`，点进去是一张点不动的卡，
+用户根本没法作答。现在按钮走 `openSession(botId)`（等同侧栏点这个 Bot），**raw 只做兜底**，
+仅当该 Bot 已不在 roster、没有聊天面可开时使用。回归用例：
+`test/group-question-client.test.js`「the group card opens the Bot chat that can answer,
+not the raw Session」——点群卡按钮后，目标视图里必须真的画出 Deny / This time / Always。
+
+### 「需我处理」里的待处理项从哪来（2026-11-13，查过，不是缺陷）
+
+真机上出现过一次误判：群卡已经「已回答。」，侧栏「需我处理」还挂着「测试丙 等你回答」。
+查清了：那一项**不是 cua 的提问**，是 测试丙 **自己聊天**里一张没回答的 `ask_user` 卡
+（侧栏那行下面的预览文字是它的问题「我接下来重点做什么？」）。
+
+- `state.questions` 只有 `ask_user` 工具写（`src/host/tools.js:733`），会话被换掉时由
+  `parts.js` 迁走；cua 的应用访问（`askAppAccess`）和群问题卡都**不写** `state.questions`
+  （`grep state.questions src/host/computer/index.js src/host/group-questions.js` = 0 行），
+  它的卡在 `pendingAsks`，侧栏那一栏根本不显示它。
+- 那张 ask_user 卡按设计等用户回答：`ask_user` 会 `concludeTurn()` 结束当轮，之后**用户
+  往那个会话发下一条消息**时才清（`src/host/turns.js:931`）。测试脚本一直在群里发消息，
+  没再进 测试丙 自己的聊天，所以它一直挂着——这是对的，不是漏清。
+- 验证配方（不用起 App）：`python3 -c` 读 `<home>/bot/state.json` 的 `questions` 键，
+  再对一下 bot/room 的 session id；cua 的提问不会出现在这里。
+
+### 怎么用测试通道跑一遍验证
+
+```sh
+cd "/Users/xialingpeng/DS Bot/test-channel"
+bin/run.sh          # 备环境 → 造数据 → 五步 → 判据 → 证据 → 清场
+```
+证据落 `~/.ds-bot-test/bot/test-runs/<时间戳>/`（同时在 `test-channel/evidence/` 留副本），
+判据是 `report.md` 里的 PASS/FAIL。窗口一律隐藏 + 挪到屏外；要新帧截图时借左虚拟屏
+`(-1920,-51)`，截完立刻收回（`bin/guard-window.sh`）。
+
+## 真机收口方案（群问题卡，一次打完）
+
+前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
+仓库 link 只让 DSH 页面拿到新代码，App 里是包内 `client.js`。
+
+1. **打新包**（不需要用户同意；约 1 分钟 Node 22 + 2 分钟 pack）
+   - `git worktree add /tmp/dsb-<commit> origin/personal/main`（或交付分支）；
+   - `cd app && npm install`（`npm ci` 会因 lock 缺 `ws@8.22.2` 失败）→
+     `ELECTRON_BUILDER_CACHE=/tmp/eb-cache DS_BOT_RUNTIME_CACHE=/tmp/dsb-runtime-cache npm run dist`；
+   - 判据：`/tmp/dsb-<commit>/DS Bot.app` + zip 生成；包内 `client.js` 的 sha256 与仓库一致；
+     `swap-app.sh --stage "/tmp/…/DS Bot.app"` 输出 `nothing was changed`。
+2. **安装覆盖 `/Applications/DS Bot.app`** —— **唯一必须用户同意的一步**（会退出当前 App 一次）。
+   - 用 `app/scripts/swap-install-job.example` 起的 launchd job（不要手写脚本、不要 `launchctl submit` 裸跑）；
+   - 判据：装完 `--tidy` 后 `/Applications` 只有一个 `DS Bot.app`、`codesign --verify --deep --strict` exit 0。
+3. **造一次真实 ask**（不需要用户同意；App 重启后由我执行）
+   - 选一个**该会话没授权过**的应用：在群里让某成员调 `cua.getApp("<未授权应用>")`；
+   - 判据：`~/.ds-bot/bot/question-probe.jsonl` 出现 `kind:"dispatch"`，且 `waits` 从 `Map(0)` 变 `Map(1)`。
+4. **群里出卡**（自动；判据看 ledger 不看 UI）
+   - 判据：`grep '"kind":"group-question"' ~/.ds-bot/bot/ledger/group-session-*.jsonl` 有行（含 `sessionId`/`botId`），
+     随后群里可见「{name} 在自己的会话里等你回答。」+「打开 {name} 的会话」。
+5. **点「打开会话」作答**（脚本点，不用用户；不需要额外授权）
+   - 这版 App 里 cua 的应用访问**没有 DSH 原生卡**：请求由 DS Bot 接管，画的是 DS Bot 的卡
+     （`src/client/computer.js` 的 `PendingAppAccess`），按钮是 **Deny / This time / Always**，
+     出现在**那个 Bot 自己的会话**里。
+   - 判据：点 **This time** → 只写内存里的会话决策（重建数据就干净）；点 Always 会写
+     `bot.computer.apps` 进 state.json，第二次就不出卡了。
+   - macOS TCC 是另一回事：测试 App 换了 bundle id，系统视作另一个 App；真去控制应用时可能弹
+     辅助功能/屏幕录制授权（只能人点）。验「出卡→作答→切已回答」不需要它。
+6. **卡片切「已回答」**
+   - 判据：`grep '"kind":"group-question-answer"'` 出现，对应 `questionId`；群里卡片按钮消失、显示「Answered.」。
+
+已知取舍：群卡不设超时（无人回答则那一轮一直挂着）；要清理只做事件驱动（用户在该群发新消息时把上一轮未答的卡标失效），不加定时器。
+
 - 已知技术债（群问题卡读 pending）：群成员待答的提问从 `ctx.get('userQuestions').waits` 读取——那是
   DSH `UserQuestionService` 的 **TS private** 字段（`packages/interaction/user-questions/src/index.ts`），
   没有公开 API。读取做了结构探测 + try/catch，拿不到就静默不出卡，不影响 state。上游一旦提供公开 API
