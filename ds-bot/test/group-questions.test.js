@@ -44,7 +44,7 @@ test('a group question becomes a card in the room instead of failing', async () 
 
 test('the listener takes its place ahead of DSH’s own answerer', () => {
   const { listener } = bench()
-  assert.deepEqual(listener.options, { prepend: true })
+  assert.deepEqual(listener.options, { prepend: true, global: true })
 })
 
 test('a Session that is not a group keeps DSH’s own card', async () => {
@@ -74,3 +74,4 @@ test('an aborted question closes its card and answers nothing', async () => {
   assert.equal(lines.some(line => line.kind === 'group-question-answer'), true)
   assert.throws(() => rt.answerGroupQuestion(card.requestId, [{ id: 'cua-app-access', selected: ['Deny'] }]), error => error?.code === 'bot/stale', 'no answer after the abort')
 })
+
