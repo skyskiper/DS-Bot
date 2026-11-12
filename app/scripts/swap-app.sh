@@ -16,7 +16,11 @@
 #
 # `DS_BOT_SWAP_JOB` names that launchd job, so the script can take it down when it ends
 # as the job's own process. A wrapper that scheduled the job keeps it: this script only
-# removes a job whose running process is itself, so steps after it still run.
+# removes a job whose running process is itself, so steps after it still run. That
+# wrapper must remove the job LAST — launchd starts a submitted job again about every
+# ten seconds, and without the removal it reinstalls the app over and over. The template
+# app/scripts/swap-install-job.example shows the order: --install, the checks and
+# --tidy, then `launchctl remove "$DS_BOT_SWAP_JOB"`.
 #
 # How it stays safe:
 #   * --stage verifies the new bundle, says what will move where, and touches nothing
@@ -57,7 +61,7 @@ MODE=""
 NEW=""
 FORCE=0
 usage() {
-  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
 }
 for arg in "$@"; do
   case "$arg" in
@@ -239,7 +243,7 @@ install() {
     if [ "$pid" = "$$" ]; then
       launchctl remove "$DS_BOT_SWAP_JOB" >/dev/null 2>&1 || true
     else
-      say "swap: job $DS_BOT_SWAP_JOB belongs to another process (pid ${pid:-not listed}); not removing it"
+      say "swap: job $DS_BOT_SWAP_JOB belongs to another process (pid ${pid:-not listed}); not removing it — its wrapper must remove it last (see app/scripts/swap-install-job.example)"
     fi
   }
   cleanup() {
