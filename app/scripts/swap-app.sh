@@ -100,7 +100,9 @@ lsregister() {
   [ -x "$tool" ] || return 0
   "$tool" "$@" >/dev/null 2>&1 || say "swap: lsregister $* reported a problem (ignored)"
 }
-running_from_target() { pgrep -f "$TARGET/Contents/MacOS/DS Bot" >/dev/null; }
+# Any process launched from the bundle means the app is up: its helpers live under
+# $TARGET/Contents/Frameworks, and a sandbox can hide the main process from pgrep.
+running_from_target() { pgrep -f "$TARGET/" >/dev/null 2>&1; }
 
 # The new bundle, before anything is touched.
 check_bundle() {
