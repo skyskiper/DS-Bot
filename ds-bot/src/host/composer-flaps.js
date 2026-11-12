@@ -2,11 +2,15 @@
 // remounts, and this appends those records to a file the owner of the machine can read
 // without a console. Off unless asked for, and it stops after a bounded number of lines so
 // a forgotten switch cannot fill the disk.
+import { existsSync } from 'node:fs'
 import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 export const MAX_LINES = 50_000
 const FILE = 'composer-flaps.jsonl'
+// Touching this file asks for the probe, so whoever wants it needs no console: the state
+// the browser reads carries `composerDebug`, and the probe follows it.
+export const FLAG = 'composer-debug.flag'
 
 export function install(rt) {
   const path = join(rt.home, FILE)
@@ -31,4 +35,5 @@ export function install(rt) {
     return { status: 200, written: take.length, lines, ...(lines >= MAX_LINES ? { stopped: true } : {}) }
   }
   rt.composerFlapsPath = path
+  rt.composerDebugFlag = () => existsSync(join(rt.home, FLAG))
 }

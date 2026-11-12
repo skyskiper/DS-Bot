@@ -8,13 +8,29 @@ import { createElement as h, useEffect } from 'react'
 const KEY = 'ds-bot:composer-debug'
 const MAX = 400
 const state = { on: false, since: 0, last: null, flaps: [], mounts: [] }
+// What the host's state says: the flag file is the switch someone can flip without a console.
+let fromState = false
 
 function wanted() {
   try {
-    return window.localStorage.getItem(KEY) === '1' || new URLSearchParams(window.location.search).has('bt-composer-debug')
-  } catch {
-    return false
-  }
+    const stored = window.localStorage.getItem(KEY)
+    if (stored === '1') return true
+    if (stored === '0') return false
+    const param = new URLSearchParams(window.location.search).get('bt-composer-debug')
+    if (param === '1') return true
+    if (param === '0') return false
+  } catch {}
+  return fromState
+}
+
+/** Follows the host's flag file; an explicit localStorage or URL choice still wins. */
+export function setComposerDebug(on) {
+  if (fromState === on) return
+  fromState = on
+  const next = wanted()
+  if (next === state.on) return
+  state.on = next
+  console.info(`[ds-bot] composer probe ${state.on ? 'on' : 'off'} (composer-debug.flag)`)
 }
 
 function record(list, entry) {

@@ -36506,12 +36506,26 @@ var import_react55 = require("react");
 var KEY = "ds-bot:composer-debug";
 var MAX2 = 400;
 var state = { on: false, since: 0, last: null, flaps: [], mounts: [] };
+var fromState = false;
 function wanted() {
   try {
-    return window.localStorage.getItem(KEY) === "1" || new URLSearchParams(window.location.search).has("bt-composer-debug");
+    const stored = window.localStorage.getItem(KEY);
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+    const param = new URLSearchParams(window.location.search).get("bt-composer-debug");
+    if (param === "1") return true;
+    if (param === "0") return false;
   } catch {
-    return false;
   }
+  return fromState;
+}
+function setComposerDebug(on) {
+  if (fromState === on) return;
+  fromState = on;
+  const next = wanted();
+  if (next === state.on) return;
+  state.on = next;
+  console.info(`[ds-bot] composer probe ${state.on ? "on" : "off"} (composer-debug.flag)`);
 }
 function record(list, entry) {
   list.push(entry);
@@ -42267,6 +42281,7 @@ function apply(ctx) {
     if (order < applied) return;
     applied = order;
     if (value.liveKey !== void 0) liveKey = value.liveKey;
+    if (value.composerDebug !== void 0) setComposerDebug(value.composerDebug === true);
     if (value.activity !== void 0) {
       const nextActivity = JSON.stringify(value.activity);
       if (nextActivity !== activityKey) {

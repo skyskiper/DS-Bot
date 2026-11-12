@@ -62,6 +62,8 @@ export function install(rt) {
   const modelsKey = () => `${rt.cachedCatalog().map(entry => `${entry.ref}${entry.needsKey ? '!' : ''}${entry.reasoning ? `:${JSON.stringify(entry.reasoning)}` : ''}`).join(',')}|${rt.cachedDefault() ?? ''}`
   const view = () => ({
     revision: state.revision,
+    // The composer probe follows this instead of a console: touch the flag to ask for it.
+    composerDebug: rt.composerDebugFlag?.() === true,
     workspaceId: state.workspaceId ?? null,
     // The sidebar's org tree: the four built-ins in their fixed order, then the
     // departments the user made. A Bot names its own by `department`, or null.

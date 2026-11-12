@@ -19,7 +19,7 @@ import { SIDE_CSS, sideSource } from './side-chat.js'
 import { VOICE_BUNDLE, closingReplyText, requestPreparation } from './speech.js'
 import { sameVersion } from './dsh-offer.js'
 import { QuestionCard, QuestionDock } from './questions.js'
-import { installComposerProbe, noteComposerSelect, probeComposerTakeover } from './composer-probe.js'
+import { installComposerProbe, noteComposerSelect, probeComposerTakeover, setComposerDebug } from './composer-probe.js'
 import { AnsweredReply, WidgetDock, WIDGET_CSS } from './widget-cell.js'
 import { HandoffDock, HANDOFF_CSS } from './handoff-card.js'
 import { AppAccessDock, ComputerHandoffDock, ComputerIndicator, COMPUTER_CSS } from './computer.js'
@@ -194,6 +194,7 @@ export function apply(ctx) {
     if (order < applied) return
     applied = order
     if (value.liveKey !== undefined) liveKey = value.liveKey
+    if (value.composerDebug !== undefined) setComposerDebug(value.composerDebug === true)
     if (value.activity !== undefined) {
       const nextActivity = JSON.stringify(value.activity)
       if (nextActivity !== activityKey) { activityKey = nextActivity; activity.set(value.activity) }

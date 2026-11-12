@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { install, MAX_LINES } from '../src/host/composer-flaps.js'
+import { install as installChannel } from '../src/host/channel.js'
 
 // The composer probe's sink refuses by default: nothing is written unless the caller's
 // gate (the environment variable or the request's debug header) opened it.
@@ -47,4 +48,84 @@ test('the sink stops at its line limit instead of filling the disk', async (t) =
   assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, MAX_LINES)
   const after = await rt.appendComposerFlaps([{ ms: 1, event: 'mount' }], { enabled: true })
   assert.deepEqual([after.written, after.stopped], [0, true])
+})
+
+test('the state the browser reads says whether the flag file asks for the probe', (t) => {
+  const { rt } = sink(t)
+  assert.equal(rt.composerDebugFlag(), false)
+  writeFileSync(join(rt.home, 'composer-debug.flag'), '')
+  assert.equal(rt.composerDebugFlag(), true)
+})
+
+// The endpoint itself, not only the sink: a request without the switch must not write.
+const endpoint = (t) => {
+  let route
+  const { rt, file, home } = sink(t)
+  const ctx = {
+    logger: { warn() {}, info() {} },
+    get: () => undefined,
+    on: () => () => {},
+    effect: (execute) => { execute() },
+    tools: { register: () => () => {}, guard: () => () => {}, schemas: () => [] },
+    systemPrompt: { section: () => () => {} },
+    connection: { fetch: { register(entry) { route = entry; return () => {} } } },
+    llm: { listProviders: () => [] },
+  }
+  Object.assign(rt, {
+    ctx,
+    state: { revision: 0, bots: {}, rooms: {}, exchanges: [], questions: {}, agents: {}, secretRequests: {}, prefs: {} },
+    save: async () => {},
+    refresh: async () => {},
+    readOnly: () => undefined,
+    load: async () => {},
+    bootstrap: async () => {},
+    catalog: async () => {},
+    loadSecrets: async () => {},
+    cachedCatalog: () => [],
+    cachedDefault: () => undefined,
+    reasoningOf: () => undefined,
+    providersView: async () => ({}),
+    secretsView: () => ({}),
+    capabilityLibraryView: () => ({}),
+    activityView: () => ({}),
+    workView: () => ({}),
+    roomWorkView: () => ({}),
+    approvalsView: () => ({}),
+    waitingView: () => ({}),
+    turnsView: () => ({}),
+    memoryNews: () => ({}),
+    memoryReviews: () => ({}),
+    connectorsView: () => ({}),
+    capabilityStatusesView: () => ({}),
+    phoneView: () => null,
+    phoneServe: () => {},
+    selfOf: () => undefined,
+    warn() {},
+  })
+  installChannel(rt)
+  const post = async (header) => {
+    const response = await route.fetch({
+      json: async () => ({ endpoint: 'debug-composer', payload: { events: [{ ms: 1, event: 'mount' }] } }),
+      headers: { get: name => (name === 'x-ds-bot-composer-debug' ? header : null) },
+      signal: new AbortController().signal,
+    })
+    return { status: response.status, body: await response.json() }
+  }
+  return { post, file, home }
+}
+
+test('the debug endpoint answers 403 and writes nothing without the switch', async (t) => {
+  const { post, file } = endpoint(t)
+  const { status, body } = await post(null)
+  assert.equal(status, 403)
+  assert.equal(body.ok, false)
+  assert.deepEqual([body.error?.code, existsSync(file)], ['bot/refused', false])
+})
+
+test('the debug endpoint writes the records when the request asks for it', async (t) => {
+  const { post, file } = endpoint(t)
+  const { status, body } = await post('1')
+  assert.equal(status, 200)
+  assert.equal(body.value.written, 1)
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8').trim()), { ms: 1, event: 'mount' })
 })
