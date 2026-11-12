@@ -36,3 +36,13 @@ node_modules/
 
 # Bytecode from the record-browser-gif encoder's local media tests.
 __pycache__/
+
+# Machine-private scripts and values: a local copy of a repo script that carries this
+# machine's paths, signing identity or tokens. The committed *.example next to each one
+# shows the shape; see "Restoring the local scripts on another machine" in docs/self-host.md.
+app/scripts/*.local.sh
+app/scripts/local/
+ds-bot/dev/*.local.sh
+ds-bot/dev/local/
+*.local.env
+.env.local

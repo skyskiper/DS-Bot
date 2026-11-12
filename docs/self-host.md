@@ -114,21 +114,102 @@ The `before-pack` hook stops the build when the two `client.js` files differ. On
 app also drops its HTTP caches, so an updated `client.js` is never served from the old
 build's cache.
 
-`app/scripts/swap-app.sh` installs such a bundle over the running app:
+`app/scripts/swap-app.sh` installs such a bundle over the running app, in two steps:
 
 ```sh
-app/scripts/swap-app.sh "app/dist-pack/mac-arm64/DS Bot.app" --check   # verify only
+app/scripts/swap-app.sh --stage "app/dist-pack/mac-arm64/DS Bot.app"   # verify and print the plan
 
-# replace it from a job that is NOT a child of the app it replaces:
+# replace it from a job that is NOT a child of the app it replaces, once the user said yes:
 launchctl submit -l ds-bot-swap -- /bin/bash -c \
-  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" "/Applications/DS Bot.app"'
+  'sleep 3; DS_BOT_SWAP_JOB=ds-bot-swap "/path/to/repo/app/scripts/swap-app.sh" --install "/Applications/DS Bot.app"'
 ```
 
-The script verifies the new bundle (executable, signature, version) before the old one
-moves, keeps the old app as `DS Bot.app.bak-YYYYmmdd-HHMMSS` (the newest three),
-rolls back and reopens it when the copy fails verification, refuses a fourth swap of
-the same bundle within ten minutes, and logs to `/tmp/ds-bot-swap.log`. `DS_BOT_SWAP_TARGET`
-overrides the installed app path.
+`--stage` takes no lock, writes no log and signs nothing: it verifies the new bundle
+and prints what will move where, so the swap can be shown before it happens. A bare
+`swap-app.sh <app>` refuses; nothing is replaced without `--install`.
+
+`--install` verifies the bundle (executable, version), signs it, quits only the app
+running from `DS_BOT_SWAP_TARGET`, unregisters it from LaunchServices, moves it into
+`~/Library/Caches/ds-bot-swap/`, copies the new one, verifies the copy with
+`codesign --verify --deep --strict`, registers it again, and then deletes the copy it
+moved aside. A failed step puts the old app back and reopens it; a fourth swap of one
+bundle within ten minutes is refused as a restart loop (`--force` skips that check).
+Everything lands in `/tmp/ds-bot-swap.log`, and `DS_BOT_SWAP_TARGET` overrides the
+installed app path.
+
+A copy that cannot be deleted at that moment is written to
+`~/.ds-bot/swap-pending.json`, and `--tidy` deletes exactly those paths once they are
+free; running it twice is harmless. `--tidy` also reports how many DS Bot apps
+`/Applications` holds, which should be one.
+
+The swap cache is a cache, not a backup: it holds the old app only for the swap
+window, so LaunchServices never sees a second bundle with this application's
+identifier.
+
+## Signing the app
+
+macOS keys the Screen Recording and Accessibility grants to the signing identity. An
+ad-hoc build gets a new cdhash every time, so the grants are asked for again after each
+rebuild; a build signed with a real certificate keeps them. The scripts expect a local
+Apple Development certificate:
+
+1. In Xcode, **Settings → Accounts** adds the Apple ID, then **Manage Certificates →
+   "+" → Apple Development** (it lands in the login keychain with its WWDR
+   intermediate).
+2. `security find-identity -v -p codesigning` lists one
+   `"Apple Development: <account> (<id>)"` line.
+3. `app/scripts/sign-app.sh "/path/to/DS Bot.app"` signs and verifies it; the swap runs
+   the same script before installing anything.
+
+`sign-app.sh` reads the identity from `security find-identity` at run time; on a machine
+with several, `DS_BOT_SIGN_IDENTITY` names the exact line to use. Without a valid
+identity the app stays ad-hoc and the script says so on one line;
+`DS_BOT_REQUIRE_SIGN=1` turns that into a failure, so nothing unsigned is installed.
+After a swap, open **System Settings → Privacy & Security → Screen Recording /
+Accessibility**, remove the old DS Bot rows, and add the new app again.
+
+Certificates and private keys never enter this repository: the `.p12` export, its
+password, and the keychain password stay in the keychain, and the scripts and docs name
+no account, team or certificate.
+
+## Machine-private settings
+
+A machine may need values that must never reach the repository: this machine's signing
+identity, another app path, another profile, a token. Each script reads those from a
+local file that git ignores, and the repository keeps only a template:
+
+| script | local file (ignored) | template |
+| --- | --- | --- |
+| `app/scripts/sign-app.sh` | `app/scripts/sign-app.local.sh` | `sign-app.local.sh.example` |
+| `app/scripts/swap-app.sh` | `app/scripts/swap-app.local.sh` | `swap-app.local.sh.example` |
+| `ds-bot/dev/self-host.sh` | `ds-bot/dev/self-host.local.sh` | `self-host.local.sh.example` |
+
+On a new machine:
+
+```sh
+cp app/scripts/sign-app.local.sh.example app/scripts/sign-app.local.sh
+cp app/scripts/swap-app.local.sh.example app/scripts/swap-app.local.sh
+cp ds-bot/dev/self-host.local.sh.example ds-bot/dev/self-host.local.sh
+# open the copies and fill in this machine's values; keep the templates as they are
+
+git check-ignore -v app/scripts/sign-app.local.sh   # prints the rule that ignores it
+git status                                          # shows no *.local.sh
+```
+
+A script sources its local file when the file exists, so no other step is needed: run
+the script as usual. A local file that is not there means the defaults apply.
+
+Before a commit, run the scan that looks for the same values in the machine-private
+files and in everything staged:
+
+```sh
+ds-bot/dev/check-secrets.sh
+# check-secrets: 0 findings
+```
+
+It exits non-zero, with one line per finding, when it meets a token, a private key
+block, an email address, or a certificate file on its way into the commit. Placeholders
+such as `<account>` or `/path/to/...` are fine.
 
 ## Notes
 
