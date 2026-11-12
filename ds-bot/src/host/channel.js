@@ -248,6 +248,9 @@ export function install(rt) {
       const readOnly = rt.readOnly()
       if (readOnly !== undefined && !READS.has(endpoint)) return fail(readOnly, 'bot/read-only')
       switch (endpoint) {
+        case 'answer-group-question': {
+          return ok(rt.answerGroupQuestion(body.requestId, body.answers))
+        }
         case 'debug-composer': {
           const result = await rt.appendComposerFlaps(body.events, { enabled: composerFlapsRequested || process.env.DS_BOT_COMPOSER_DEBUG === '1' })
           if (result.status === 403) return fail(result.message, 'bot/refused')

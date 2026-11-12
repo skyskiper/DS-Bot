@@ -23,6 +23,9 @@
 - 桌面 App 已装 0.4.0（`/Applications/DS Bot.app`，Apple Development 签名）。
 - 我们的定制功能（合并后全部保留）：群自定义头像、部门树（`state.departments`）+ 主 Bot 磁贴、会话地图、图片翻页（含 Markdown 正文图）、群卡片五态（ledger 行渲染）、卡片答案持久化、UI E2E 通道。
 - 已知有意分歧：上游 `sections` UI 不接（只留 `state.sections` 字段），见 `/Users/xialingpeng/DS Bot/STATUS.md`。
+- 已知取舍（群问题卡）：群里接管的用户提问（cua 的「应用访问」）**不设任何超时**，没人回答那张卡
+  会让该成员那一轮一直挂着（用户明确选择：有入口就不用替他判死）。以后若出现僵尸轮次，加事件驱动
+  清理（例如用户在该群发新消息时把上一轮未答的卡标失效），**不要加定时器**。
 - 已知技术债（错误渲染）：工具失败在 DSH 自己的行里显示成 `Error: [object Object]`（宿主侧用
   `String(error)` 拼的），我们的 `ToolCell` 只画动作动词、不画错误正文，所以还没法用我们自己的文案替代。
   现在只在群 ledger/群消息里补了可读摘要（`kind:'stalled'` 带工具名与等待时长）；宿主侧未修。

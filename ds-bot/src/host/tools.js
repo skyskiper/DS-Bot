@@ -34,14 +34,6 @@ const GOAL_REFUSAL = 'Bot chats do not run /goal. To give a group a goal, use Se
 const SCHEDULE_TARGET_TOOLS = ['schedule_create', 'schedule_edit']
 const SCHEDULE_TARGET_REFUSAL = 'A Bot’s scheduled tasks run in its own chat. Use target "this_session".'
 const DELEGATION_REFUSAL = 'Bots do not start subagents, teammates or workflows. Do the work yourself, or hand it to another Bot with message_bot.'
-// Tools that answer the user with a question card (or a desktop dialog) before they run.
-// A group member's Session is hidden, so nothing can answer that card there and the call
-// waits forever: cua asks "Allow Computer Use to ...?" through questions.ask
-// (dsh's cua package, application-access.ts). DSH registers tools with name/parameters/
-// output/execute only, so this stays a name list until that gains a marker: TODO read the
-// marker instead of the list once upstream has one.
-const NEEDS_USER_ANSWER_TOOLS = new Set(['cua'])
-const GROUP_ANSWER_REFUSAL = 'This needs an answer to an "application access" card in the Bot\'s own chat; a group has no place for that card. Open this Bot\'s own chat and run the step there.'
 const MODE_PARAM = {
   type: 'string',
   enum: ROOM_MODES,
@@ -1066,7 +1058,6 @@ export function install(rt) {
   ctx.tools.guard((exec) => {
     if (!rt.isBotSession(exec.agent?.id)) return undefined
     if (exec.name === BLOCKING_QUESTION_TOOL) return `Bots cannot use ${BLOCKING_QUESTION_TOOL}. Ask with ask_user in your own chat, or ask in your reply.`
-    if (rt.groupOwners?.has(exec.agent?.id) && NEEDS_USER_ANSWER_TOOLS.has(exec.name)) return GROUP_ANSWER_REFUSAL
     const target = exec.arguments?.target
     if (SCHEDULE_TARGET_TOOLS.includes(exec.name) && target !== undefined && target !== 'this_session') return SCHEDULE_TARGET_REFUSAL
     return DELEGATION_TOOLS.includes(exec.name) ? DELEGATION_REFUSAL : undefined

@@ -2540,18 +2540,6 @@ test('an approval in a Bot\'s own chat is not a group row', async (t) => {
   await settle(() => first() !== undefined)
 })
 
-// A tool that answers the user with a card (cua's "application access") cannot work in a
-// group member's hidden Session: refuse it there, before the call waits forever.
-test('a group member cannot call a tool that waits for the user to answer a card', async (t) => {
-  const host = await start(t)
-  host.round('c1', host.say('@Writer 看一下应用'))
-  await settle(() => host.agentOf('gb').calls.length === 1)
-  const refusal = exec => rt.ctx.guards.map(guard => guard(exec)).find(text => text !== undefined)
-  assert.match(refusal({ agent: { id: 'gb' }, name: 'cua', arguments: {} }), /application access/)
-  // A Bot's own chat keeps it: the card has somewhere to show there.
-  assert.equal(refusal({ agent: { id: 'b' }, name: 'cua', arguments: {} }), undefined)
-})
-
 // A tool that never comes back (a card nobody can answer) ends the turn as stalled instead
 // of holding the round forever.
 test('a group tool that never comes back ends the turn as stalled', async (t) => {
