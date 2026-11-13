@@ -4,6 +4,7 @@
 // reaches the client. Layout numbers are the design's (design/float-proto/pill-d-spec).
 import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import { call } from './api.js'
+import { useEscape } from './overlay-hooks.js'
 import { t } from './i18n.js'
 import { TRAY_MAX, cardMeta, chipsHeight, chipsOf, landedIn, shortTitle, threadTitle } from './topics-view.js'
 
@@ -266,17 +267,12 @@ export function TopicsDock({ useRoster, useSessions }) {
     return () => clearTimeout(timer)
   }, [landing])
 
-  // Esc closes the card window first, then the stack.
-  useEffect(() => {
-    if (!expanded && cardNum === undefined) return undefined
-    const onKey = (event) => {
-      if (event.key !== 'Escape') return
-      if (cardNum !== undefined) setCardNum(undefined)
-      else setExpanded(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [expanded, cardNum])
+  // Escape takes one layer at a time: the card window first (and with it the stack that
+  // opened it), so the column underneath stays open until the next press.
+  useEscape(() => {
+    if (cardNum !== undefined) { setCardNum(undefined); setExpanded(false) }
+    else setExpanded(false)
+  }, expanded || cardNum !== undefined)
 
   useEffect(() => {
     if (cardNum === undefined) setCardAnchor(null)

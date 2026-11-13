@@ -17515,23 +17515,45 @@ var IMAGE_VIEWER_CSS = `
 @media (max-width:560px){.bt-imgview{width:calc(100vw - 24px);padding:8px}.bt-imgview-nav{width:32px;height:32px}.bt-imgview-count{font-size:11px}}
 `;
 
+// src/client/escape-stack.js
+var createEscapeStack = () => {
+  const layers = [];
+  const send = (event) => {
+    if (event?.key === "Escape") layers.at(-1)?.();
+  };
+  return {
+    push(close) {
+      layers.push(close);
+      return () => {
+        const at = layers.indexOf(close);
+        if (at >= 0) layers.splice(at, 1);
+        return layers.length;
+      };
+    },
+    press: (event) => send(event),
+    depth: () => layers.length
+  };
+};
+
 // src/client/overlay-hooks.js
 var import_react6 = require("react");
-var escapeLayers = [];
-var onEscapeKey = (event) => {
-  if (event.key === "Escape") escapeLayers.at(-1)?.current();
-};
-function useEscape(onClose) {
+var escapeLayers = createEscapeStack();
+var listening = 0;
+var onEscapeKey = (event) => escapeLayers.press(event);
+function useEscape(onClose, active = true) {
   const ref = (0, import_react6.useRef)(onClose);
   ref.current = onClose;
   (0, import_react6.useEffect)(() => {
-    if (escapeLayers.length === 0) window.addEventListener("keydown", onEscapeKey);
-    escapeLayers.push(ref);
+    if (!active) return void 0;
+    if (listening === 0) window.addEventListener("keydown", onEscapeKey);
+    listening += 1;
+    const off = escapeLayers.push(() => ref.current());
     return () => {
-      escapeLayers.splice(escapeLayers.indexOf(ref), 1);
-      if (escapeLayers.length === 0) window.removeEventListener("keydown", onEscapeKey);
+      off();
+      listening -= 1;
+      if (listening === 0) window.removeEventListener("keydown", onEscapeKey);
     };
-  }, []);
+  }, [active]);
 }
 
 // src/client/goal.js
@@ -18053,7 +18075,7 @@ var optionKeyCards = createSource(0);
 function useOptionKeys(count, onPick, ownRef) {
   const pick2 = (0, import_react10.useRef)(onPick);
   pick2.current = onPick;
-  const listening = (0, import_react10.useSyncExternalStore)(optionKeyCards.subscribe, optionKeyCards.getSnapshot);
+  const listening2 = (0, import_react10.useSyncExternalStore)(optionKeyCards.subscribe, optionKeyCards.getSnapshot);
   (0, import_react10.useEffect)(() => {
     if (count === 0) return void 0;
     optionKeyCards.set((value) => value + 1);
@@ -18077,7 +18099,7 @@ function useOptionKeys(count, onPick, ownRef) {
       optionKeyCards.set((value) => value - 1);
     };
   }, [count, ownRef]);
-  return count > 0 && listening <= 1;
+  return count > 0 && listening2 <= 1;
 }
 function QuestionView({ question, onAnswer, onDismiss, onInteract, busy = false, ownAnswer = false, raised = false, enterToSend = true }) {
   const [own, setOwn] = (0, import_react10.useState)("");
@@ -18936,7 +18958,7 @@ var keyCards = /* @__PURE__ */ (() => {
 function useOptionKeys2(count, onPick, ownRef) {
   const pick2 = (0, import_react13.useRef)(onPick);
   pick2.current = onPick;
-  const listening = (0, import_react13.useSyncExternalStore)(keyCards.subscribe, keyCards.getSnapshot);
+  const listening2 = (0, import_react13.useSyncExternalStore)(keyCards.subscribe, keyCards.getSnapshot);
   (0, import_react13.useEffect)(() => {
     if (count === 0) return void 0;
     keyCards.set((value) => value + 1);
@@ -18960,7 +18982,7 @@ function useOptionKeys2(count, onPick, ownRef) {
       keyCards.set((value) => value - 1);
     };
   }, [count, ownRef]);
-  return count > 0 && listening <= 1;
+  return count > 0 && listening2 <= 1;
 }
 
 // node_modules/deep-view/src/core/formula.js
@@ -36095,7 +36117,7 @@ var import_react_dom9 = require("react-dom");
 var speechApi = () => window.SpeechRecognition ?? window.webkitSpeechRecognition;
 var keepComposerFocus = (event) => event.preventDefault();
 function useDictation(onText) {
-  const [listening, setListening] = (0, import_react53.useState)(false);
+  const [listening2, setListening] = (0, import_react53.useState)(false);
   const [note, setNote] = (0, import_react53.useState)("");
   const recognition = (0, import_react53.useRef)(null);
   const latest = (0, import_react53.useRef)(onText);
@@ -36147,7 +36169,7 @@ function useDictation(onText) {
     }
   };
   const stop = () => recognition.current?.stop();
-  return { listening, note, start, stop };
+  return { listening: listening2, note, start, stop };
 }
 function ComposerVoice({ sessionId, inputActions, actions, useUi, useRoster }) {
   const enterToSend = useRoster((state2) => sendsOnEnter(state2.prefs));
@@ -43196,16 +43218,12 @@ function TopicsDock({ useRoster, useSessions }) {
     const timer2 = setTimeout(() => setLanding(null), 900);
     return () => clearTimeout(timer2);
   }, [landing]);
-  (0, import_react71.useEffect)(() => {
-    if (!expanded && cardNum === void 0) return void 0;
-    const onKey = (event) => {
-      if (event.key !== "Escape") return;
-      if (cardNum !== void 0) setCardNum(void 0);
-      else setExpanded(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded, cardNum]);
+  useEscape(() => {
+    if (cardNum !== void 0) {
+      setCardNum(void 0);
+      setExpanded(false);
+    } else setExpanded(false);
+  }, expanded || cardNum !== void 0);
   (0, import_react71.useEffect)(() => {
     if (cardNum === void 0) setCardAnchor(null);
   }, [cardNum]);
