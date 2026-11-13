@@ -602,6 +602,15 @@ export function install(rt) {
         case 'memory-add':
           await rt.load()
           return ok(await rt.mobileEndpoint(endpoint, body))
+        // A group's question card answers in place: the same resolve as the Bot's
+        // own card, and the ledger row is written by that resolve, not here.
+        case 'answer-group-question': {
+          if (typeof body.questionId !== 'string') return fail('Nothing to answer', 'bot/invalid')
+          const decision = ['deny', 'once', 'always'].includes(body.decision) ? body.decision : 'deny'
+          const answered = rt.answerGroupQuestion?.(body.questionId, decision) === true
+          if (!answered) return fail('This question is no longer waiting for an answer', 'bot/stale')
+          return ok({ answered: true, decision })
+        }
         case 'answer-question': {
           if (typeof body.sessionId !== 'string') return fail('Nothing to send', 'bot/invalid')
           await rt.load()

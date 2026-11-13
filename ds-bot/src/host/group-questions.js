@@ -125,6 +125,16 @@ export function install(rt) {
       return undefined
     }
   }
+  // The group's own buttons answer the card in place: resolve the same ask, so the
+  // session decision and any "always" grant land as if it were clicked in the Bot's
+  // chat. False once that ask is gone, and the caller then writes nothing.
+  rt.answerGroupQuestion = (questionId, decision) => {
+    if (typeof questionId !== 'string' || !['deny', 'once', 'always'].includes(decision)) return false
+    const record = [...seen.values()].find(item => item.questionId === questionId)
+    if (record === undefined || record.source !== 'ask') return false
+    return rt.answerAppAccessAsk?.(questionId, decision) === true
+  }
+
   rt.noteAppAccessDone = ({ sessionId, questionId, answer }) => {
     try {
       const record = typeof sessionId === 'string' && typeof questionId === 'string'

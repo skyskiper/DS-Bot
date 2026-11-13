@@ -1017,23 +1017,50 @@ export function RelayEvent({ reply, bot, sessionId, actions, botKnown = false, s
 }
 
 // A question a group member asked (cua's "application access", for one): its own Session is
-// hidden, so the group shows the card and answers it. Options are the asker's, verbatim.
+// hidden, so the group shows the card and answers it here. The three answers are the ones the
+// Bot's own card offers, and the host resolves the same ask, so the session decision and an
+// "always" grant land exactly as a click in that chat would.
 export function GroupQuestionRow({ reply, bot, botKnown = true, actions, settled = false }) {
-  // The card that answers is DS Bot's own, drawn in the Bot's chat: open that, which is
-  // what the sidebar opens. The shell's raw view of the Session never draws it, so it is
-  // only the fallback, for a Bot that left the roster and has no chat left to open.
+  const [state, setState] = useState('open')
+  const [error, setError] = useState('')
+  const answer = (decision) => {
+    if (state !== 'open' || reply.questionId === undefined) return
+    setState('busy')
+    setError('')
+    void Promise.resolve(actions.answerGroupQuestion?.(reply.questionId, decision)).then(
+      () => setState('answered'),
+      (failure) => {
+        const message = String(failure?.message ?? failure)
+        // The ask is gone (answered elsewhere or closed): no second write, just say so.
+        setState(/no longer waiting/i.test(message) ? 'stale' : 'open')
+        setError(/no longer waiting/i.test(message) ? '' : message)
+      },
+    )
+  }
+  // The card that answers is DS Bot's own, drawn in the Bot's chat; the way there stays as a
+  // second entrance, for a card the group cannot draw or a Bot that left the roster.
   const canOpenBot = botKnown && bot?.id !== undefined && typeof actions.openSession === 'function'
   const canOpenRaw = actions.canOpenInDsh !== false && typeof actions.openRawSession === 'function' && reply.sessionId !== undefined
+  const open = canOpenBot
+    ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openSession(bot.id) }, t('Open {name}’s chat', { name: bot.name }))
+    : canOpenRaw
+      ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
+      : null
+  const canAnswer = typeof actions.answerGroupQuestion === 'function' && reply.questionId !== undefined
+  const done = settled || state === 'answered' || state === 'stale'
   return h('div', { className: 'bt-appr' },
     h('div', { className: 'bt-appr-head' }, h(BotMark, { bot, size: 16 }), h('span', { className: 'bt-appr-name' }, bot.name)),
     h('div', { className: 'bt-appr-reason' }, t('{name} is waiting for your answer in its own chat.', { name: bot.name })),
-    settled
+    done
       ? h('div', { className: 'bt-appr-state' }, t('Answered.'))
-      : canOpenBot
-        ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openSession(bot.id) }, t('Open {name}’s chat', { name: bot.name }))
-        : canOpenRaw
-          ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-appr-open', onClick: () => actions.openRawSession(reply.sessionId) }, t('Open {name}’s chat', { name: bot.name }))
-          : null)
+      : canAnswer
+        ? h('div', { className: 'bt-appr-actions' },
+          h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy', onClick: () => answer('deny') }, t('Deny')),
+          h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy', onClick: () => answer('once') }, t('This time')),
+          h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: state === 'busy', onClick: () => answer('always') }, t('Always')))
+        : null,
+    open,
+    error !== '' ? h('div', { className: 'bt-appr-error', role: 'alert' }, error) : null)
 }
 
 // A member waiting for the user's approval in a group: the card carries the approval's id, so
