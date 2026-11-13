@@ -757,6 +757,10 @@ export function install(rt) {
         break
       case 'turn/start':
         setActivity(id, 'thinking')
+        // A Bot that starts a turn anywhere — its group, a schedule, another Bot — no
+        // longer waits on the question it left in its own chat: the row in "Needs you"
+        // points there while the work has moved on. Its own chat keeps its own card.
+        if (retireOwnChatQuestion(rt, state, id)) void rt.save().catch(() => {})
         entry.turn = event.data.turn
         entry.since = event.time ?? Date.now()
         entry.texts = []
@@ -951,9 +955,6 @@ export function install(rt) {
             delete state.views[id]
             dropped = true
           }
-          // A member told something in its group no longer waits on the question it
-          // left in its own chat.
-          if (retireOwnChatQuestion(rt, state, id)) dropped = true
           if (dropped) void rt.save().catch(() => {})
         }
         break

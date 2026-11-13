@@ -24,9 +24,9 @@ const TEAM = {
   revision: 0,
 }
 
-async function start() {
+async function start(seed = TEAM) {
   const home = mkdtempSync(join(tmpdir(), 'ds-bot-questions-'))
-  writeFileSync(join(home, 'state.json'), JSON.stringify(TEAM))
+  writeFileSync(join(home, 'state.json'), JSON.stringify(seed))
   const ctx = fakeContext()
   Object.assign(ctx, {
     workspaceRegistry: { get: () => undefined, resolveByPath: async () => undefined, create: async path => ({ id: 'w1', path }), archiveSession: async () => {} },
@@ -89,4 +89,37 @@ test('a card asked in a visible turn stays at its call', async (t) => {
   emit('writer', 'user/message', { content: text('[Message from Chief · the user sees your reply here]\nIntroduce yourself'), source: { kind: 'bot', role: 'request', audience: 'user', senderSessionId: 'chief', senderName: 'Chief', exchangeId: 'x2', hop: 0 } })
   await ask('writer', 'call-3')
   assert.equal((await questions()).writer.callId, 'call-3')
+})
+
+// A Bot whose group calls it starts a turn in the group Session, not in its own chat. The
+// card it left in its own chat is what "Needs you" points at, so that turn retires it —
+// otherwise five of them sit there for days (the real case: 14 cards, the oldest 11-06).
+const GROUPED = {
+  ...TEAM,
+  rooms: { r1: { id: 'r1', name: 'Ops', members: ['chief', 'writer'], mode: 'admin', admin: 'chief', named: true, sessions: { writer: 'gw' } } },
+}
+
+test('a turn in its group retires the question the Bot left in its own chat', async (t) => {
+  const { emit, ask, questions, stop } = await start(GROUPED)
+  t.after(stop)
+  emit('writer', 'turn/start', { turn: 1 })
+  emit('writer', 'user/message', { content: text('How should we name it?'), source: { kind: 'user' } })
+  await ask('writer', 'call-own')
+  assert.equal((await questions()).writer?.question, 'Which name?')
+
+  // The group calls it: the turn starts in the group Session.
+  emit('gw', 'turn/start', { turn: 1 })
+  assert.equal((await questions()).writer, undefined, 'the old card is gone')
+  assert.deepEqual(rt.state.closedCards, { writer: { 'call-own': 'replied' } })
+})
+
+test('its own chat keeps the card it is asked in', async (t) => {
+  const { emit, ask, questions, stop } = await start(GROUPED)
+  t.after(stop)
+  emit('writer', 'turn/start', { turn: 1 })
+  emit('writer', 'user/message', { content: text('Name it'), source: { kind: 'user' } })
+  await ask('writer', 'call-own-2')
+  emit('writer', 'turn/end', { turn: 1, reason: { kind: 'completed' } })
+  emit('writer', 'turn/start', { turn: 2 })
+  assert.equal((await questions()).writer?.question, 'Which name?', 'a turn in its own chat leaves the card alone')
 })
