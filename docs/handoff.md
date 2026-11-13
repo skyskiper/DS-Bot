@@ -131,6 +131,43 @@ bin/run.sh          # 备环境 → 造数据 → 五步 → 判据 → 证据 �
 - 只 build 不重启 = 界面变了、行为没变；只重启不 build = 行为变了、界面还是旧的。
   判断现场跑的是哪一版，用 `report.md` 里那种 `<host 提交> / <client 提交>` 两段式写法。
 
+### 顶部 goal 横幅压住消息区（2026-11-13，纯 client）
+
+**现象**：群里设了 goal 之后，顶部那颗悬浮 pod（pill 40px + goal 条 30px，实测整块 72px）
+压在转录上，首条消息被盖住；用户原话「半透明压在消息上、下面文字透出来」。
+
+**根因（不是留白不够）**：真正的滚动容器不是我们以为的那层。
+```
+EvIC1a_scroll   transform 内容层：clientHeight == scrollHeight（2791/2791、4537/4537）
+                overflow: visible  → 它自己从不裁剪内容
+EvIC1a_root     overflow: clip    → 真正裁剪的是这层
+```
+所以在 `EvIC1a_scroll` 上加 `margin-top` 只移动布局盒、绘制起点不动：改后首条仍从
+视口 ~120 处开始画，残留约 13px 重叠（第二版被测试通道判「部分通过」就是这个原因）。
+原规则 `body[data-bt-goal] … _scroll{padding-top:90px}` 只把「滚到顶部时的第一条」挪开，
+往下滚内容照样穿。
+
+**改法（`ds-bot/src/client/styles.js`，只一条规则）**
+```css
+body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px + env(safe-area-inset-top,0px))!important}
+```
+- 84px = 实测 pod 72px + pod 自身间隙；
+- 加在**内容列**上而不是容器上：`_column` 随内容走，任何滚动位置内容都从 pod 下面开始；
+- `_scroll` 上那条 `margin-top` / `padding-top` 已删，**不要再加回来**（两处叠加会把首条推太低）。
+
+**判据**（测试通道的口径，别用 `scrollHeight > clientHeight` 判可滚，那层恒等）
+1. 裁剪容器用 `EvIC1a_root` / `wSkVaW_viewArea`；
+2. 在「滚到顶部」和「滚到中间」各取一组数：`气泡顶 y − pod 底 y ≥ 0`（pod 底 ≈ 窗口 y 122）；
+3. 用例必须包含**左对齐的 Bot 消息**从 pod 下穿过（右对齐的填充消息本来就不压 pod，验不出来）；
+4. 反向断言：加 padding 后 `_column` 的 `scrollHeight` 不被压小、最后一条不被裁。
+
+**验证状态**：顶部位置已验不重叠；「滚到中间 + 左对齐 Bot 消息」截至 2026-11-13 10:25 仍未验成。
+`f12d0e39` 已在 `personal/main` 与 fork 上，**未 FF 到运行中的 `DS-Bot-stable`**。
+
+**FF 之后的生效方式（兜底话术）**：这次只改 client，`git -C "DS Bot/DS-Bot-stable" merge --ff-only`
+会替换工作树里的 `client.js`，已打开的页面由 `dsh-client-hmr` 自动换入；若没自动刷新，
+让用户按一次 **Cmd+R** 即可——**不需要重启 App，也不需要重装**。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
