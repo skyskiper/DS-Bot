@@ -66,6 +66,14 @@ test('the column scrolls only past its own cap, and nothing folds away', () => {
   assert.equal(chipsHeightOverLimit(chips), true, 'past 320 the column scrolls instead of dropping a chip')
 })
 
+test('a queued topic waits in the column list, not in the chip column', () => {
+  const queued = structuredClone(book)
+  queued.items[2].state = 'pending'
+  const chips = view.chipsOf(queued, 1)
+  assert.equal(chips.length, 5, 'only the two active topics and the three subtopics of #1')
+  assert.equal(Array.from(chips).some(chip => chip.num === 2), false, 'the queued one is not a chip')
+})
+
 test('a subtopic never draws its own # twice', () => {
   const chips = view.chipsOf(book, 1)
   const sub = chips.find(chip => chip.sub === 2)

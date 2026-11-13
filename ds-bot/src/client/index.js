@@ -498,6 +498,9 @@ export function apply(ctx) {
   const actions = {
     ...teamActions({ call, after, partFor, roster, ui, live, cards, heldCards, turnClock, panelFolded }),
     learningAnswer: (id, approve) => after(call('learning-answer', { id, approve })),
+    // A topic just changed hands or a seat freed: read the team state now instead of
+    // waiting for the next poll, so the promoted topic shows where the user is looking.
+    refreshTopics: () => { void pull() },
     // The full-pane overlays sit above the conversation, so opening one must dismiss them
     // or the click appears to do nothing.
     isAgentSession: id => isAgentSessionId(id),

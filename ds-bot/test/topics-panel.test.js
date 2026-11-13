@@ -85,7 +85,7 @@ test('an archived row asks to reopen, and waits while the house is full', () => 
 test('#Other opens as its own view, and an empty list says so', () => {
   const asked = []
   const tree = TopicList({ book, onOpen: target => asked.push(target) })
-  const other = nodes(tree).find(node => node.props?.className === 'bt-topics-card' && texts(node)[0] === '#Other')
+  const other = nodes(tree).find(node => node.props?.className === 'bt-topics-card' && String(texts(node)[0]).startsWith('#Other'))
   other.props.onClick()
   assert.equal(asked.length, 1)
   assert.equal(asked[0].other, true, 'the Other row opens the unclassified view')
@@ -133,4 +133,26 @@ test('the fold line opens and closes the archived rows in place', () => {
   const tree = TopicList({ book, onToggleArchived: () => asked.push('toggle') })
   nodes(tree).find(node => node.props?.className === 'bt-topics-fold').props.onClick()
   assert.deepEqual(asked, ['toggle'])
+})
+
+test('a queued reopen says so at the top of the list, in the design\'s two lines', () => {
+  const asked = []
+  const waiting = TopicList({ book, archivedOpen: true, reopening: [3], onCancelReopen: num => asked.push(num) })
+  const warn = nodes(waiting).find(node => node.props?.className === 'bt-topics-warn')
+  assert.ok(warn, 'the banner has a node of its own')
+  const lines = texts(warn)
+  assert.equal(lines.length, 2, 'two lines, not one sentence')
+  assert.match(lines[0], /topics are already active/)
+  assert.match(lines[1], /number stays/)
+  // Not there when nobody asked to reopen.
+  assert.equal(nodes(TopicList({ book, archivedOpen: true })).some(node => node.props?.className === 'bt-topics-warn'), false)
+})
+
+test('#Other is one line with its prefix, and a silent topic says it has no messages yet', () => {
+  const tree = TopicList({ book })
+  const other = nodes(tree).find(node => node.props?.className === 'bt-topics-card' && String(texts(node)[0]).startsWith('#Other'))
+  assert.match(String(texts(other)[0]), /^#Other · (未归类|unclassified) · 2$/, 'the row keeps #Other in front of its count')
+  const empty = TopicList({ book: { items: { 1: { num: 1, title: '空话题', state: 'active', subs: {} } } } })
+  const meta = nodes(empty).find(node => node.props?.className === 'bt-topics-card-meta')
+  assert.match(String(texts(meta)[0]), /^(还没有消息|No messages yet)$/, 'a topic with nothing in it says so')
 })

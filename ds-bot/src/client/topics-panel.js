@@ -1,9 +1,9 @@
 // The right column's topic entry and the list it opens in place. Stateless: the page owns
 // which room is open and what a click does, so the markup is checked without a browser.
-import { createElement as h, useCallback, useEffect, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import { call } from './api.js'
 import { t } from './i18n.js'
-import { entryLabel, moveTargets, shortTitle, threadTitle } from './topics-view.js'
+import { cardMeta, entryLabel, moveTargets, shortTitle, threadTitle } from './topics-view.js'
 
 // D2/D23: one 36px row under the group's name — up to three dots for the active topics, the
 // counts, and a chevron. #Other is not counted here; it is a row of the list.
@@ -38,11 +38,18 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
   },
   h('span', { className: 'bt-topics-card-bar', 'data-state': item.state, 'aria-hidden': true }),
   h('span', { className: 'bt-topics-card-body' },
-    h('span', { className: 'bt-topics-card-title' }, `#${item.num} ${shortTitle(item.title)}`),
+    h('span', { className: 'bt-topics-card-title' }, h('span', { className: 'bt-topics-card-num' }, `#${item.num}`), shortTitle(item.title)),
     h('span', { className: 'bt-topics-card-meta' }, extra)),
   h('span', { className: 'bt-topics-chev', 'aria-hidden': true }, '›'))
   return h('div', { className: 'bt-topics-panel' },
-    section(t('Active'), active.map(item => row(item, meta(item)))),
+    // A reopen asked with every seat taken says so at the top, in the design's two lines,
+    // instead of looking like a quiet queue entry.
+    reopening.length > 0
+      ? h('div', { className: 'bt-topics-warn', role: 'status' },
+        h('div', { className: 'bt-topics-warn-line' }, t('{count} topics are already active. Reopening will queue it — nothing is lost.', { count: active.length })),
+        h('div', { className: 'bt-topics-warn-line' }, t('It moves up when a seat frees. The number stays.')))
+      : null,
+    section(t('Active'), active.map(item => row(item, cardMeta(item)))),
     queued.length > 0 ? section(t('Queued'), queued.map(item => row(item, t('Queued')))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.
@@ -73,8 +80,7 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
       },
       h('span', { className: 'bt-topics-card-bar', 'data-state': 'other', 'aria-hidden': true }),
       h('span', { className: 'bt-topics-card-body' },
-        h('span', { className: 'bt-topics-card-title' }, '#Other'),
-        h('span', { className: 'bt-topics-card-meta' }, `${t('unclassified')} · ${other.length}`)),
+        h('span', { className: 'bt-topics-card-title' }, `#Other · ${t('unclassified')} · ${other.length}`)),
       h('span', { className: 'bt-topics-chev', 'aria-hidden': true }, '›'))])
       : null)
 }
@@ -88,11 +94,6 @@ const counts = (book) => {
   }
 }
 
-const meta = (item) => {
-  const subs = Object.values(item.subs ?? {}).filter(sub => sub.state !== 'archived').length
-  return subs === 0 ? '' : `${subs}`
-}
-
 const section = (title, rows) => h('div', { className: 'bt-topics-section' },
   h('div', { className: 'bt-topics-section-head' }, title),
   ...rows)
@@ -100,8 +101,16 @@ const section = (title, rows) => h('div', { className: 'bt-topics-section' },
 
 // The right column's topic view. It swaps the column's own body — the group's overview, or
 // the list — in place: nothing outside the column moves, and no second page or drawer opens.
-export function TopicView({ room, book, target = null, onBack, onOpen, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
+export function TopicView({ room, book, target = null, onBack, onOpen, onRefresh, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
   const { active } = counts(book)
+  // The column is the place the user watches a seat free itself, so while it is open it
+  // reads the book back at the visible poll's pace instead of the hidden window's slower one.
+  const refresh = useRef(onRefresh)
+  refresh.current = onRefresh
+  useEffect(() => {
+    const timer = setInterval(() => refresh.current?.(), 1500)
+    return () => clearInterval(timer)
+  }, [])
   const head = (title, count, back) => h('div', { className: 'bt-topics-view-head' },
     h('button', { type: 'button', className: 'bt-topics-back', 'aria-label': t('Back'), onClick: back }, '‹'),
     h('span', { className: 'bt-topics-view-title' }, title),
@@ -111,12 +120,12 @@ export function TopicView({ room, book, target = null, onBack, onOpen, reopening
       head(t('Topics'), active, onBack),
       h(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived }))
   }
-  return h(TopicThreadView, { room, book, target, onBack })
+  return h(TopicThreadView, { room, book, target, onBack, onRefresh })
 }
 
 // One topic's messages in the column: the newest page first, older pages on demand, and the
 // long press that moves a message out of #Other and into a topic.
-function TopicThreadView({ room, book, target, onBack }) {
+function TopicThreadView({ room, book, target, onBack, onRefresh }) {
   const [page, setPage] = useState({ items: [], hasMore: false, loading: true, error: '' })
   const [moving, setMoving] = useState(undefined)
   const [busy, setBusy] = useState(false)
@@ -150,6 +159,8 @@ function TopicThreadView({ room, book, target, onBack }) {
       await call('topic-move', { roomId: room.id, seq: moving?.seq, num })
       setMoving(undefined)
       await fetchPage()
+      // #Other's count and the topic's own meta both changed; read the book back now.
+      if (typeof onRefresh === 'function') onRefresh()
     } catch (error) {
       setPage(previous => ({ ...previous, error: error?.message ?? String(error) }))
     } finally {
@@ -211,17 +222,19 @@ export const TOPICS_PANEL_CSS = `
 .bt-topics-entry-count{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--bt-ink-2);font-size:11px}
 .bt-topics-chev{flex:none;color:var(--bt-ink-3)}
 .bt-topics-panel{display:flex;flex-direction:column;gap:8px;padding:8px 12px 12px;max-height:320px;overflow-y:auto}
-.bt-topics-section{display:flex;flex-direction:column;gap:4px}
+.bt-topics-section{display:flex;flex-direction:column;gap:8px}
 .bt-topics-section-head{font-size:11px;line-height:16px;color:var(--bt-ink-3)}
-.bt-topics-card{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 8px;border:0;background:none;color:var(--bt-ink);font:inherit;cursor:pointer;text-align:left;border-radius:10px}
+.bt-topics-card{display:flex;align-items:center;gap:8px;width:100%;min-height:64px;padding:9px 10px 9px 8px;box-sizing:border-box;border:0;background:none;color:var(--bt-ink);font:inherit;cursor:pointer;text-align:left;border-radius:12px}
+.bt-topics-warn{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--bt-star) 12%,transparent);color:var(--bt-star);font-size:11px;line-height:16px;margin-bottom:4px}
 .bt-topics-card:hover{background:var(--bt-hover)}
 .bt-topics-card-bar{flex:none;width:3px;align-self:stretch;margin:6px 0;border-radius:999px;background:var(--bt-line-2)}
 .bt-topics-card-bar[data-state=active]{background:var(--bt-accent)}
 .bt-topics-card-bar[data-state=pending]{background:var(--bt-star)}
 .bt-topics-card-bar[data-state=other]{background:var(--bt-ink-3)}
-.bt-topics-card-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
-.bt-topics-card-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.bt-topics-card-meta{font-size:11px;color:var(--bt-ink-2)}
+.bt-topics-card-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.bt-topics-card-title{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:650}
+.bt-topics-card-num{flex:none;font-size:10.5px;font-weight:400;color:var(--bt-ink-3)}
+.bt-topics-card-meta{font-size:10.5px;color:var(--bt-ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-archived{display:flex;align-items:center;gap:6px}
 .bt-topics-archived .bt-topics-card{flex:1 1 auto}
 .bt-topics-empty{padding:16px 12px;font-size:12px;color:var(--bt-ink-2)}

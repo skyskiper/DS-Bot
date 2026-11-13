@@ -169,13 +169,15 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
     setReopening(list => (list.includes(num) ? list : [...list, num]))
     void call('topic-reopen', { roomId: room.id, num }).then(() => {
       setReopening(list => list.filter(kept => kept !== num))
+      // A free seat is taken at once on the host; read it back now, not one poll later.
+      actions.refreshTopics?.()
     }).catch(() => {})
   }
   if (topicTarget !== null) {
     const target = topicTarget.list === true ? null : topicTarget
     return [
       h('div', { key: 'topics', className: 'bt-topics-body' }, h(TopicView, {
-        room, book, target,
+        room, book, target, onRefresh: () => actions.refreshTopics?.(),
         onBack: () => setTopicTarget(target === null ? null : { list: true }),
         onOpen: next => setTopicTarget(next),
         reopening, archivedOpen,

@@ -85,6 +85,9 @@ export const lastAtOf = (item) => Math.max(
   ...Object.values(item?.subs ?? {}).map(sub => Math.max(sub?.lastAt ?? 0, sub?.createdAt ?? 0)),
 )
 
+// What the column shows: the topics that hold a seat. A queued topic has no seat yet, so
+// it waits in the right column instead of widening the column's six chips.
+const trayTopics = book => Object.values(book?.items ?? {}).filter(item => item.state === 'active' || item.state === 'blocked')
 const liveTopics = book => Object.values(book?.items ?? {}).filter(item => item.state === 'active' || item.state === 'blocked' || item.state === 'pending')
 
 // A topic counts a message it was opened from, the messages it took in, and its subtopics'.
@@ -95,7 +98,7 @@ export const messageCountOf = (item) => (item?.messages?.length ?? 0)
 // Chips top to bottom: oldest activity first, so the active one ends at the column's
 // bottom, nearest the composer. `gapBefore` is what separates a chip from the one above.
 export const chipsOf = (book, activeNum) => {
-  const live = liveTopics(book)
+  const live = trayTopics(book)
   if (live.length === 0) return []
   const ordered = live.slice().sort((a, b) => (lastAtOf(a) - lastAtOf(b)) || (a.num - b.num))
   const active = ordered.find(item => item.num === activeNum) ?? ordered.at(-1)

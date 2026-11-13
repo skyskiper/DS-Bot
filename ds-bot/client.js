@@ -13509,7 +13509,9 @@ var TOPIC_COPY = {
     "Keep in #Other": "留在 #Other",
     "· End ·": "· 到底了 ·",
     "Live · follows the newest": "实时 · 自动滚到底",
-    "New messages": "新消息"
+    "New messages": "新消息",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 个话题正在活跃，重开会先进待排，不会丢。",
+    "It moves up when a seat frees. The number stays.": "空出位置后自动顶上，编号不变。"
   },
   "zh-TW": {
     "Topics": "話題",
@@ -13544,6 +13546,8 @@ var TOPIC_COPY = {
     "· End ·": "· 到底了 ·",
     "Live · follows the newest": "即時 · 自動滾到底",
     "New messages": "新訊息",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 個話題正在活躍，重開會先進待排，不會丟。",
+    "It moves up when a seat frees. The number stays.": "空出位置後自動頂上，編號不變。",
     "→ Recorded as #{num}": "→ 記為 #{num}",
     "→ #{num} replaces #{old}": "→ #{num}，替換 #{old}"
   },
@@ -13580,6 +13584,8 @@ var TOPIC_COPY = {
     "· End ·": "· ここまで ·",
     "Live · follows the newest": "ライブ · 最新に追従",
     "New messages": "新着",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 件が進行中です。再開は待機に入り、失われません。",
+    "It moves up when a seat frees. The number stays.": "空きが出たら自動で上がります。番号は変わりません。",
     "→ Recorded as #{num}": "→ #{num} として記録",
     "→ #{num} replaces #{old}": "→ #{num} が #{old} を置き換え"
   },
@@ -13616,6 +13622,8 @@ var TOPIC_COPY = {
     "· End ·": "· 끝 ·",
     "Live · follows the newest": "실시간 · 최신으로",
     "New messages": "새 메시지",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count}개 주제가 진행 중입니다. 다시 열면 대기로 들어가며 사라지지 않습니다.",
+    "It moves up when a seat frees. The number stays.": "자리가 나면 자동으로 올라갑니다. 번호는 그대로입니다.",
     "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
     "→ #{num} replaces #{old}": "→ #{num}이(가) #{old}을(를) 대체"
   },
@@ -13652,6 +13660,8 @@ var TOPIC_COPY = {
     "· End ·": "· Fin ·",
     "Live · follows the newest": "En vivo · sigue lo último",
     "New messages": "Mensajes nuevos",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "Ya hay {count} temas activos. Reabrirlo lo pone en cola, nada se pierde.",
+    "It moves up when a seat frees. The number stays.": "Sube sola cuando se libera un sitio. El número no cambia.",
     "→ Recorded as #{num}": "→ Registrado como #{num}",
     "→ #{num} replaces #{old}": "→ #{num} sustituye a #{old}"
   },
@@ -13688,6 +13698,8 @@ var TOPIC_COPY = {
     "· End ·": "· Fin ·",
     "Live · follows the newest": "En direct · suit le plus récent",
     "New messages": "Nouveaux messages",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} sujets sont déjà actifs. Le rouvrir le met en attente, rien n'est perdu.",
+    "It moves up when a seat frees. The number stays.": "Il remonte dès qu'une place se libère. Le numéro ne change pas.",
     "→ Recorded as #{num}": "→ Enregistré comme #{num}",
     "→ #{num} replaces #{old}": "→ #{num} remplace #{old}"
   },
@@ -13724,6 +13736,8 @@ var TOPIC_COPY = {
     "· End ·": "· Ende ·",
     "Live · follows the newest": "Live · folgt dem Neuesten",
     "New messages": "Neue Nachrichten",
+    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} Themen sind bereits aktiv. Beim Wiederöffnen wird es eingereiht, nichts geht verloren.",
+    "It moves up when a seat frees. The number stays.": "Es rückt nach, sobald ein Platz frei wird. Die Nummer bleibt.",
     "→ Recorded as #{num}": "→ Erfasst als #{num}",
     "→ #{num} replaces #{old}": "→ #{num} ersetzt #{old}"
   }
@@ -21735,7 +21749,7 @@ function SecretRow({ secret, roster, actions, run: run2, open, onToggle }) {
   }, [open]);
   const asker = secret.requestedBy ? roster.byId[secret.requestedBy]?.name ?? t("a deleted Bot") : t("you");
   const allowed2 = secret.scope === "all" ? [] : secret.scope.map((id) => roster.byId[id]).filter(Boolean);
-  const meta2 = [t("Asked by {name}", { name: asker }), t("added {time}", { time: when(secret.createdAt) }), secret.lastUsedAt ? t("last used {time}", { time: when(secret.lastUsedAt) }) : t("not used yet")].join(" · ");
+  const meta = [t("Asked by {name}", { name: asker }), t("added {time}", { time: when(secret.createdAt) }), secret.lastUsedAt ? t("last used {time}", { time: when(secret.lastUsedAt) }) : t("not used yet")].join(" · ");
   return (0, import_react19.createElement)(
     "div",
     { className: "bt-secret-item", "data-open": open ? "" : void 0 },
@@ -21746,7 +21760,7 @@ function SecretRow({ secret, roster, actions, run: run2, open, onToggle }) {
         "span",
         { className: "bt-set-copy" },
         (0, import_react19.createElement)("span", { className: "bt-secret-title" }, (0, import_react19.createElement)(KeyIcon), (0, import_react19.createElement)("code", { className: "bt-secret-name" }, secret.name), secret.purpose ? (0, import_react19.createElement)("span", { className: "bt-secret-purpose" }, secret.purpose) : null),
-        (0, import_react19.createElement)("span", { className: "bt-set-hint" }, meta2)
+        (0, import_react19.createElement)("span", { className: "bt-set-hint" }, meta)
       ),
       (0, import_react19.createElement)(
         "span",
@@ -23760,7 +23774,7 @@ function EntryRow({ entry, remove, pin, layer, openMove }) {
   }, [confirming]);
   const by = entry.source === "memory panel" ? t("by you") : entry.by ? t("by {name}", { name: entry.by }) : null;
   const until = entry.until ? t(entry.expired ? "ended {day}" : "until {day}", { day: entry.until }) : null;
-  const meta2 = [entry.added, by, until].filter(Boolean).join(" · ");
+  const meta = [entry.added, by, until].filter(Boolean).join(" · ");
   const click = async () => {
     if (!confirming) {
       setConfirming(true);
@@ -23776,7 +23790,7 @@ function EntryRow({ entry, remove, pin, layer, openMove }) {
       "div",
       { className: "bt-mem-entry-copy" },
       (0, import_react26.createElement)("span", { className: "bt-mem-entry-text" }, entry.text),
-      meta2 ? (0, import_react26.createElement)("span", { className: "bt-mem-entry-meta" }, meta2) : null
+      meta ? (0, import_react26.createElement)("span", { className: "bt-mem-entry-meta" }, meta) : null
     ),
     (0, import_react26.createElement)("button", {
       type: "button",
@@ -23901,7 +23915,7 @@ function HistoryRow({ row, undo, now }) {
     return () => clearTimeout(timer2);
   }, [confirming]);
   const when3 = ago(Date.parse(row.time), now) ?? t("just now");
-  const meta2 = [when3, row.by === "user" ? t("by you") : t("by {name}", { name: row.by })].join(" · ");
+  const meta = [when3, row.by === "user" ? t("by you") : t("by {name}", { name: row.by })].join(" · ");
   const click = async () => {
     if (!confirming) {
       setConfirming(true);
@@ -23917,7 +23931,7 @@ function HistoryRow({ row, undo, now }) {
       "div",
       { className: "bt-mem-entry-copy" },
       (0, import_react26.createElement)("span", { className: "bt-mem-entry-text" }, historyLine(row)),
-      (0, import_react26.createElement)("span", { className: "bt-mem-entry-meta" }, meta2)
+      (0, import_react26.createElement)("span", { className: "bt-mem-entry-meta" }, meta)
     ),
     row.restored ? (0, import_react26.createElement)("span", { className: "bt-mem-undone" }, t("Undone")) : (0, import_react26.createElement)("button", {
       type: "button",
@@ -26421,12 +26435,12 @@ function Attachments({ attachments, sessionId, seq, actions, renderMessageImages
     }) : images.map((block, index) => renderMessageImages ? (0, import_react33.createElement)(import_react33.Fragment, { key: index }, renderMessageImages({ images: [{ attachment: block.attachment }], align: "end", compact: compact2 })) : null),
     files.map((block, index) => {
       const file = block.attachment;
-      const meta2 = [ui.fileExtension?.(file.name)?.toUpperCase().slice(0, 8), ui.fileSizeText?.(file.bytes)].filter(Boolean).join(" · ");
+      const meta = [ui.fileExtension?.(file.name)?.toUpperCase().slice(0, 8), ui.fileSizeText?.(file.bytes)].filter(Boolean).join(" · ");
       return (0, import_react33.createElement)(
         "span",
         { key: index, className: "bt-ufile", title: file.name },
         ui.FileTypeIcon ? (0, import_react33.createElement)(ui.FileTypeIcon, { path: file.name, className: "bt-ufile-icon" }) : null,
-        (0, import_react33.createElement)("span", { className: "bt-ufile-text" }, (0, import_react33.createElement)("span", { className: "bt-ufile-name" }, file.name), meta2 ? (0, import_react33.createElement)("span", { className: "bt-ufile-meta" }, meta2) : null)
+        (0, import_react33.createElement)("span", { className: "bt-ufile-text" }, (0, import_react33.createElement)("span", { className: "bt-ufile-name" }, file.name), meta ? (0, import_react33.createElement)("span", { className: "bt-ufile-meta" }, meta) : null)
       );
     })
   );
@@ -38583,10 +38597,11 @@ var lastAtOf = (item) => Math.max(
   ...(item?.events ?? []).map((event) => event?.at ?? 0),
   ...Object.values(item?.subs ?? {}).map((sub) => Math.max(sub?.lastAt ?? 0, sub?.createdAt ?? 0))
 );
+var trayTopics = (book) => Object.values(book?.items ?? {}).filter((item) => item.state === "active" || item.state === "blocked");
 var liveTopics = (book) => Object.values(book?.items ?? {}).filter((item) => item.state === "active" || item.state === "blocked" || item.state === "pending");
 var messageCountOf = (item) => (item?.messages?.length ?? 0) + (Number.isInteger(item?.fromSeq) ? 1 : 0) + Object.values(item?.subs ?? {}).reduce((sum, sub) => sum + (sub?.messages?.length ?? 0), 0);
 var chipsOf = (book, activeNum) => {
-  const live = liveTopics(book);
+  const live = trayTopics(book);
   if (live.length === 0) return [];
   const ordered = live.slice().sort((a, b) => lastAtOf(a) - lastAtOf(b) || a.num - b.num);
   const active = ordered.find((item) => item.num === activeNum) ?? ordered.at(-1);
@@ -38690,7 +38705,7 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
     (0, import_react62.createElement)(
       "span",
       { className: "bt-topics-card-body" },
-      (0, import_react62.createElement)("span", { className: "bt-topics-card-title" }, `#${item.num} ${shortTitle(item.title)}`),
+      (0, import_react62.createElement)("span", { className: "bt-topics-card-title" }, (0, import_react62.createElement)("span", { className: "bt-topics-card-num" }, `#${item.num}`), shortTitle(item.title)),
       (0, import_react62.createElement)("span", { className: "bt-topics-card-meta" }, extra)
     ),
     (0, import_react62.createElement)("span", { className: "bt-topics-chev", "aria-hidden": true }, "›")
@@ -38698,7 +38713,15 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
   return (0, import_react62.createElement)(
     "div",
     { className: "bt-topics-panel" },
-    section(t("Active"), active.map((item) => row(item, meta(item)))),
+    // A reopen asked with every seat taken says so at the top, in the design's two lines,
+    // instead of looking like a quiet queue entry.
+    reopening.length > 0 ? (0, import_react62.createElement)(
+      "div",
+      { className: "bt-topics-warn", role: "status" },
+      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("{count} topics are already active. Reopening will queue it — nothing is lost.", { count: active.length })),
+      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("It moves up when a seat frees. The number stays."))
+    ) : null,
+    section(t("Active"), active.map((item) => row(item, cardMeta(item)))),
     queued.length > 0 ? section(t("Queued"), queued.map((item) => row(item, t("Queued")))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.
@@ -38748,8 +38771,7 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
       (0, import_react62.createElement)(
         "span",
         { className: "bt-topics-card-body" },
-        (0, import_react62.createElement)("span", { className: "bt-topics-card-title" }, "#Other"),
-        (0, import_react62.createElement)("span", { className: "bt-topics-card-meta" }, `${t("unclassified")} · ${other.length}`)
+        (0, import_react62.createElement)("span", { className: "bt-topics-card-title" }, `#Other · ${t("unclassified")} · ${other.length}`)
       ),
       (0, import_react62.createElement)("span", { className: "bt-topics-chev", "aria-hidden": true }, "›")
     )]) : null
@@ -38763,18 +38785,20 @@ var counts2 = (book) => {
     archived: items.filter((item) => item.state === "archived").length
   };
 };
-var meta = (item) => {
-  const subs = Object.values(item.subs ?? {}).filter((sub) => sub.state !== "archived").length;
-  return subs === 0 ? "" : `${subs}`;
-};
 var section = (title, rows2) => (0, import_react62.createElement)(
   "div",
   { className: "bt-topics-section" },
   (0, import_react62.createElement)("div", { className: "bt-topics-section-head" }, title),
   ...rows2
 );
-function TopicView({ room: room2, book, target = null, onBack, onOpen, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
+function TopicView({ room: room2, book, target = null, onBack, onOpen, onRefresh, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
   const { active } = counts2(book);
+  const refresh = (0, import_react62.useRef)(onRefresh);
+  refresh.current = onRefresh;
+  (0, import_react62.useEffect)(() => {
+    const timer2 = setInterval(() => refresh.current?.(), 1500);
+    return () => clearInterval(timer2);
+  }, []);
   const head = (title, count, back) => (0, import_react62.createElement)(
     "div",
     { className: "bt-topics-view-head" },
@@ -38790,9 +38814,9 @@ function TopicView({ room: room2, book, target = null, onBack, onOpen, reopening
       (0, import_react62.createElement)(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived })
     );
   }
-  return (0, import_react62.createElement)(TopicThreadView, { room: room2, book, target, onBack });
+  return (0, import_react62.createElement)(TopicThreadView, { room: room2, book, target, onBack, onRefresh });
 }
-function TopicThreadView({ room: room2, book, target, onBack }) {
+function TopicThreadView({ room: room2, book, target, onBack, onRefresh }) {
   const [page, setPage] = (0, import_react62.useState)({ items: [], hasMore: false, loading: true, error: "" });
   const [moving, setMoving] = (0, import_react62.useState)(void 0);
   const [busy, setBusy] = (0, import_react62.useState)(false);
@@ -38826,6 +38850,7 @@ function TopicThreadView({ room: room2, book, target, onBack }) {
       await call("topic-move", { roomId: room2.id, seq: moving?.seq, num: num2 });
       setMoving(void 0);
       await fetchPage();
+      if (typeof onRefresh === "function") onRefresh();
     } catch (error) {
       setPage((previous) => ({ ...previous, error: error?.message ?? String(error) }));
     } finally {
@@ -38901,17 +38926,19 @@ var TOPICS_PANEL_CSS = `
 .bt-topics-entry-count{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--bt-ink-2);font-size:11px}
 .bt-topics-chev{flex:none;color:var(--bt-ink-3)}
 .bt-topics-panel{display:flex;flex-direction:column;gap:8px;padding:8px 12px 12px;max-height:320px;overflow-y:auto}
-.bt-topics-section{display:flex;flex-direction:column;gap:4px}
+.bt-topics-section{display:flex;flex-direction:column;gap:8px}
 .bt-topics-section-head{font-size:11px;line-height:16px;color:var(--bt-ink-3)}
-.bt-topics-card{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 8px;border:0;background:none;color:var(--bt-ink);font:inherit;cursor:pointer;text-align:left;border-radius:10px}
+.bt-topics-card{display:flex;align-items:center;gap:8px;width:100%;min-height:64px;padding:9px 10px 9px 8px;box-sizing:border-box;border:0;background:none;color:var(--bt-ink);font:inherit;cursor:pointer;text-align:left;border-radius:12px}
+.bt-topics-warn{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--bt-star) 12%,transparent);color:var(--bt-star);font-size:11px;line-height:16px;margin-bottom:4px}
 .bt-topics-card:hover{background:var(--bt-hover)}
 .bt-topics-card-bar{flex:none;width:3px;align-self:stretch;margin:6px 0;border-radius:999px;background:var(--bt-line-2)}
 .bt-topics-card-bar[data-state=active]{background:var(--bt-accent)}
 .bt-topics-card-bar[data-state=pending]{background:var(--bt-star)}
 .bt-topics-card-bar[data-state=other]{background:var(--bt-ink-3)}
-.bt-topics-card-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
-.bt-topics-card-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.bt-topics-card-meta{font-size:11px;color:var(--bt-ink-2)}
+.bt-topics-card-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.bt-topics-card-title{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:650}
+.bt-topics-card-num{flex:none;font-size:10.5px;font-weight:400;color:var(--bt-ink-3)}
+.bt-topics-card-meta{font-size:10.5px;color:var(--bt-ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-archived{display:flex;align-items:center;gap:6px}
 .bt-topics-archived .bt-topics-card{flex:1 1 auto}
 .bt-topics-empty{padding:16px 12px;font-size:12px;color:var(--bt-ink-2)}
@@ -39621,6 +39648,7 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
     setReopening((list) => list.includes(num2) ? list : [...list, num2]);
     void call("topic-reopen", { roomId: room2.id, num: num2 }).then(() => {
       setReopening((list) => list.filter((kept) => kept !== num2));
+      actions.refreshTopics?.();
     }).catch(() => {
     });
   };
@@ -39631,6 +39659,7 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
         room: room2,
         book,
         target,
+        onRefresh: () => actions.refreshTopics?.(),
         onBack: () => setTopicTarget(target === null ? null : { list: true }),
         onOpen: (next) => setTopicTarget(next),
         reopening,
@@ -43931,6 +43960,11 @@ function apply(ctx) {
   const actions = {
     ...teamActions({ call, after, partFor, roster, ui: ui2, live, cards, heldCards, turnClock, panelFolded }),
     learningAnswer: (id, approve) => after(call("learning-answer", { id, approve })),
+    // A topic just changed hands or a seat freed: read the team state now instead of
+    // waiting for the next poll, so the promoted topic shows where the user is looking.
+    refreshTopics: () => {
+      void pull();
+    },
     // The full-pane overlays sit above the conversation, so opening one must dismiss them
     // or the click appears to do nothing.
     isAgentSession: (id) => isAgentSessionId(id),
