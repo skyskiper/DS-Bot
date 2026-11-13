@@ -252,13 +252,19 @@ export function TopicsDock({ useRoster, useSessions }) {
     if (land === undefined) return
     setActiveNum(land.num)
     setLanding({ ...land, key: land.sub === undefined ? `n${land.num}` : `n${land.num}.${land.sub}`, seq: Date.now() })
-    const timer = setTimeout(() => setLanding(null), 900)
     // Who spoke comes from the topic's own newest line; the book only keeps the seq.
     void call('topic-thread', { roomId: room.id, num: land.num, limit: 1 })
       .then((value) => setLanding(current => (current !== null && current.num === land.num ? { ...current, name: value.items?.at(-1)?.name } : current)))
       .catch(() => {})
-    return () => clearTimeout(timer)
   }, [book])
+
+  // The slip and the chip's pulse last 900ms. Their timer belongs to the slip, not to the
+  // book: a state read arriving meanwhile used to cancel it, so the chip kept the class.
+  useEffect(() => {
+    if (landing === null || landing === undefined) return undefined
+    const timer = setTimeout(() => setLanding(null), 900)
+    return () => clearTimeout(timer)
+  }, [landing])
 
   // Esc closes the card window first, then the stack.
   useEffect(() => {
@@ -308,8 +314,10 @@ export const TOPICS_TRAY_CSS = `
 .bt-topic-chip[data-kind=sub]{width:142px;height:22px;font-size:10.5px;line-height:15px;padding-left:14px}
 .bt-topic-chip[data-active][data-kind=sub]{border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip:hover{border-color:var(--bt-tray-line-hover)}
+/* A landing shows as a ring, not a scale: the chip keeps its 22 (or 26) so a window's
+   rect read is the same before, during and after the pulse. */
 .bt-topic-chip[data-landed]{animation:bt-topic-land .22s cubic-bezier(.16,1,.3,1)}
-@keyframes bt-topic-land{from{transform:scale(1.1)}to{transform:scale(1)}}
+@keyframes bt-topic-land{from{box-shadow:0 0 0 3px color-mix(in srgb,var(--bt-topic-1) 55%,transparent)}to{box-shadow:0 0 0 0 transparent}}
 .bt-topic-dot{flex:none;width:6px;height:6px;border-radius:50%;margin-right:7px}
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -39658,24 +39658,35 @@ function MemberRow({ member, entry, room: room2, roster, actions }) {
     (0, import_react65.createElement)(MemberApprovals, { entry, bot: member, actions })
   );
 }
+var REOPENING = /* @__PURE__ */ new Map();
 function GroupOverview({ room: room2, roster, actions, usage, useWork, openSettings }) {
   const members = room2.members.map((id) => roster.byId[id]).filter(Boolean);
   const { entries: entries2 } = useMemberWork(room2, useWork);
   const [topicTarget, setTopicTarget] = (0, import_react65.useState)(null);
   const [archivedOpen, setArchivedOpen] = (0, import_react65.useState)(false);
-  const [reopening, setReopening] = (0, import_react65.useState)([]);
+  const [reopening, setReopening] = (0, import_react65.useState)(() => REOPENING.get(room2.id) ?? []);
   const book = room2.topics;
+  const keepReopening = (next) => {
+    const list = typeof next === "function" ? next(REOPENING.get(room2.id) ?? []) : next;
+    REOPENING.set(room2.id, list);
+    setReopening(list);
+  };
   const refresh = (0, import_react65.useRef)(actions.refreshTopics);
   refresh.current = actions.refreshTopics;
   (0, import_react65.useEffect)(() => {
+    refresh.current?.();
     const timer2 = setInterval(() => refresh.current?.(), 1500);
     return () => clearInterval(timer2);
   }, []);
+  (0, import_react65.useEffect)(() => {
+    for (const num2 of reopening) {
+      if (book?.items?.[num2]?.state === "active") keepReopening((list) => list.filter((kept) => kept !== num2));
+    }
+  }, [book, reopening]);
   const openTopics = () => setTopicTarget({ list: true });
   const reopen = (num2) => {
-    setReopening((list) => list.includes(num2) ? list : [...list, num2]);
+    keepReopening((list) => list.includes(num2) ? list : [...list, num2]);
     void call("topic-reopen", { roomId: room2.id, num: num2 }).then(() => {
-      setReopening((list) => list.filter((kept) => kept !== num2));
       actions.refreshTopics?.();
     }).catch(() => {
     });
@@ -39694,7 +39705,7 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
         archivedOpen,
         onToggleArchived: () => setArchivedOpen((value) => !value),
         onReopen: reopen,
-        onCancelReopen: (num2) => setReopening((list) => list.filter((kept) => kept !== num2))
+        onCancelReopen: (num2) => keepReopening((list) => list.filter((kept) => kept !== num2))
       }))
     ];
   }
@@ -43128,11 +43139,14 @@ function TopicsDock({ useRoster, useSessions }) {
     if (land === void 0) return;
     setActiveNum(land.num);
     setLanding({ ...land, key: land.sub === void 0 ? `n${land.num}` : `n${land.num}.${land.sub}`, seq: Date.now() });
-    const timer2 = setTimeout(() => setLanding(null), 900);
     void call("topic-thread", { roomId: room2.id, num: land.num, limit: 1 }).then((value) => setLanding((current) => current !== null && current.num === land.num ? { ...current, name: value.items?.at(-1)?.name } : current)).catch(() => {
     });
-    return () => clearTimeout(timer2);
   }, [book]);
+  (0, import_react71.useEffect)(() => {
+    if (landing === null || landing === void 0) return void 0;
+    const timer2 = setTimeout(() => setLanding(null), 900);
+    return () => clearTimeout(timer2);
+  }, [landing]);
   (0, import_react71.useEffect)(() => {
     if (!expanded && cardNum === void 0) return void 0;
     const onKey = (event) => {
@@ -43188,8 +43202,10 @@ var TOPICS_TRAY_CSS = `
 .bt-topic-chip[data-kind=sub]{width:142px;height:22px;font-size:10.5px;line-height:15px;padding-left:14px}
 .bt-topic-chip[data-active][data-kind=sub]{border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip:hover{border-color:var(--bt-tray-line-hover)}
+/* A landing shows as a ring, not a scale: the chip keeps its 22 (or 26) so a window's
+   rect read is the same before, during and after the pulse. */
 .bt-topic-chip[data-landed]{animation:bt-topic-land .22s cubic-bezier(.16,1,.3,1)}
-@keyframes bt-topic-land{from{transform:scale(1.1)}to{transform:scale(1)}}
+@keyframes bt-topic-land{from{box-shadow:0 0 0 3px color-mix(in srgb,var(--bt-topic-1) 55%,transparent)}to{box-shadow:0 0 0 0 transparent}}
 .bt-topic-dot{flex:none;width:6px;height:6px;border-radius:50%;margin-right:7px}
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

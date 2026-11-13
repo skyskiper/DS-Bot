@@ -154,6 +154,10 @@ function MemberRow({ member, entry, room, roster, actions }) {
     h(MemberApprovals, { entry, bot: member, actions }))
 }
 
+// Reopens the user asked for, per group. It lives outside the component so a re-mount of
+// the column (a roster change while it is open) cannot drop the label the click just made.
+const REOPENING = new Map()
+
 // A group's overview: what members read, who is in it, who answers, and what it
 // remembers. Changes are made in its settings.
 function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) {
@@ -162,22 +166,37 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
   // The topic view replaces this column's own body in place; the chat beside it never moves.
   const [topicTarget, setTopicTarget] = useState(null)
   const [archivedOpen, setArchivedOpen] = useState(false)
-  const [reopening, setReopening] = useState([])
+  const [reopening, setReopening] = useState(() => REOPENING.get(room.id) ?? [])
   const book = room.topics
+  const keepReopening = (next) => {
+    const list = typeof next === 'function' ? next(REOPENING.get(room.id) ?? []) : next
+    REOPENING.set(room.id, list)
+    setReopening(list)
+  }
   // The entry's counts and the list read one state; while this column is open it is read
   // back at the visible poll's pace even in a hidden window, so a new pending topic shows
-  // in the same render as the list instead of one slow poll later.
+  // in the same render as the list instead of one slow poll later. The first read happens
+  // on the way in, so the entry is drawn from this visit rather than one poll from now.
   const refresh = useRef(actions.refreshTopics)
   refresh.current = actions.refreshTopics
   useEffect(() => {
+    refresh.current?.()
     const timer = setInterval(() => refresh.current?.(), 1500)
     return () => clearInterval(timer)
   }, [])
+  // A topic that came back to work leaves the queue on its own, and one the host refused
+  // stays queued; either way the label is the user's own click, not the host's reply.
+  useEffect(() => {
+    for (const num of reopening) {
+      if (book?.items?.[num]?.state === 'active') keepReopening(list => list.filter(kept => kept !== num))
+    }
+  }, [book, reopening])
   const openTopics = () => setTopicTarget({ list: true })
   const reopen = (num) => {
-    setReopening(list => (list.includes(num) ? list : [...list, num]))
+    // Marked here, in the click's own render: the row reads `queued` at once, and the
+    // host's answer only decides whether it stays that way.
+    keepReopening(list => (list.includes(num) ? list : [...list, num]))
     void call('topic-reopen', { roomId: room.id, num }).then(() => {
-      setReopening(list => list.filter(kept => kept !== num))
       // A free seat is taken at once on the host; read it back now, not one poll later.
       actions.refreshTopics?.()
     }).catch(() => {})
@@ -192,7 +211,7 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
         reopening, archivedOpen,
         onToggleArchived: () => setArchivedOpen(value => !value),
         onReopen: reopen,
-        onCancelReopen: num => setReopening(list => list.filter(kept => kept !== num)),
+        onCancelReopen: num => keepReopening(list => list.filter(kept => kept !== num)),
       })),
     ]
   }
