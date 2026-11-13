@@ -13482,7 +13482,10 @@ var TOPIC_COPY = {
     "{count} archived": "{count} 归档",
     "Unclassified": "未归类",
     "→ Recorded as #{num}": "→ 记为 #{num}",
-    "→ #{num} replaces #{old}": "→ #{num}，替换 #{old}"
+    "→ #{num} replaces #{old}": "→ #{num}，替换 #{old}",
+    "Collapse": "收起",
+    "Expand": "展开",
+    "Queued": "待排"
   },
   "zh-TW": {
     "Topics": "話題",
@@ -13490,6 +13493,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count} 待排",
     "{count} archived": "{count} 封存",
     "Unclassified": "未歸類",
+    "Collapse": "收合",
+    "Expand": "展開",
+    "Queued": "待排",
     "→ Recorded as #{num}": "→ 記為 #{num}",
     "→ #{num} replaces #{old}": "→ #{num}，替換 #{old}"
   },
@@ -13499,6 +13505,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count} 件待機",
     "{count} archived": "{count} 件アーカイブ",
     "Unclassified": "未分類",
+    "Collapse": "折りたたむ",
+    "Expand": "展開",
+    "Queued": "待機",
     "→ Recorded as #{num}": "→ #{num} として記録",
     "→ #{num} replaces #{old}": "→ #{num} が #{old} を置き換え"
   },
@@ -13508,6 +13517,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count}개 대기",
     "{count} archived": "{count}개 보관됨",
     "Unclassified": "미분류",
+    "Collapse": "접기",
+    "Expand": "펼치기",
+    "Queued": "대기",
     "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
     "→ #{num} replaces #{old}": "→ #{num}이(가) #{old}을(를) 대체"
   },
@@ -13517,6 +13529,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count} en cola",
     "{count} archived": "{count} archivados",
     "Unclassified": "Sin clasificar",
+    "Collapse": "Contraer",
+    "Expand": "Expandir",
+    "Queued": "En cola",
     "→ Recorded as #{num}": "→ Registrado como #{num}",
     "→ #{num} replaces #{old}": "→ #{num} sustituye a #{old}"
   },
@@ -13526,6 +13541,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count} en attente",
     "{count} archived": "{count} archivés",
     "Unclassified": "Non classé",
+    "Collapse": "Réduire",
+    "Expand": "Développer",
+    "Queued": "En attente",
     "→ Recorded as #{num}": "→ Enregistré comme #{num}",
     "→ #{num} replaces #{old}": "→ #{num} remplace #{old}"
   },
@@ -13535,6 +13553,9 @@ var TOPIC_COPY = {
     "{count} queued": "{count} wartend",
     "{count} archived": "{count} archiviert",
     "Unclassified": "Nicht zugeordnet",
+    "Collapse": "Einklappen",
+    "Expand": "Ausklappen",
+    "Queued": "Wartend",
     "→ Recorded as #{num}": "→ Erfasst als #{num}",
     "→ #{num} replaces #{old}": "→ #{num} ersetzt #{old}"
   }
