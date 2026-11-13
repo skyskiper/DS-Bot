@@ -76,6 +76,10 @@ const rowOf = (item) => {
 export const CHIP_HEIGHT = { active: 40, topic: 26, sub: 22 }
 export const CHIP_GAP = { topic: 8, sub: 4 }
 export const TRAY_MAX = 320
+// The motion the design fixes, in one place: the tray writes them onto its layer and hands
+// them out through the read-only reader below, so a window can measure the animation
+// without patching anything.
+export const TOPIC_ANIM = { fly: 900, land: 220, glow: 240, swap: 320, stagger: 60, dot: 500, trails: [45, 90, 135, 180] }
 
 // The last thing that happened in a topic: its opening, an event, or a subtopic's message.
 export const lastAtOf = (item) => Math.max(

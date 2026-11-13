@@ -6,7 +6,7 @@ import { createElement as h, useCallback, useEffect, useRef, useState } from 're
 import { call } from './api.js'
 import { useEscape } from './overlay-hooks.js'
 import { t } from './i18n.js'
-import { TRAY_MAX, cardLine, chipsHeight, chipsOf, landedIn, shortTitle, threadTitle, timeAgo } from './topics-view.js'
+import { TRAY_MAX, TOPIC_ANIM, cardLine, chipsHeight, chipsOf, landedIn, shortTitle, threadTitle, timeAgo } from './topics-view.js'
 
 const TOPIC_COLORS = ['var(--bt-topic-1)', 'var(--bt-topic-2)', 'var(--bt-topic-3)']
 export const topicColor = num => TOPIC_COLORS[(Math.max(1, Number(num) || 1) - 1) % TOPIC_COLORS.length]
@@ -86,7 +86,7 @@ export function FlySlip({ from, to, name, text, num, onArrived }) {
   useEffect(() => {
     if (box.current === null) return undefined
     const dur = 900
-    const lags = [0, 45, 90, 135, 180]
+    const lags = [0, ...TOPIC_ANIM.trails]
     const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 }
     const anims = []
     for (let i = 0; i < lags.length; i += 1) {
@@ -95,7 +95,7 @@ export function FlySlip({ from, to, name, text, num, onArrived }) {
       const frames = []
       for (let step = 0; step <= 30; step += 1) {
         const t = step / 30
-        const at = easeInOutCubic(Math.max(0, Math.min(1, (t * dur - lags[i]) / dur)))
+        const at = easeInOutCubic(t)
         const x = bezier(from.x, control.x, to.x, at)
         const y = bezier(from.y, control.y, to.y, at)
         frames.push({
@@ -108,9 +108,10 @@ export function FlySlip({ from, to, name, text, num, onArrived }) {
             : 0.34 * (1 - at),
         })
       }
-      // Web Animations, not a requestAnimationFrame loop: the duration stays readable from
-      // outside (`getAnimations({subtree: true})`), which is how a window measures it.
-      anims.push(el.animate(frames, { duration: dur, fill: 'forwards' }))
+      // Web Animations, not a requestAnimationFrame loop: the duration and the trail's lag
+      // stay readable from outside (`getAnimations({subtree: true}).effect.getTiming()`),
+      // which is how a window measures it.
+      anims.push(el.animate(frames, { duration: dur, delay: lags[i], fill: 'forwards' }))
     }
     const main = anims[0]
     if (main !== undefined) main.finished.then(() => arrived.current?.()).catch(() => {})
@@ -118,8 +119,8 @@ export function FlySlip({ from, to, name, text, num, onArrived }) {
   }, [])
   const head = Array.from(String(text ?? '')).slice(0, 6).join('')
   return h('div', {
-    ref: box, className: 'bt-topics-fly-layer', 'aria-hidden': true,
-    'data-anim': 'fly', 'data-duration': '900', 'data-trails': '45,90,135,180',
+    ref: box, className: 'bt-topics-fly-run', 'aria-hidden': true,
+    'data-anim': 'fly', 'data-duration': String(TOPIC_ANIM.fly), 'data-trails': TOPIC_ANIM.trails.join(','),
   },
   h('div', { className: 'bt-topics-fly', style: { borderColor: topicColor(num) } },
     h('span', { className: 'bt-topics-fly-ava', style: { background: topicColor(num) } }, String(name ?? '?').slice(0, 1)),
@@ -306,6 +307,7 @@ export function TopicsDock({ useRoster, useSessions }) {
   const [cardAnchor, setCardAnchor] = useState(null)
   const [landing, setLanding] = useState(null)
   const [fly, setFly] = useState(null)
+  const animLayer = useRef(null)
   const previous = useRef(undefined)
   const items = Object.values(book?.items ?? {})
   const live = items.filter(item => item.state === 'active' || item.state === 'blocked' || item.state === 'pending')
@@ -360,6 +362,26 @@ export function TopicsDock({ useRoster, useSessions }) {
 
   // Escape takes one layer at a time: the card window first (and with it the stack that
   // opened it), so the column underneath stays open until the next press.
+  // A product-level reading of the motion, not a test hook: whatever is animating right now
+  // in the tray says what it is and how long it takes, so a window can measure it without
+  // patching a line. `__btTopicsAnim()` returns one entry per running animation.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    window.__btTopicsAnim = () => {
+      // The dock, not only the flying layer: the chips' pulse and swap live beside it.
+      const root = animLayer.current?.closest('.bt-topics-dock') ?? animLayer.current
+      if (root === null || root === undefined || typeof root.getAnimations !== 'function') return []
+      return root.getAnimations({ subtree: true }).map((anim) => {
+        const timing = anim.effect?.getTiming?.() ?? {}
+        return {
+          kind: anim.animationName ?? anim.transitionProperty ?? 'fly',
+          duration: timing.duration,
+          delay: timing.delay ?? 0,
+        }
+      })
+    }
+    return () => { delete window.__btTopicsAnim }
+  }, [])
   useEscape(() => {
     if (cardNum !== undefined) { setCardNum(undefined); setExpanded(false) }
     else setExpanded(false)
@@ -383,7 +405,12 @@ export function TopicsDock({ useRoster, useSessions }) {
         onActivate: (num) => setActiveNum(num),
         onExpand: () => setExpanded(true),
       }),
-    fly !== null && fly !== undefined ? h(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
+    h('div', {
+      ref: animLayer, className: 'bt-topics-fly-layer', 'aria-hidden': true,
+      'data-anim-fly': String(TOPIC_ANIM.fly), 'data-anim-land': String(TOPIC_ANIM.land),
+      'data-anim-glow': String(TOPIC_ANIM.glow), 'data-anim-swap': String(TOPIC_ANIM.swap),
+      'data-anim-dot': String(TOPIC_ANIM.dot), 'data-anim-trails': TOPIC_ANIM.trails.join(','),
+    }, fly !== null && fly !== undefined ? h(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null),
     cardNum !== undefined && cardAnchor !== null
       ? h(TopicPopover, { roomId: room.id, target: { num: cardNum }, anchor: cardAnchor, note: book?.items?.[cardNum]?.note, onClose: () => setCardNum(undefined) })
       : null)
@@ -415,6 +442,7 @@ export const TOPICS_TRAY_CSS = `
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
+.bt-topics-fly-run{display:contents}
 .bt-topics-fly{position:fixed;top:0;left:0;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 5px;border-radius:10px;border:1.5px solid;background:var(--bt-tray-fly);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;will-change:transform,opacity}
 .bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
 .bt-topics-fly-name{color:var(--bt-ink-2);font-weight:500}

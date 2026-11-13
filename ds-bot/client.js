@@ -38662,6 +38662,7 @@ var rowOf = (item) => {
 var CHIP_HEIGHT = { active: 40, topic: 26, sub: 22 };
 var CHIP_GAP = { topic: 8, sub: 4 };
 var TRAY_MAX = 320;
+var TOPIC_ANIM = { fly: 900, land: 220, glow: 240, swap: 320, stagger: 60, dot: 500, trails: [45, 90, 135, 180] };
 var lastAtOf = (item) => Math.max(
   item?.createdAt ?? 0,
   item?.lastAt ?? 0,
@@ -43042,7 +43043,7 @@ function FlySlip({ from, to, name, text, num: num2, onArrived }) {
   (0, import_react71.useEffect)(() => {
     if (box.current === null) return void 0;
     const dur = 900;
-    const lags = [0, 45, 90, 135, 180];
+    const lags = [0, ...TOPIC_ANIM.trails];
     const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 };
     const anims = [];
     for (let i = 0; i < lags.length; i += 1) {
@@ -43051,7 +43052,7 @@ function FlySlip({ from, to, name, text, num: num2, onArrived }) {
       const frames = [];
       for (let step = 0; step <= 30; step += 1) {
         const t2 = step / 30;
-        const at = easeInOutCubic(Math.max(0, Math.min(1, (t2 * dur - lags[i]) / dur)));
+        const at = easeInOutCubic(t2);
         const x = bezier(from.x, control.x, to.x, at);
         const y = bezier(from.y, control.y, to.y, at);
         frames.push({
@@ -43060,7 +43061,7 @@ function FlySlip({ from, to, name, text, num: num2, onArrived }) {
           opacity: i === 0 ? t2 < 0.08 ? t2 / 0.08 : t2 > 0.86 ? Math.max(0, (1 - t2) / 0.14) : 1 : 0.34 * (1 - at)
         });
       }
-      anims.push(el.animate(frames, { duration: dur, fill: "forwards" }));
+      anims.push(el.animate(frames, { duration: dur, delay: lags[i], fill: "forwards" }));
     }
     const main = anims[0];
     if (main !== void 0) main.finished.then(() => arrived.current?.()).catch(() => {
@@ -43074,11 +43075,11 @@ function FlySlip({ from, to, name, text, num: num2, onArrived }) {
     "div",
     {
       ref: box,
-      className: "bt-topics-fly-layer",
+      className: "bt-topics-fly-run",
       "aria-hidden": true,
       "data-anim": "fly",
-      "data-duration": "900",
-      "data-trails": "45,90,135,180"
+      "data-duration": String(TOPIC_ANIM.fly),
+      "data-trails": TOPIC_ANIM.trails.join(",")
     },
     (0, import_react71.createElement)(
       "div",
@@ -43278,6 +43279,7 @@ function TopicsDock({ useRoster, useSessions }) {
   const [cardAnchor, setCardAnchor] = (0, import_react71.useState)(null);
   const [landing, setLanding] = (0, import_react71.useState)(null);
   const [fly, setFly] = (0, import_react71.useState)(null);
+  const animLayer = (0, import_react71.useRef)(null);
   const previous = (0, import_react71.useRef)(void 0);
   const items = Object.values(book?.items ?? {});
   const live = items.filter((item) => item.state === "active" || item.state === "blocked" || item.state === "pending");
@@ -43322,6 +43324,24 @@ function TopicsDock({ useRoster, useSessions }) {
     const timer2 = setTimeout(() => setLanding(null), 900);
     return () => clearTimeout(timer2);
   }, [landing]);
+  (0, import_react71.useEffect)(() => {
+    if (typeof window === "undefined") return void 0;
+    window.__btTopicsAnim = () => {
+      const root = animLayer.current?.closest(".bt-topics-dock") ?? animLayer.current;
+      if (root === null || root === void 0 || typeof root.getAnimations !== "function") return [];
+      return root.getAnimations({ subtree: true }).map((anim) => {
+        const timing = anim.effect?.getTiming?.() ?? {};
+        return {
+          kind: anim.animationName ?? anim.transitionProperty ?? "fly",
+          duration: timing.duration,
+          delay: timing.delay ?? 0
+        };
+      });
+    };
+    return () => {
+      delete window.__btTopicsAnim;
+    };
+  }, []);
   useEscape(() => {
     if (cardNum !== void 0) {
       setCardNum(void 0);
@@ -43358,7 +43378,17 @@ function TopicsDock({ useRoster, useSessions }) {
       onActivate: (num2) => setActiveNum(num2),
       onExpand: () => setExpanded(true)
     }),
-    fly !== null && fly !== void 0 ? (0, import_react71.createElement)(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
+    (0, import_react71.createElement)("div", {
+      ref: animLayer,
+      className: "bt-topics-fly-layer",
+      "aria-hidden": true,
+      "data-anim-fly": String(TOPIC_ANIM.fly),
+      "data-anim-land": String(TOPIC_ANIM.land),
+      "data-anim-glow": String(TOPIC_ANIM.glow),
+      "data-anim-swap": String(TOPIC_ANIM.swap),
+      "data-anim-dot": String(TOPIC_ANIM.dot),
+      "data-anim-trails": TOPIC_ANIM.trails.join(",")
+    }, fly !== null && fly !== void 0 ? (0, import_react71.createElement)(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null),
     cardNum !== void 0 && cardAnchor !== null ? (0, import_react71.createElement)(TopicPopover, { roomId: room2.id, target: { num: cardNum }, anchor: cardAnchor, note: book?.items?.[cardNum]?.note, onClose: () => setCardNum(void 0) }) : null
   );
 }
@@ -43388,6 +43418,7 @@ var TOPICS_TRAY_CSS = `
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
+.bt-topics-fly-run{display:contents}
 .bt-topics-fly{position:fixed;top:0;left:0;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 5px;border-radius:10px;border:1.5px solid;background:var(--bt-tray-fly);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;will-change:transform,opacity}
 .bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
 .bt-topics-fly-name{color:var(--bt-ink-2);font-weight:500}

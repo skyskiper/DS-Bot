@@ -205,3 +205,17 @@ test('the card stack draws one card per live topic with its meta line', () => {
   assert.equal(JSON.stringify(asked[0]), JSON.stringify(['pick', 1, true]))
   assert.ok(texts(tree).includes('Collapse ↓'))
 })
+
+test('the motion is declared as data a window can read without patching anything', () => {
+  const tree = tray.TopicsTray({ chips: view.chipsOf(book, 3), anchor: { right: 24, bottom: 120 } })
+  assert.ok(tree, 'the tray draws')
+  assert.equal(view.TOPIC_ANIM.fly, 900)
+  assert.equal(view.TOPIC_ANIM.land, 220)
+  assert.equal(view.TOPIC_ANIM.glow, 240)
+  assert.equal(view.TOPIC_ANIM.swap, 320)
+  assert.equal(view.TOPIC_ANIM.stagger, 60)
+  assert.equal(view.TOPIC_ANIM.dot, 500)
+  assert.deepEqual(Array.from(view.TOPIC_ANIM.trails), [45, 90, 135, 180])
+  // The layer carries the same numbers as attributes, so a reader that only has the DOM
+  // never needs the module: the dock writes them where the reader can see them.
+})
