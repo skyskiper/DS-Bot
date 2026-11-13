@@ -275,20 +275,24 @@ export function install(rt) {
           const before = Number.isFinite(Number(body.before)) ? Number(body.before) : undefined
           const seqs = new Set(other ? (book?.other?.msgs ?? []) : [])
           if (!other && Number.isInteger(item.fromSeq)) seqs.add(item.fromSeq)
+          if (!other) for (const seq of item.messages ?? []) if (Number.isInteger(seq)) seqs.add(seq)
           if (!other) for (const sub of Object.values(item.subs ?? {})) {
             for (const seq of sub.messages ?? []) if (Number.isInteger(seq)) seqs.add(seq)
           }
           const all = [...seqs].sort((a, b) => a - b).filter(seq => before === undefined || seq < before)
           const page = all.slice(-limit)
           const items = page.map((seq) => {
-            const line = rt.groupLine === undefined ? undefined : room.log?.find(entry => entry.seq === seq)
+            // The room's log keeps sixty lines; the book keeps them whole. Read the book
+            // first, or a topic older than that would show empty bubbles.
+            const whole = rt.ledger?.record?.(`group-${room.id}`, seq)
+            const line = room.log?.find(entry => entry.seq === seq)
             const sub = other ? undefined : Object.entries(item.subs ?? {}).find(([, entry]) => (entry.messages ?? []).includes(seq))
             return {
               seq,
               ts: line?.time ?? null,
               who: line?.botId ?? null,
               name: line?.name ?? line?.who ?? 'User',
-              text: line?.text ?? null,
+              text: whole?.text ?? line?.text ?? null,
               ...(sub === undefined ? {} : { sub: `${item.num}.${sub[0]}`, ...(sub[1].title === undefined ? {} : { subTitle: sub[1].title }) }),
             }
           })

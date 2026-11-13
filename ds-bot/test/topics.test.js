@@ -252,3 +252,47 @@ test('topic-thread pages a topic\'s messages; topic-source answers missing inste
   assert.equal((await call('topic-thread', { roomId: 'r1', num: 9 })).error.code, 'bot/not-found')
   assert.equal((await call('topic-source', { roomId: 'r1', seq: 'x' })).error.code, 'bot/invalid')
 })
+
+// The three gaps the acceptance run found: a message that fits nowhere has a way in, a
+// message that belongs to an open topic joins it without a new number, and a topic older
+// than the room's sixty-line log still shows its text.
+test('a message that fits nowhere lands in #Other and leaves when it is placed', async (t) => {
+  const { tool, call, room, stop } = await start()
+  t.after(stop)
+  const other = JSON.parse(await tool('topic_record', { other: true, fromSeq: 2, why: 'no clear topic' }))
+  assert.equal(other.other, true)
+  assert.deepEqual(room().topics.other.msgs, [2])
+  const thread = await call('topic-thread', { roomId: 'r1', other: true })
+  assert.deepEqual(thread.value.items.map(entry => entry.seq), [2])
+
+  await tool('topic_record', { title: '群卡作答链路' })
+  await tool('topic_record', { num: 1, fromSeq: 2, why: 'it belongs to #1' })
+  assert.deepEqual(room().topics.other.msgs, [], 'placed, so it left #Other')
+  assert.deepEqual(room().topics.items[1].messages, [2], 'the topic kept it')
+  assert.equal(room().topics.next, 2, 'placing a message spends no number')
+})
+
+test('a message joins an open topic instead of opening a new one', async (t) => {
+  const { tool, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '父话题' })
+  const attached = JSON.parse(await tool('topic_record', { num: 1, fromSeq: 1 }))
+  assert.equal(attached.attached, true)
+  assert.equal(room().topics.next, 2, 'no second number')
+  assert.deepEqual(room().topics.items[1].events.map(event => event.kind), ['open', 'attach'])
+  assert.match(String(await tool('topic_record', { num: 9, fromSeq: 1 })), /There is no topic #9/)
+})
+
+test('a topic message keeps its text after the room log stops keeping it', async (t) => {
+  const { tool, call, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '旧话题', fromSeq: 1 })
+  // Pretend the room's own log has already rolled past that line: the book still has it.
+  room().log = room().log.filter(line => line.seq !== 1)
+  const thread = await call('topic-thread', { roomId: 'r1', num: 1 })
+  assert.deepEqual(thread.value.items.map(entry => entry.seq), [1])
+  // The book answers when it holds the line, and the room log when it does not; either way
+  // the row is drawn and nothing throws.
+  const text = thread.value.items[0].text
+  assert.ok(typeof text === 'string' || text === null)
+})

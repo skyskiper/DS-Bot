@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
+import { build } from 'esbuild'
+
+// The right column's entry and list are stateless, so the markup is read directly.
+const { outputFiles } = await build({
+  stdin: { contents: "export { TopicEntry, TopicList } from './src/client/topics-panel.js'", resolveDir: fileURLToPath(new URL('..', import.meta.url)) },
+  bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
+  external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
+})
+const react = { Fragment: 'Fragment', createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity) }) }
+const module = { exports: {} }
+runInNewContext(outputFiles[0].text, { module, exports: module.exports, require: name => (name === 'react' ? react : {}) }, { filename: 'bundle.cjs' })
+const { TopicEntry, TopicList } = module.exports
+
+const texts = (node, out = []) => {
+  if (typeof node === 'string' || typeof node === 'number') out.push(String(node))
+  if (Array.isArray(node)) node.forEach(child => texts(child, out))
+  if (node && typeof node === 'object' && node.children !== undefined) texts(node.children, out)
+  return out
+}
+const nodes = (tree, out = []) => {
+  if (tree === null || tree === undefined || typeof tree !== 'object') return out
+  out.push(tree)
+  for (const child of tree.children ?? []) nodes(child, out)
+  return out
+}
+const byClass = (tree, name) => nodes(tree).filter(node => node.props?.className === name)
+
+const book = {
+  next: 5,
+  items: {
+    1: { num: 1, title: '群卡作答链路', state: 'active', subs: { 1: { num: 1, title: '回退用例', state: 'active' } } },
+    2: { num: 2, title: '话题入口', state: 'active', subs: {} },
+    3: { num: 3, title: '已归档的', state: 'archived', archivedAt: 20, subs: {} },
+    4: { num: 4, title: '排队中', state: 'pending', subs: {} },
+    5: { num: 5, title: '更早归档', state: 'archived', archivedAt: 10, subs: {} },
+  },
+  other: { msgs: [7, 8] },
+}
+
+test('the entry shows one dot per active topic, up to three, and the counts', () => {
+  const tree = TopicEntry({ book })
+  assert.equal(byClass(tree, 'bt-topics-dots')[0].children.length, 2)
+  assert.deepEqual(texts(tree), ['Topics', '2 active · 1 queued · 2 archived', '›'])
+  const many = TopicEntry({ book: { items: { 1: { num: 1, title: 'a', state: 'active' }, 2: { num: 2, title: 'b', state: 'active' }, 3: { num: 3, title: 'c', state: 'active' }, 4: { num: 4, title: 'd', state: 'active' } } } })
+  assert.equal(byClass(many, 'bt-topics-dots')[0].children.length, 3, 'at most three dots')
+})
+
+test('an empty ledger draws no entry at all', () => {
+  assert.equal(TopicEntry({ book: { items: {}, other: { msgs: [] } } }), null)
+})
+
+test('the list keeps active newest first, then queued, then archived by time, with #Other last', () => {
+  const tree = TopicList({ book })
+  const cards = nodes(tree).filter(node => node.props?.className === 'bt-topics-card')
+  assert.deepEqual(cards.map(card => texts(card)[0].split(' ')[0]), ['#2', '#1', '#4', '#3', '#5', '#Other'])
+  assert.deepEqual(nodes(tree).filter(node => node.props?.className === 'bt-topics-section-head').map(node => texts(node)[0]), ['Active', 'Queued', 'Archived', 'Unclassified'])
+})
+
+test('an archived row asks to reopen, and waits while the house is full', () => {
+  const asked = []
+  const open = TopicList({ book, onReopen: num => asked.push(['reopen', num]), onCancelReopen: num => asked.push(['cancel', num]) })
+  const reopen = nodes(open).filter(node => node.type === 'button' && texts(node).join('') === 'Reopen')
+  assert.equal(reopen.length, 2)
+  reopen[0].props.onClick()
+  assert.deepEqual(asked, [['reopen', 3]])
+
+  const waiting = TopicList({ book, reopening: [3], onCancelReopen: num => asked.push(['cancel', num]) })
+  assert.ok(texts(waiting).includes('已申请重开 · 待排') || texts(waiting).some(text => /Reopen queued/.test(text)), 'the row says it waits')
+  const cancel = nodes(waiting).filter(node => node.type === 'button' && texts(node).join('') === 'Cancel')
+  assert.equal(cancel.length, 1)
+  cancel[0].props.onClick()
+  assert.deepEqual(asked.at(-1), ['cancel', 3])
+})
+
+test('#Other opens as its own view, and an empty list says so', () => {
+  const asked = []
+  const tree = TopicList({ book, onOpen: target => asked.push(target) })
+  const other = nodes(tree).find(node => node.props?.className === 'bt-topics-card' && texts(node)[0] === '#Other')
+  other.props.onClick()
+  assert.equal(asked.length, 1)
+  assert.equal(asked[0].other, true, 'the Other row opens the unclassified view')
+  assert.deepEqual(texts(TopicList({ book: { items: {}, other: { msgs: [] } } })), ['No topics yet'])
+})

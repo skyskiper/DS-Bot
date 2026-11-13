@@ -99,8 +99,24 @@ export function install(rt) {
     if (changed) void rt.save?.().catch?.(() => {})
   }
 
-  const record = ({ room, title, fromSeq, acceptance, parent, kind, by, why }) => {
+  const record = ({ room, title, fromSeq, acceptance, parent, kind, by, why, num, other }) => {
     const book = bookOf(room)
+    // A message the admin could not place: it keeps its seq in #Other until someone says
+    // where it belongs. No title is needed, and no number is spent.
+    if (other === true) return rt.topicToOther(room, fromSeq, why, by)
+    // A message that belongs to a topic that is already open: it joins that one, so the
+    // topic's own thread shows it without a new number being spent.
+    if (Number.isInteger(num) && parent === undefined) {
+      const target = book.items[num]
+      if (target === undefined) return { error: `There is no topic #${num}.` }
+      if (Number.isInteger(fromSeq)) {
+        target.messages = [...(target.messages ?? []), fromSeq]
+        book.other.msgs = book.other.msgs.filter(kept => kept !== fromSeq)
+      }
+      target.events.push({ at: now(), kind: 'attach', by, why, seq: fromSeq })
+      void rt.save?.().catch?.(() => {})
+      return { num: target.num, state: target.state, attached: true }
+    }
     const text = titleOf(title)
     if (text === '') return { error: 'A topic needs a title of at least one character.' }
     if (parent !== undefined && parent !== null) {
@@ -124,17 +140,17 @@ export function install(rt) {
       void rt.save?.().catch?.(() => {})
       return { num: item.num, sub, label: `#${item.num}.${sub}` }
     }
-    const num = book.next
-    book.next = num + 1
+    const fresh = book.next
+    book.next = fresh + 1
     const opened = seat(book)
-    book.items[num] = {
-      num, title: text, state: opened ? 'active' : 'pending', parent: null,
+    book.items[fresh] = {
+      num: fresh, title: text, state: opened ? 'active' : 'pending', parent: null,
       owner: null, acceptance: acceptance ?? null, createdAt: now(),
       ...(fromSeq === undefined ? {} : { fromSeq }), subs: {}, events: [{ at: now(), kind: 'open', by, why, seq: fromSeq }],
     }
     void rt.save?.().catch?.(() => {})
-    const answer = { num, state: book.items[num].state, title: text }
-    if (!opened) answer.note = `Three topics are already in flight; #${num} is kept and opens when a seat frees. Say it is noted for later.`
+    const answer = { num: fresh, state: book.items[fresh].state, title: text }
+    if (!opened) answer.note = `Three topics are already in flight; #${fresh} is kept and opens when a seat frees. Say it is noted for later.`
     return answer
   }
 
@@ -174,14 +190,19 @@ export function install(rt) {
 
   tool('topic_record', 'Open a topic for something new in this group, or record a message that belongs to an existing one. The code refuses nothing that fits; it queues the fourth active topic and joins the fourth subtopic to the closest one.', {
     group: { type: 'string', description: 'Exact group chat name; leave out when calling from that group\'s own Session' },
-    title: { type: 'string', required: true, description: 'Short verb-object title, at most 8 characters; longer titles are cut to 8' },
+    title: { type: 'string', description: 'Short verb-object title, at most 8 characters; longer titles are cut to 8. Not needed when num or other places the message' },
     fromSeq: { type: 'number', description: 'The seq of the message this came from, so the topic can point back at it' },
     acceptance: { type: 'string', description: 'One line: how this topic will be known to be done' },
     parent: { type: 'number', description: 'Put it under this topic as a subtopic' },
+    num: { type: 'number', description: 'A topic already open that this message belongs to; no new number is spent' },
+    other: { type: 'boolean', description: 'The message fits no topic: keep it in #Other until someone says where it goes' },
     kind: { type: 'string', enum: SUB_KINDS, description: 'progress: a step moved; detail: one point being aligned' },
     why: { type: 'string', description: 'Why it belongs there, in one line; kept in the audit trail' },
   }, (args, { room, bot }) => {
-    const result = record({ room, title: args.title, fromSeq: args.fromSeq, acceptance: args.acceptance, parent: args.parent, kind: args.kind, by: bot?.name, why: args.why })
+    const result = record({
+      room, title: args.title, fromSeq: args.fromSeq, acceptance: args.acceptance, parent: args.parent,
+      kind: args.kind, by: bot?.name, why: args.why, num: args.num, other: args.other === true,
+    })
     return result.error ?? JSON.stringify(result)
   })
 
