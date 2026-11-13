@@ -164,6 +164,15 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [reopening, setReopening] = useState([])
   const book = room.topics
+  // The entry's counts and the list read one state; while this column is open it is read
+  // back at the visible poll's pace even in a hidden window, so a new pending topic shows
+  // in the same render as the list instead of one slow poll later.
+  const refresh = useRef(actions.refreshTopics)
+  refresh.current = actions.refreshTopics
+  useEffect(() => {
+    const timer = setInterval(() => refresh.current?.(), 1500)
+    return () => clearInterval(timer)
+  }, [])
   const openTopics = () => setTopicTarget({ list: true })
   const reopen = (num) => {
     setReopening(list => (list.includes(num) ? list : [...list, num]))

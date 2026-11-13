@@ -156,3 +156,38 @@ test('#Other is one line with its prefix, and a silent topic says it has no mess
   const meta = nodes(empty).find(node => node.props?.className === 'bt-topics-card-meta')
   assert.match(String(texts(meta)[0]), /^(还没有消息|No messages yet)$/, 'a topic with nothing in it says so')
 })
+
+test('a promoted row carries both clocks the window reads', () => {
+  const promoted = {
+    items: {
+      1: { num: 1, title: 'a', state: 'active', subs: {} },
+      2: { num: 2, title: '顶上来的', state: 'active', subs: {}, events: [{ at: 100, kind: 'open' }, { at: 400, kind: 'state', from: 'pending', to: 'active' }] },
+    },
+    other: { msgs: [] },
+  }
+  const tree = TopicList({ book: promoted, seenAt: { 2: 900 } })
+  const rows = nodes(tree).filter(node => node.props?.className === 'bt-topics-card')
+  const row = rows.find(node => node.props?.['data-promoted-at'] !== undefined)
+  assert.equal(row.props['data-promoted-at'], 400, 'the host stamp of the promotion')
+  assert.equal(row.props['data-active-seen-at'], 900, 'when this window first drew it active')
+  assert.equal(rows.find(node => texts(node)[0] === '#1').props['data-active-seen-at'], undefined, 'a topic that never moved has no seen stamp')
+})
+
+test('D31: the entry and the list count the same state in the same render', () => {
+  const before = { items: { 1: { num: 1, title: '在办', state: 'active', subs: {} } }, other: { msgs: [] } }
+  const after = structuredClone(before)
+  after.items[2] = { num: 2, title: '新来一件', state: 'pending', subs: {} }
+  after.items[3] = { num: 3, title: '结束了', state: 'archived', archivedAt: 5, subs: {} }
+
+  const entryNow = texts(TopicEntry({ book: before }))[1]
+  const entryNext = texts(TopicEntry({ book: after }))[1]
+  assert.match(entryNow, /1 active/)
+  assert.doesNotMatch(entryNow, /queued/, 'nothing waits in the first render')
+  assert.match(entryNext, /1 active · 1 queued · 1 archived/, 'the same render counts the new state, not a cached one')
+
+  const listNow = texts(TopicList({ book: before }))
+  const listNext = texts(TopicList({ book: after }))
+  assert.equal(listNow.includes('Queued'), false)
+  assert.equal(listNext.includes('Queued'), true, 'the list shows the queued row in the very same render')
+  assert.ok(listNext.includes('Archived 1 ›'), 'and folds the archived row, matching the entry count')
+})

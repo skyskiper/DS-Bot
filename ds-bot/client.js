@@ -38653,6 +38653,10 @@ var timeAgo = (ts, now = Date.now()) => {
   return t("{count}h ago", { count: Math.round(seconds / 3600) });
 };
 var moveTargets = (book) => liveTopics(book).sort((a, b) => b.num - a.num).map((item) => ({ num: item.num, label: `#${item.num}`, title: shortTitle(item.title), state: item.state }));
+var promotedAtOf = (item) => {
+  const event = (item?.events ?? []).filter((entry) => entry?.kind === "state" && entry?.to === "active").at(-1);
+  return Number.isFinite(event?.at) ? event.at : void 0;
+};
 var threadTitle = (book, target) => {
   if (target?.other === true) return "#Other";
   const item = book?.items?.[target?.num];
@@ -38686,7 +38690,7 @@ function TopicEntry({ book, onOpen }) {
     (0, import_react62.createElement)("span", { className: "bt-topics-chev", "aria-hidden": true }, "›")
   );
 }
-function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], archivedOpen = false, onToggleArchived }) {
+function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], archivedOpen = false, onToggleArchived, seenAt = {} }) {
   const items = Object.values(book?.items ?? {});
   const active = items.filter((item) => item.state === "active").sort((a, b) => b.num - a.num);
   const queued = items.filter((item) => item.state === "pending").sort((a, b) => a.num - b.num);
@@ -38702,6 +38706,10 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
       type: "button",
       className: "bt-topics-card",
       "data-state": item.state,
+      // Two stamps a window can read: when the host promoted it, and when this window first
+      // drew it active. The difference is the delay the "a free seat is taken at once" check wants.
+      ...promotedAtOf(item) === void 0 ? {} : { "data-promoted-at": promotedAtOf(item) },
+      ...item.state !== "active" || seenAt[item.num] === void 0 ? {} : { "data-active-seen-at": seenAt[item.num] },
       onClick: () => {
         if (typeof onOpen === "function") onOpen({ num: item.num });
       }
@@ -38798,6 +38806,12 @@ var section = (title, rows2) => (0, import_react62.createElement)(
 );
 function TopicView({ room: room2, book, target = null, onBack, onOpen, onRefresh, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
   const { active } = counts2(book);
+  const seen = (0, import_react62.useRef)(/* @__PURE__ */ new Map());
+  for (const item of Object.values(book?.items ?? {})) {
+    if (item.state === "active" && !seen.current.has(item.num)) seen.current.set(item.num, Date.now());
+    if (item.state !== "active") seen.current.delete(item.num);
+  }
+  const seenAt = Object.fromEntries(seen.current);
   const refresh = (0, import_react62.useRef)(onRefresh);
   refresh.current = onRefresh;
   (0, import_react62.useEffect)(() => {
@@ -38816,7 +38830,7 @@ function TopicView({ room: room2, book, target = null, onBack, onOpen, onRefresh
       "div",
       { className: "bt-topics-view" },
       head(t("Topics"), active, onBack),
-      (0, import_react62.createElement)(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived })
+      (0, import_react62.createElement)(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived, seenAt })
     );
   }
   return (0, import_react62.createElement)(TopicThreadView, { room: room2, book, target, onBack, onRefresh });
@@ -39651,6 +39665,12 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
   const [archivedOpen, setArchivedOpen] = (0, import_react65.useState)(false);
   const [reopening, setReopening] = (0, import_react65.useState)([]);
   const book = room2.topics;
+  const refresh = (0, import_react65.useRef)(actions.refreshTopics);
+  refresh.current = actions.refreshTopics;
+  (0, import_react65.useEffect)(() => {
+    const timer2 = setInterval(() => refresh.current?.(), 1500);
+    return () => clearInterval(timer2);
+  }, []);
   const openTopics = () => setTopicTarget({ list: true });
   const reopen = (num2) => {
     setReopening((list) => list.includes(num2) ? list : [...list, num2]);
@@ -42874,6 +42894,18 @@ function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
     (0, import_react71.createElement)(
       "div",
       { className: "bt-topics-tray-col" },
+      // The capsule opens the stack, but only once the eye is on it; this handle is the same
+      // action for the times it is not, and the one a window can click without guessing.
+      (0, import_react71.createElement)("button", {
+        type: "button",
+        className: "bt-topics-open",
+        "aria-label": t("Expand"),
+        title: t("Expand"),
+        style: { marginBottom: 8 },
+        onClick: () => {
+          if (typeof onExpand === "function") onExpand();
+        }
+      }, "⌃"),
       chips.map((chip) => (0, import_react71.createElement)(
         "button",
         {
@@ -43148,6 +43180,8 @@ var TOPICS_TRAY_CSS = `
 .bt-topics-tray{position:fixed;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;overflow-y:auto;overflow-x:visible;scrollbar-width:thin;pointer-events:auto;padding-left:6px}
 .bt-topics-tray[data-over]{mask-image:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 14px),transparent)}
 .bt-topics-tray-col{display:flex;flex-direction:column;align-items:flex-end;width:100%}
+.bt-topics-open{flex:none;width:22px;height:22px;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-num);font:inherit;font-size:11px;line-height:1;cursor:pointer}
+.bt-topics-open:hover{color:var(--bt-tray-ink);border-color:var(--bt-tray-line-hover)}
 .bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .18s cubic-bezier(.16,1,.3,1),height .18s cubic-bezier(.16,1,.3,1),border-color .18s ease,box-shadow .18s ease}
 .bt-topic-chip[data-kind=topic]{width:156px;height:26px;font-size:12px;line-height:16px;font-weight:500}
 .bt-topic-chip[data-kind=topic][data-active]{width:180px;height:40px;font-size:13px;line-height:18px;font-weight:600;border-color:var(--bt-tray-line-strong)}

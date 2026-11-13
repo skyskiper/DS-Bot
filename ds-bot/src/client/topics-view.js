@@ -164,6 +164,13 @@ export const moveTargets = (book) => liveTopics(book)
   .sort((a, b) => b.num - a.num)
   .map(item => ({ num: item.num, label: `#${item.num}`, title: shortTitle(item.title), state: item.state }))
 
+// When the host moved a topic out of pending into a seat: the window's clock for the
+// "a free seat is taken at once" check starts at this stamp, not at a poll boundary.
+export const promotedAtOf = (item) => {
+  const event = (item?.events ?? []).filter(entry => entry?.kind === 'state' && entry?.to === 'active').at(-1)
+  return Number.isFinite(event?.at) ? event.at : undefined
+}
+
 export const threadTitle = (book, target) => {
   if (target?.other === true) return '#Other'
   const item = book?.items?.[target?.num]

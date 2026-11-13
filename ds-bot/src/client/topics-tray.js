@@ -49,6 +49,12 @@ export function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
     'data-over': height > TRAY_MAX ? '' : undefined,
   },
   h('div', { className: 'bt-topics-tray-col' },
+    // The capsule opens the stack, but only once the eye is on it; this handle is the same
+    // action for the times it is not, and the one a window can click without guessing.
+    h('button', {
+      type: 'button', className: 'bt-topics-open', 'aria-label': t('Expand'), title: t('Expand'),
+      style: { marginBottom: 8 }, onClick: () => { if (typeof onExpand === 'function') onExpand() },
+    }, '⌃'),
     chips.map(chip => h('button', {
       key: chip.key, type: 'button',
       className: 'bt-topic-chip', 'data-kind': chip.kind,
@@ -294,6 +300,8 @@ export const TOPICS_TRAY_CSS = `
 .bt-topics-tray{position:fixed;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;overflow-y:auto;overflow-x:visible;scrollbar-width:thin;pointer-events:auto;padding-left:6px}
 .bt-topics-tray[data-over]{mask-image:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 14px),transparent)}
 .bt-topics-tray-col{display:flex;flex-direction:column;align-items:flex-end;width:100%}
+.bt-topics-open{flex:none;width:22px;height:22px;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-num);font:inherit;font-size:11px;line-height:1;cursor:pointer}
+.bt-topics-open:hover{color:var(--bt-tray-ink);border-color:var(--bt-tray-line-hover)}
 .bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .18s cubic-bezier(.16,1,.3,1),height .18s cubic-bezier(.16,1,.3,1),border-color .18s ease,box-shadow .18s ease}
 .bt-topic-chip[data-kind=topic]{width:156px;height:26px;font-size:12px;line-height:16px;font-weight:500}
 .bt-topic-chip[data-kind=topic][data-active]{width:180px;height:40px;font-size:13px;line-height:18px;font-weight:600;border-color:var(--bt-tray-line-strong)}

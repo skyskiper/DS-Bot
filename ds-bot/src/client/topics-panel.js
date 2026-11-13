@@ -3,7 +3,7 @@
 import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import { call } from './api.js'
 import { t } from './i18n.js'
-import { cardMeta, entryLabel, moveTargets, shortTitle, threadTitle } from './topics-view.js'
+import { cardMeta, entryLabel, moveTargets, promotedAtOf, shortTitle, threadTitle } from './topics-view.js'
 
 // D2/D23: one 36px row under the group's name — up to three dots for the active topics, the
 // counts, and a chevron. #Other is not counted here; it is a row of the list.
@@ -23,7 +23,7 @@ export function TopicEntry({ book, onOpen }) {
 
 // The list inside the column: active (newest first), queued, archived (recent first), and
 // #Other last. An archived row asks to reopen; a full house leaves it waiting, not lost.
-export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], archivedOpen = false, onToggleArchived }) {
+export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], archivedOpen = false, onToggleArchived, seenAt = {} }) {
   const items = Object.values(book?.items ?? {})
   const active = items.filter(item => item.state === 'active').sort((a, b) => b.num - a.num)
   const queued = items.filter(item => item.state === 'pending').sort((a, b) => a.num - b.num)
@@ -34,6 +34,10 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
   }
   const row = (item, extra) => h('button', {
     key: `n${item.num}`, type: 'button', className: 'bt-topics-card', 'data-state': item.state,
+    // Two stamps a window can read: when the host promoted it, and when this window first
+    // drew it active. The difference is the delay the "a free seat is taken at once" check wants.
+    ...(promotedAtOf(item) === undefined ? {} : { 'data-promoted-at': promotedAtOf(item) }),
+    ...(item.state !== 'active' || seenAt[item.num] === undefined ? {} : { 'data-active-seen-at': seenAt[item.num] }),
     onClick: () => { if (typeof onOpen === 'function') onOpen({ num: item.num }) },
   },
   h('span', { className: 'bt-topics-card-bar', 'data-state': item.state, 'aria-hidden': true }),
@@ -103,6 +107,14 @@ const section = (title, rows) => h('div', { className: 'bt-topics-section' },
 // the list — in place: nothing outside the column moves, and no second page or drawer opens.
 export function TopicView({ room, book, target = null, onBack, onOpen, onRefresh, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
   const { active } = counts(book)
+  // When this window first drew each topic as active: half of the promotion delay, read
+  // beside the host's own stamp on the row.
+  const seen = useRef(new Map())
+  for (const item of Object.values(book?.items ?? {})) {
+    if (item.state === 'active' && !seen.current.has(item.num)) seen.current.set(item.num, Date.now())
+    if (item.state !== 'active') seen.current.delete(item.num)
+  }
+  const seenAt = Object.fromEntries(seen.current)
   // The column is the place the user watches a seat free itself, so while it is open it
   // reads the book back at the visible poll's pace instead of the hidden window's slower one.
   const refresh = useRef(onRefresh)
@@ -118,7 +130,7 @@ export function TopicView({ room, book, target = null, onBack, onOpen, onRefresh
   if (target === null) {
     return h('div', { className: 'bt-topics-view' },
       head(t('Topics'), active, onBack),
-      h(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived }))
+      h(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived, seenAt }))
   }
   return h(TopicThreadView, { room, book, target, onBack, onRefresh })
 }

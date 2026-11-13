@@ -150,6 +150,15 @@ test('the collapsed column draws every chip, its #N and its title', () => {
   assert.equal(tree.props.style.bottom, 120)
 })
 
+test('the column carries a handle that opens the stack without guessing which chip is live', () => {
+  const asked = []
+  const tree = tray.TopicsTray({ chips: view.chipsOf(book, 3), anchor: { right: 24, bottom: 120 }, onExpand: () => asked.push('expand'), onActivate: () => asked.push('activate') })
+  const handle = nodes(tree).find(node => node.props?.className === 'bt-topics-open')
+  assert.ok(handle, 'the handle is in the DOM from the first paint')
+  handle.props.onClick()
+  assert.equal(JSON.stringify(asked), JSON.stringify(['expand']))
+})
+
 test('a landing slip names the speaker and the chip it hit', () => {
   const chips = view.chipsOf(book, 3)
   const tree = tray.TopicsTray({
