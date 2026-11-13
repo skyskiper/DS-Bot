@@ -225,6 +225,16 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 客户端渲染成 `—`（`aria-label="text unavailable"`），**不丢行、不画空气泡**。ledger 是 append-only，
 现实中很难撞到；这是取舍，不是缺陷。
 
+### 打包 0.4.2 的两个坑（2026-11-13）
+
+1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑
+   `app/scripts/sign-app.sh "<app>"`（取钥匙串里的 Apple Development），**签名后要重新打 zip**
+   （`ditto -c -k --sequesterRsrc --keepParent`），否则 zip 里装的是 ad-hoc 那份。
+2. **`/tmp/package.json` 会毒死打包**：它（`"type": "module"`，11-12 的残留）让 electron-builder 解到
+   `/private/tmp/eb-cache/...` 的 `icon-tool.js` 被当 ESM，报 `require is not defined`。
+   把 `ELECTRON_BUILDER_CACHE` / `DS_BOT_RUNTIME_CACHE` 指到 `$TMPDIR`（不在 `/private/tmp` 下）即可；
+   不要为此删 `/tmp/package.json`（可能是别人的产物）。
+
 ### 话题 UI 的四处已知取舍（2026-11-13）
 
 1. **`TopicStrip`（32/24 那行）没挂进页面**。聊天气泡区右下角是 A1 浮窗，右栏是总入口；
