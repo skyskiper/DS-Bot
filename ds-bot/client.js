@@ -38940,6 +38940,8 @@ var TOPICS_PANEL_CSS = `
 .bt-topics-card-num{flex:none;font-size:10.5px;font-weight:400;color:var(--bt-ink-3)}
 .bt-topics-card-meta{font-size:10.5px;color:var(--bt-ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-archived{display:flex;align-items:center;gap:6px}
+.bt-topics-card[data-state=archived]{min-height:58px;border-radius:12px;background:var(--bt-hover)}
+.bt-topics-card[data-state=archived] .bt-topics-card-bar{filter:saturate(.7)}
 .bt-topics-archived .bt-topics-card{flex:1 1 auto}
 .bt-topics-empty{padding:16px 12px;font-size:12px;color:var(--bt-ink-2)}
 `;
