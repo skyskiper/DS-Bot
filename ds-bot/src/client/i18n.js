@@ -1877,32 +1877,32 @@ const withForkCopy = dict => { for (const [key, copy] of Object.entries(FORK_COP
 const TOPIC_COPY = {
   zh: {
     'Topics': '话题', '{count} active': '{count} 活跃', '{count} queued': '{count} 待排', '{count} archived': '{count} 归档',
-    'Unclassified': '未归类', 'Active': '活跃', 'Archived': '归档', 'Reopen': '重开', 'Reopen queued': '已申请重开 · 待排', 'Cancel': '取消', 'No topics yet': '群里说一句话，管家会自动归类', 'Today': '今天', 'No messages in this topic': '这个话题还没有消息', '→ Recorded as #{num}': '→ 记为 #{num}', '→ #{num} replaces #{old}': '→ #{num}，替换 #{old}',
+    'Unclassified': '未归类', 'Active': '活跃', 'Archived': '归档', 'Reopen': '重开', 'Reopen queued': '已申请重开 · 待排', 'Cancel': '取消', 'No topics yet': '群里说一句话，管家会自动归类', 'Today': '今天', 'No messages in this topic': '这个话题还没有消息', 'text unavailable': '文本不可用', 'unclassified': '未归类', '→ Recorded as #{num}': '→ 记为 #{num}', '→ #{num} replaces #{old}': '→ #{num}，替换 #{old}',
     'Collapse': '收起', 'Expand': '展开', 'Queued': '待排',
   },
   'zh-TW': {
     'Topics': '話題', '{count} active': '{count} 活躍', '{count} queued': '{count} 待排', '{count} archived': '{count} 封存',
-    'Unclassified': '未歸類', 'Active': '活躍', 'Archived': '封存', 'Reopen': '重開', 'Reopen queued': '已申請重開 · 待排', 'Cancel': '取消', 'No topics yet': '群裡說一句話，管家會自動歸類', 'Today': '今天', 'No messages in this topic': '這個話題還沒有消息', 'Collapse': '收合', 'Expand': '展開', 'Queued': '待排', '→ Recorded as #{num}': '→ 記為 #{num}', '→ #{num} replaces #{old}': '→ #{num}，替換 #{old}',
+    'Unclassified': '未歸類', 'Active': '活躍', 'Archived': '封存', 'Reopen': '重開', 'Reopen queued': '已申請重開 · 待排', 'Cancel': '取消', 'No topics yet': '群裡說一句話，管家會自動歸類', 'Today': '今天', 'No messages in this topic': '這個話題還沒有消息', 'text unavailable': '文字不可用', 'unclassified': '未歸類', 'Collapse': '收合', 'Expand': '展開', 'Queued': '待排', '→ Recorded as #{num}': '→ 記為 #{num}', '→ #{num} replaces #{old}': '→ #{num}，替換 #{old}',
   },
   ja: {
     'Topics': 'トピック', '{count} active': '{count} 件進行中', '{count} queued': '{count} 件待機', '{count} archived': '{count} 件アーカイブ',
-    'Unclassified': '未分類', 'Active': '進行中', 'Archived': 'アーカイブ', 'Reopen': '再開', 'Reopen queued': '再開を申請中 · 待機', 'Cancel': 'キャンセル', 'No topics yet': 'グループで一言話すと、管理が自動で分類します', 'Today': '今日', 'No messages in this topic': 'このトピックにはまだメッセージがありません', 'Collapse': '折りたたむ', 'Expand': '展開', 'Queued': '待機', '→ Recorded as #{num}': '→ #{num} として記録', '→ #{num} replaces #{old}': '→ #{num} が #{old} を置き換え',
+    'Unclassified': '未分類', 'Active': '進行中', 'Archived': 'アーカイブ', 'Reopen': '再開', 'Reopen queued': '再開を申請中 · 待機', 'Cancel': 'キャンセル', 'No topics yet': 'グループで一言話すと、管理が自動で分類します', 'Today': '今日', 'No messages in this topic': 'このトピックにはまだメッセージがありません', 'text unavailable': 'テキストなし', 'unclassified': '未分類', 'Collapse': '折りたたむ', 'Expand': '展開', 'Queued': '待機', '→ Recorded as #{num}': '→ #{num} として記録', '→ #{num} replaces #{old}': '→ #{num} が #{old} を置き換え',
   },
   ko: {
     'Topics': '주제', '{count} active': '{count}개 진행 중', '{count} queued': '{count}개 대기', '{count} archived': '{count}개 보관됨',
-    'Unclassified': '미분류', 'Active': '진행 중', 'Archived': '보관됨', 'Reopen': '다시 열기', 'Reopen queued': '재개 요청됨 · 대기', 'Cancel': '취소', 'No topics yet': '그룹에서 한마디 하면 관리자가 자동으로 분류합니다', 'Today': '오늘', 'No messages in this topic': '이 주제에는 아직 메시지가 없습니다', 'Collapse': '접기', 'Expand': '펼치기', 'Queued': '대기', '→ Recorded as #{num}': '→ #{num}(으)로 기록됨', '→ #{num} replaces #{old}': '→ #{num}이(가) #{old}을(를) 대체',
+    'Unclassified': '미분류', 'Active': '진행 중', 'Archived': '보관됨', 'Reopen': '다시 열기', 'Reopen queued': '재개 요청됨 · 대기', 'Cancel': '취소', 'No topics yet': '그룹에서 한마디 하면 관리자가 자동으로 분류합니다', 'Today': '오늘', 'No messages in this topic': '이 주제에는 아직 메시지가 없습니다', 'text unavailable': '텍스트 없음', 'unclassified': '미분류', 'Collapse': '접기', 'Expand': '펼치기', 'Queued': '대기', '→ Recorded as #{num}': '→ #{num}(으)로 기록됨', '→ #{num} replaces #{old}': '→ #{num}이(가) #{old}을(를) 대체',
   },
   es: {
     'Topics': 'Temas', '{count} active': '{count} activos', '{count} queued': '{count} en cola', '{count} archived': '{count} archivados',
-    'Unclassified': 'Sin clasificar', 'Active': 'Activos', 'Archived': 'Archivados', 'Reopen': 'Reabrir', 'Reopen queued': 'Reapertura en cola', 'Cancel': 'Cancelar', 'No topics yet': 'Di algo en el grupo y el administrador lo clasificará', 'Today': 'Hoy', 'No messages in this topic': 'Este tema aún no tiene mensajes', 'Collapse': 'Contraer', 'Expand': 'Expandir', 'Queued': 'En cola', '→ Recorded as #{num}': '→ Registrado como #{num}', '→ #{num} replaces #{old}': '→ #{num} sustituye a #{old}',
+    'Unclassified': 'Sin clasificar', 'Active': 'Activos', 'Archived': 'Archivados', 'Reopen': 'Reabrir', 'Reopen queued': 'Reapertura en cola', 'Cancel': 'Cancelar', 'No topics yet': 'Di algo en el grupo y el administrador lo clasificará', 'Today': 'Hoy', 'No messages in this topic': 'Este tema aún no tiene mensajes', 'text unavailable': 'Texto no disponible', 'unclassified': 'sin clasificar', 'Collapse': 'Contraer', 'Expand': 'Expandir', 'Queued': 'En cola', '→ Recorded as #{num}': '→ Registrado como #{num}', '→ #{num} replaces #{old}': '→ #{num} sustituye a #{old}',
   },
   fr: {
     'Topics': 'Sujets', '{count} active': '{count} actifs', '{count} queued': '{count} en attente', '{count} archived': '{count} archivés',
-    'Unclassified': 'Non classé', 'Active': 'Actifs', 'Archived': 'Archivés', 'Reopen': 'Rouvrir', 'Reopen queued': 'Réouverture en attente', 'Cancel': 'Annuler', 'No topics yet': 'Dites un mot dans le groupe, l\'admin le classera', 'Today': "Aujourd'hui", 'No messages in this topic': 'Ce sujet n\'a pas encore de messages', 'Collapse': 'Réduire', 'Expand': 'Développer', 'Queued': 'En attente', '→ Recorded as #{num}': '→ Enregistré comme #{num}', '→ #{num} replaces #{old}': '→ #{num} remplace #{old}',
+    'Unclassified': 'Non classé', 'Active': 'Actifs', 'Archived': 'Archivés', 'Reopen': 'Rouvrir', 'Reopen queued': 'Réouverture en attente', 'Cancel': 'Annuler', 'No topics yet': 'Dites un mot dans le groupe, l\'admin le classera', 'Today': "Aujourd'hui", 'No messages in this topic': 'Ce sujet n\'a pas encore de messages', 'text unavailable': 'Texte indisponible', 'unclassified': 'non classé', 'Collapse': 'Réduire', 'Expand': 'Développer', 'Queued': 'En attente', '→ Recorded as #{num}': '→ Enregistré comme #{num}', '→ #{num} replaces #{old}': '→ #{num} remplace #{old}',
   },
   de: {
     'Topics': 'Themen', '{count} active': '{count} aktiv', '{count} queued': '{count} wartend', '{count} archived': '{count} archiviert',
-    'Unclassified': 'Nicht zugeordnet', 'Active': 'Aktiv', 'Archived': 'Archiviert', 'Reopen': 'Wieder öffnen', 'Reopen queued': 'Wiederöffnung vorgemerkt', 'Cancel': 'Abbrechen', 'No topics yet': 'Sag ein Wort in der Gruppe, der Admin ordnet es zu', 'Today': 'Heute', 'No messages in this topic': 'Dieses Thema hat noch keine Nachrichten', 'Collapse': 'Einklappen', 'Expand': 'Ausklappen', 'Queued': 'Wartend', '→ Recorded as #{num}': '→ Erfasst als #{num}', '→ #{num} replaces #{old}': '→ #{num} ersetzt #{old}',
+    'Unclassified': 'Nicht zugeordnet', 'Active': 'Aktiv', 'Archived': 'Archiviert', 'Reopen': 'Wieder öffnen', 'Reopen queued': 'Wiederöffnung vorgemerkt', 'Cancel': 'Abbrechen', 'No topics yet': 'Sag ein Wort in der Gruppe, der Admin ordnet es zu', 'Today': 'Heute', 'No messages in this topic': 'Dieses Thema hat noch keine Nachrichten', 'text unavailable': 'Text nicht verfügbar', 'unclassified': 'nicht zugeordnet', 'Collapse': 'Einklappen', 'Expand': 'Ausklappen', 'Queued': 'Wartend', '→ Recorded as #{num}': '→ Erfasst als #{num}', '→ #{num} replaces #{old}': '→ #{num} ersetzt #{old}',
   },
 }
 

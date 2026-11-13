@@ -62,7 +62,7 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
       h('span', { className: 'bt-topics-card-bar', 'data-state': 'other', 'aria-hidden': true }),
       h('span', { className: 'bt-topics-card-body' },
         h('span', { className: 'bt-topics-card-title' }, '#Other'),
-        h('span', { className: 'bt-topics-card-meta' }, `${other.length}`)),
+        h('span', { className: 'bt-topics-card-meta' }, `${t('unclassified')} · ${other.length}`)),
       h('span', { className: 'bt-topics-chev', 'aria-hidden': true }, '›'))])
       : null)
 }
@@ -124,7 +124,9 @@ export function TopicThread({ title, items = [], hasMore = false, onEarlier, onB
     }
     rows.push(h('div', { key: `m${item.seq}`, className: 'bt-topics-msg', 'data-seq': item.seq },
       h('span', { className: 'bt-topics-msg-name' }, item.name ?? ''),
-      h('span', { className: 'bt-topics-msg-text' }, item.text ?? ''),
+      item.text === null || item.text === undefined
+        ? h('span', { className: 'bt-topics-msg-text bt-topics-msg-gone', 'aria-label': t('text unavailable') }, '—')
+        : h('span', { className: 'bt-topics-msg-text' }, item.text),
       item.sub === undefined ? null : h('span', { className: 'bt-topic-subtag', 'data-sub': item.sub },
         item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`)))
   }

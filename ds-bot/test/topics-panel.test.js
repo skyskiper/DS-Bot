@@ -113,3 +113,11 @@ test('an empty topic says so, and a message without a time gets no separator', (
   const tree = TopicThread({ title: '#3 y', items: [{ seq: 5, ts: null, name: 'User', text: 'kept' }] })
   assert.equal(nodes(tree).filter(node => node.props?.className === 'bt-topics-day').length, 0)
 })
+
+test('a message whose text is gone shows a placeholder, not an empty bubble', () => {
+  const tree = TopicThread({ title: '#1 x', items: [{ seq: 9, ts: null, name: 'User', text: null }] })
+  const gone = nodes(tree).find(node => String(node.props?.className ?? '').includes('bt-topics-msg-gone'))
+  assert.ok(gone, 'a placeholder is drawn')
+  assert.deepEqual(texts(gone), ['—'])
+  assert.equal(gone.props['aria-label'], 'text unavailable')
+})
