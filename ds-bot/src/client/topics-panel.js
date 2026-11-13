@@ -189,7 +189,8 @@ function TopicThreadView({ room, book, target, onBack, onRefresh }) {
 }
 
 export const TOPICS_PANEL_CSS = `
-.bt-topics-body{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;gap:8px}
+/* The column's own inset is 12 a side: the drawer body pads 16, so pull 4 back out. */
+.bt-topics-body{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;gap:8px;margin:0 -4px}
 .bt-topics-view{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;animation:bt-topics-view-in 160ms ease both}
 @keyframes bt-topics-view-in{from{opacity:0;transform:translateY(4px)}}
 .bt-topics-view-head{display:flex;align-items:center;gap:8px;height:36px;flex:none;padding:0 2px;border-bottom:1px solid var(--bt-line)}

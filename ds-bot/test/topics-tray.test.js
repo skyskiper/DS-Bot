@@ -74,6 +74,14 @@ test('a queued topic waits in the column list, not in the chip column', () => {
   assert.equal(Array.from(chips).some(chip => chip.num === 2), false, 'the queued one is not a chip')
 })
 
+test('the active topic owns the column bottom even when it carries subtopics', () => {
+  const chips = view.chipsOf(book, 1)
+  assert.equal(chips.at(-1).active, true, 'the capsule is the last chip')
+  assert.equal(chips.at(-1).kind, 'topic', 'its subtopics sit above it, not below')
+  assert.deepEqual(Array.from(chips, chip => (chip.kind === 'sub' ? chip.label : `#${chip.num}`)), ['#2', '#3', '#1.1', '#1.2', '#1.3', '#1'], 'the active group ends the column')
+  assert.equal(view.chipsHeight(chips), 186, 'the same six chips still measure 186')
+})
+
 test('a subtopic never draws its own # twice', () => {
   const chips = view.chipsOf(book, 1)
   const sub = chips.find(chip => chip.sub === 2)

@@ -104,13 +104,20 @@ export const chipsOf = (book, activeNum) => {
   const active = ordered.find(item => item.num === activeNum) ?? ordered.at(-1)
   const rest = ordered.filter(item => item !== active)
   const chips = []
+  const gapTo = () => (chips.length === 0 ? 0 : CHIP_GAP.topic)
   for (const item of [...rest, active]) {
     const on = item === active
-    chips.push({ kind: 'topic', key: `n${item.num}`, num: item.num, state: item.state, title: shortTitle(item.title), active: on, gapBefore: chips.length === 0 ? 0 : CHIP_GAP.topic })
-    for (const [key, sub] of Object.entries(item.subs ?? {})) {
-      if (sub.state === 'archived') continue
-      chips.push({ kind: 'sub', key: `n${item.num}.${key}`, num: item.num, sub: Number(key), label: `#${item.num}.${key}`, title: shortTitle(sub.title), state: sub.state, active: on, gapBefore: CHIP_GAP.sub })
+    const parent = { kind: 'topic', key: `n${item.num}`, num: item.num, state: item.state, title: shortTitle(item.title), active: on, gapBefore: gapTo() }
+    const subs = Object.entries(item.subs ?? {})
+      .filter(([, sub]) => sub.state !== 'archived')
+      .map(([key, sub]) => ({ kind: 'sub', key: `n${item.num}.${key}`, num: item.num, sub: Number(key), label: `#${item.num}.${key}`, title: shortTitle(sub.title), state: sub.state, active: on, gapBefore: CHIP_GAP.sub }))
+    // The eye lands on the active topic first, so it owns the column's bottom line: its
+    // subtopics sit above it, and the rest keep parent-then-subtopics from the top down.
+    if (on) {
+      if (subs.length > 0) { subs[0].gapBefore = parent.gapBefore; parent.gapBefore = CHIP_GAP.sub }
+      chips.push(...subs, parent)
     }
+    else chips.push(parent, ...subs)
   }
   return chips
 }
