@@ -109,3 +109,40 @@ export const TOPICS_PANEL_CSS = `
 .bt-topics-archived .bt-topics-card{flex:1 1 auto}
 .bt-topics-empty{padding:16px 12px;font-size:12px;color:var(--bt-ink-2)}
 `
+
+// One topic's messages, drawn where the list was: oldest first, a day separator when the
+// date changes, the subtopic tag on messages that belong to one, and a row to load what is
+// older. The host pages it (topic-thread: before / hasMore), so this only draws.
+export function TopicThread({ title, items = [], hasMore = false, onEarlier, onBack }) {
+  const rows = []
+  let day = ''
+  for (const item of items) {
+    const label = dayLabel(item.ts)
+    if (label !== '' && label !== day) {
+      day = label
+      rows.push(h('div', { key: `d${label}${item.seq}`, className: 'bt-topics-day' }, label))
+    }
+    rows.push(h('div', { key: `m${item.seq}`, className: 'bt-topics-msg', 'data-seq': item.seq },
+      h('span', { className: 'bt-topics-msg-name' }, item.name ?? ''),
+      h('span', { className: 'bt-topics-msg-text' }, item.text ?? ''),
+      item.sub === undefined ? null : h('span', { className: 'bt-topic-subtag', 'data-sub': item.sub },
+        item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`)))
+  }
+  return h('div', { className: 'bt-topics-thread' },
+    h('div', { className: 'bt-topics-thread-head' },
+      h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => { if (typeof onBack === 'function') onBack() } }, '‹'),
+      h('span', { className: 'bt-topics-thread-title' }, title ?? '')),
+    hasMore
+      ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => { if (typeof onEarlier === 'function') onEarlier() } }, t('Load earlier'))
+      : null,
+    rows.length === 0 ? h('div', { className: 'bt-topics-empty' }, t('No messages in this topic')) : rows)
+}
+
+// A message with no time (a line the room log dropped) gets no separator rather than a wrong one.
+const dayLabel = (ts) => {
+  if (!Number.isFinite(ts)) return ''
+  const at = new Date(ts)
+  const today = new Date()
+  const same = at.toDateString() === today.toDateString()
+  return same ? t('Today') : `${at.getMonth() + 1}/${at.getDate()}`
+}

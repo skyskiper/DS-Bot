@@ -6,14 +6,14 @@ import { build } from 'esbuild'
 
 // The right column's entry and list are stateless, so the markup is read directly.
 const { outputFiles } = await build({
-  stdin: { contents: "export { TopicEntry, TopicList } from './src/client/topics-panel.js'", resolveDir: fileURLToPath(new URL('..', import.meta.url)) },
+  stdin: { contents: "export { TopicEntry, TopicList, TopicThread } from './src/client/topics-panel.js'", resolveDir: fileURLToPath(new URL('..', import.meta.url)) },
   bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
   external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
 })
 const react = { Fragment: 'Fragment', createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity) }) }
 const module = { exports: {} }
 runInNewContext(outputFiles[0].text, { module, exports: module.exports, require: name => (name === 'react' ? react : {}) }, { filename: 'bundle.cjs' })
-const { TopicEntry, TopicList } = module.exports
+const { TopicEntry, TopicList, TopicThread } = module.exports
 
 const texts = (node, out = []) => {
   if (typeof node === 'string' || typeof node === 'number') out.push(String(node))
@@ -84,4 +84,32 @@ test('#Other opens as its own view, and an empty list says so', () => {
   assert.equal(asked.length, 1)
   assert.equal(asked[0].other, true, 'the Other row opens the unclassified view')
   assert.deepEqual(texts(TopicList({ book: { items: {}, other: { msgs: [] } } })), ['No topics yet'])
+})
+
+test('the thread draws oldest first, a day separator once, subtopic tags, and a way to older', () => {
+  const asked = []
+  const now = Date.now()
+  const tree = TopicThread({
+    title: '#1 群卡作答链路',
+    items: [
+      { seq: 11, ts: now, name: 'User', text: '第一句' },
+      { seq: 12, ts: now, name: 'Dev', text: '第二句', sub: '1.1', subTitle: '复现' },
+      { seq: 13, ts: now, name: 'User', text: '第三句' },
+    ],
+    hasMore: true,
+    onEarlier: () => asked.push('earlier'),
+  })
+  const days = nodes(tree).filter(node => node.props?.className === 'bt-topics-day')
+  assert.equal(days.length, 1, 'one separator for one day')
+  assert.deepEqual(texts(days[0]), ['Today'])
+  assert.deepEqual(nodes(tree).filter(node => node.props?.className === 'bt-topics-msg').map(node => texts(node)[0]), ['User', 'Dev', 'User'])
+  assert.equal(texts(tree).filter(text => text === '#1.1 复现').length, 1, 'one #, not two')
+  nodes(tree).find(node => node.type === 'button' && texts(node).join('') === 'Load earlier').props.onClick()
+  assert.deepEqual(asked, ['earlier'])
+})
+
+test('an empty topic says so, and a message without a time gets no separator', () => {
+  assert.deepEqual(texts(TopicThread({ title: '#2 x', items: [] })), ['‹', '#2 x', 'No messages in this topic'])
+  const tree = TopicThread({ title: '#3 y', items: [{ seq: 5, ts: null, name: 'User', text: 'kept' }] })
+  assert.equal(nodes(tree).filter(node => node.props?.className === 'bt-topics-day').length, 0)
 })
