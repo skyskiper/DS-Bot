@@ -239,6 +239,7 @@ export function install(rt) {
     return rt.save()
   }
 
+  if (process.env.DS_BOT_TEST === '1') rt.warn?.('ds-bot: topic-call is registered for tests only')
   // Set per request from the probe's header, so the debug sink stays closed by default.
   let composerFlapsRequested = false
   const handle = async (endpoint, payload, signal) => {
@@ -252,6 +253,22 @@ export function install(rt) {
           const result = await rt.appendComposerFlaps(body.events, { enabled: composerFlapsRequested || process.env.DS_BOT_COMPOSER_DEBUG === '1' })
           if (result.status === 403) return fail(result.message, 'bot/refused')
           return ok(result)
+        }
+        // Tests only, and only with DS_BOT_TEST=1: the topic tools are agent tools with no HTTP
+        // entrance, and the data checks need one that does not depend on a model taking turns.
+        // It forwards to the tool itself, so the tool's own gate and rules still decide.
+        case 'topic-call': {
+          if (process.env.DS_BOT_TEST !== '1') return fail(`Unknown endpoint ${endpoint}`, 'bot/not-found')
+          const name = String(body.tool ?? '')
+          if (!name.startsWith('topic_')) return fail('topic-call reaches the topic tools only', 'bot/refused')
+          const tool = rt.teamTools.find(entry => entry.name === name)
+          if (tool === undefined) return fail(`No tool named ${name}`, 'bot/not-found')
+          try {
+            const value = await tool.execute(body.args ?? {}, { agent: { id: String(body.session ?? '') }, callId: 'topic-call' })
+            return ok({ value })
+          } catch (error) {
+            return fail(String(error?.message ?? error), 'bot/invalid')
+          }
         }
         case 'state': {
           // A group member waiting on a question gets a card in the room; the read is

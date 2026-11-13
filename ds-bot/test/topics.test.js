@@ -48,12 +48,18 @@ async function start(seed = TEAM()) {
     sessionTitle: { rename: async () => {} },
     sessions: { flush: async () => {} },
   })
+  let route
+  const register = ctx.connection.fetch.register
+  ctx.connection.fetch.register = (options) => { route = options; return register(options) }
   rt = createRuntime(ctx, { home })
   const tool = (name, args, sessionId = 'gc') => rt.teamTools.find(d => d.name === name).execute(args, { agent: { id: sessionId } })
+  const call = async (endpoint, payload) => (await route.fetch(new Request('http://localhost/api/bot', {
+    method: 'POST', body: JSON.stringify({ endpoint, payload }),
+  }))).json()
   await tool('list_bots', {}, 'gc')
   const room = () => rt.state.rooms.r1
   const stop = async () => { await ctx.dispose(); rmSync(home, { recursive: true, force: true, maxRetries: 5 }) }
-  return { tool, room, home, ctx, stop }
+  return { tool, call, room, home, ctx, stop }
 }
 
 test('T1: a recorded topic gets #1, points at its message, and takes the first seat', async (t) => {
@@ -172,4 +178,34 @@ test('a superseded topic keeps its number and points at the one that replaces it
   assert.equal(room().topics.items[1].state, 'dropped')
   assert.equal(room().topics.items[1].replacedBy, 2)
   assert.equal(room().topics.items[2].replaces, 1)
+})
+
+// The topic tools are agent tools, so a data check with no model in the loop needs one
+// door: DS_BOT_TEST=1 adds `topic-call`, which forwards to the tool itself. Without the
+// flag the endpoint does not exist, and the tool's own gate still decides who may call.
+test('topic-call exists only under DS_BOT_TEST, and forwards to the tool', async (t) => {
+  const { call, room, stop } = await start()
+  t.after(stop)
+  delete process.env.DS_BOT_TEST
+  const closed = await call('topic-call', { tool: 'topic_record', args: { title: 'x' }, session: 'gc' })
+  assert.equal(closed.ok, false)
+  assert.equal(closed.error.code, 'bot/not-found')
+  assert.match(closed.error.message, /Unknown endpoint/)
+
+  process.env.DS_BOT_TEST = '1'
+  t.after(() => { delete process.env.DS_BOT_TEST })
+  const recorded = await call('topic-call', { tool: 'topic_record', args: { title: '群卡作答链路', fromSeq: 1 }, session: 'gc' })
+  assert.equal(recorded.ok, true)
+  const value = JSON.parse(recorded.value.value)
+  assert.equal(value.num, 1)
+  assert.equal(room().topics.items[1].state, 'active')
+
+  const other = await call('topic-call', { tool: 'message_bot', args: {}, session: 'gc' })
+  assert.equal(other.ok, false)
+  assert.equal(other.error.code, 'bot/refused')
+  assert.match(other.error.message, /topic tools only/)
+
+  // The endpoint does not widen the gate: a plain member Session is still refused.
+  const refused = await call('topic-call', { tool: 'topic_record', args: { title: '越界' }, session: 'gw' })
+  assert.match(String(refused.value.value), /Only the group's admin or a Main Bot/)
 })
