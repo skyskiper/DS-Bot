@@ -219,6 +219,8 @@ export function install(rt) {
   rt.turnTopicOf = (room, bot) => rt.turnTopics.get(turnKey(room, bot))
   // Take the declaration, once: whichever writer lands the reply first spends it.
   rt.takeTurnTopic = (room, bot) => {
+    // TEMP probe: what the writers see when a reply lands. Removed once the path is known.
+    rt.warn?.('ds-bot: probe takeTurnTopic room=%s bot=%s keys=%s', room.id, bot?.id, [...rt.turnTopics.keys()].join(','))
     const num = rt.turnTopics.get(turnKey(room, bot))
     if (num !== undefined) rt.turnTopics.delete(turnKey(room, bot))
     return num

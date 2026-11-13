@@ -1706,6 +1706,8 @@ export function install(rt) {
   // once, and the members it calls start in that round, so it is not held back until
   // the round ends and never sits in the group Session's QueueDock (#663).
   async function postToRoom(room, sender, text, extra = {}, files = []) {
+    // TEMP probe: is this the writer that lands the admin's reply, and what does it see?
+    rt.warn?.('ds-bot: probe postToRoom room=%s sender=%s progress=%s keys=%s', room.id, sender?.id, extra?.progress === true, [...(rt.turnTopics ?? new Map()).keys()].join(','))
     const running = [...rt.roomProgress.values()].find(round => round.roomId === room.id && round.nudge !== undefined)
     if (running !== undefined) {
       if (extra.failed !== undefined) {
