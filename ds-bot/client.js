@@ -16650,6 +16650,27 @@ function RoomAvatar({ room: room2, roster, size = 36 }) {
 // src/client/dsh-primitives.js
 var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 
+// src/client/needs.js
+var QUESTION_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+var freshQuestion = (askedAt, now) => !Number.isFinite(askedAt) || now - askedAt < QUESTION_MAX_AGE_MS;
+function needsOf(roster, approvals = [], now = Date.now()) {
+  const list = [];
+  for (const bot of roster.bots) {
+    const card = roster.questions?.[currentPart(bot)];
+    if (card?.question && freshQuestion(card.askedAt, now)) list.push({ id: `q:${card.id}`, kind: "question", botId: bot.id, text: card.question, at: card.askedAt ?? 0 });
+  }
+  for (const room2 of roster.rooms) {
+    for (const [botId, sessionId] of Object.entries(room2.memberSessions ?? {})) {
+      const card = roster.questions?.[sessionId];
+      if (card?.question && freshQuestion(card.askedAt, now)) list.push({ id: `q:${card.id}`, kind: "question", botId, roomId: room2.id, text: card.question, at: card.askedAt ?? 0 });
+    }
+  }
+  for (const entry of approvals) {
+    list.push({ id: `a:${entry.id}`, kind: "approval", botId: entry.botId, ...entry.roomId ? { roomId: entry.roomId } : {}, text: entry.reason || entry.tool || "", at: entry.at ?? 0 });
+  }
+  return list.sort((a, b) => b.at - a.at);
+}
+
 // src/client/icons.js
 var import_react3 = require("react");
 function PlusIcon() {
@@ -28303,23 +28324,7 @@ function TeamSidebar(props) {
   }, [busyRaw]);
   const approvalsRaw = props.useWork ? props.useWork((work) => JSON.stringify(work.approvals ?? [])) : "[]";
   const approvals = (0, import_react36.useMemo)(() => JSON.parse(approvalsRaw), [approvalsRaw]);
-  const needs = (0, import_react36.useMemo)(() => {
-    const list = [];
-    for (const bot of roster.bots) {
-      const card = roster.questions?.[currentPart(bot)];
-      if (card?.question) list.push({ id: `q:${card.id}`, kind: "question", botId: bot.id, text: card.question, at: card.askedAt ?? 0 });
-    }
-    for (const room2 of roster.rooms) {
-      for (const [botId, sessionId] of Object.entries(room2.memberSessions ?? {})) {
-        const card = roster.questions?.[sessionId];
-        if (card?.question) list.push({ id: `q:${card.id}`, kind: "question", botId, roomId: room2.id, text: card.question, at: card.askedAt ?? 0 });
-      }
-    }
-    for (const entry of approvals) {
-      list.push({ id: `a:${entry.id}`, kind: "approval", botId: entry.botId, ...entry.roomId ? { roomId: entry.roomId } : {}, text: entry.reason || entry.tool || "", at: entry.at ?? 0 });
-    }
-    return list.sort((a, b) => b.at - a.at);
-  }, [roster, approvals]);
+  const needs = (0, import_react36.useMemo)(() => needsOf(roster, approvals), [roster, approvals]);
   const [olderOpen, setOlderOpen] = (0, import_react36.useState)(false);
   const running = (0, import_react36.useMemo)(() => items.filter((entry) => entry.kind === "room" && runningIds.has(entry.item.id)), [items, runningIds]);
   const waiting = (0, import_react36.useMemo)(() => items.filter((entry) => entry.kind !== "room" || !runningIds.has(entry.item.id)), [items, runningIds]);

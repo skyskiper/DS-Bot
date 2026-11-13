@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { FishLogo } from './dsh-primitives.js'
 import { isMainOf } from './sources.js'
 import { currentPart, previewOf, relativeShort } from './text.js'
+import { needsOf } from './needs.js'
 import { PlusIcon, SearchIcon, SidebarIcon, GaugeIcon, ClockIcon, GearIcon, PinMarkIcon, ConnectorIcon, CloudDownloadIcon, SignInIcon, SignOutIcon, SlidersIcon, ChevronDownIcon, ChevronRightIcon, PeopleIcon, SwitchIcon, FolderIcon, PlugIcon } from './icons.js'
 import { lookOf, MAIN_LOOK } from './characters.js'
 import { botState, BotMark, BotAvatar, RoomAvatar } from './mark.js'
@@ -424,24 +425,7 @@ export function TeamSidebar(props) {
   }, [busyRaw])
   const approvalsRaw = props.useWork ? props.useWork(work => JSON.stringify(work.approvals ?? [])) : '[]'
   const approvals = useMemo(() => JSON.parse(approvalsRaw), [approvalsRaw])
-  const needs = useMemo(() => {
-    const list = []
-    for (const bot of roster.bots) {
-      const card = roster.questions?.[currentPart(bot)]
-      if (card?.question) list.push({ id: `q:${card.id}`, kind: 'question', botId: bot.id, text: card.question, at: card.askedAt ?? 0 })
-    }
-    // A member's card in a group waits there, under that group's name.
-    for (const room of roster.rooms) {
-      for (const [botId, sessionId] of Object.entries(room.memberSessions ?? {})) {
-        const card = roster.questions?.[sessionId]
-        if (card?.question) list.push({ id: `q:${card.id}`, kind: 'question', botId, roomId: room.id, text: card.question, at: card.askedAt ?? 0 })
-      }
-    }
-    for (const entry of approvals) {
-      list.push({ id: `a:${entry.id}`, kind: 'approval', botId: entry.botId, ...(entry.roomId ? { roomId: entry.roomId } : {}), text: entry.reason || entry.tool || '', at: entry.at ?? 0 })
-    }
-    return list.sort((a, b) => b.at - a.at)
-  }, [roster, approvals])
+  const needs = useMemo(() => needsOf(roster, approvals), [roster, approvals])
   const [olderOpen, setOlderOpen] = useState(false)
   const running = useMemo(() => items.filter(entry => entry.kind === 'room' && runningIds.has(entry.item.id)), [items, runningIds])
   const waiting = useMemo(() => items.filter(entry => entry.kind !== 'room' || !runningIds.has(entry.item.id)), [items, runningIds])

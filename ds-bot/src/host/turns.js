@@ -102,6 +102,19 @@ const PARAMETER_TAG = `${TAG_OPEN}parameter=[\\w.-]+${TAG_CLOSE}`
 const CLOSING_TAG = `${TAG_OPEN}/(?:parameter|function|tool_call)${TAG_CLOSE}`
 const WRITTEN_CALL = new RegExp(`${TOOL_CALL_TAG}\\s*${TAG_OPEN}function=|${FUNCTION_TAG}\\s*${TAG_OPEN}parameter=|${CLOSING_TAG}`)
 export const writesToolCall = text => typeof text === 'string' && WRITTEN_CALL.test(text)
+
+// A Bot that moved on in one of its other Sessions retires the question it left in its
+// own chat: the row in "Needs you" points at that chat, and the work is no longer there.
+// The card is kept while that chat is the one being written into — the caller clears
+// that one itself, before this runs.
+export function retireOwnChatQuestion(rt, state, sessionId) {
+  const self = rt.selfOf?.(sessionId)
+  const chat = self === undefined ? undefined : rt.chatOf?.(self)
+  if (chat === undefined || chat === sessionId || state.questions?.[chat] === undefined) return false
+  rt.closeCard(chat, state.questions[chat], 'replied')
+  delete state.questions[chat]
+  return true
+}
 export const stripWrittenCalls = text => text
   .replace(new RegExp(`${TOOL_CALL_TAG}[\\s\\S]*?(?:${TAG_OPEN}/tool_call${TAG_CLOSE}|$)`, 'g'), '')
   .replace(new RegExp(`${FUNCTION_TAG}[\\s\\S]*?(?:${TAG_OPEN}/function${TAG_CLOSE}|$)`, 'g'), '')
@@ -938,6 +951,9 @@ export function install(rt) {
             delete state.views[id]
             dropped = true
           }
+          // A member told something in its group no longer waits on the question it
+          // left in its own chat.
+          if (retireOwnChatQuestion(rt, state, id)) dropped = true
           if (dropped) void rt.save().catch(() => {})
         }
         break
