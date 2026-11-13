@@ -206,6 +206,29 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
   （`test-channel/bin/dgqa-window-watch.sh` → `~/.ds-bot-test/bot/test-runs/window-watch.log`，
   每 30 秒记一次，只记录不处置；取的必须是**面积最大的那个窗口**，别取到小弹层）。
 
+### 全量测试在这台机器上会随负载抖动（2026-11-13）
+
+`npm test` 偶尔会多红 3 条：`a Bot Session gets the team tools in its own scope`、
+`browser-frame refuses when browsers are off`、`the newest released bot declares the verified DSH`。
+**单独跑都绿**，成对跑也绿；机器空闲时整套跑两次都是 `1 fail`（只有基线那条
+`the provider mounts…`）。23:07 时这台机 load 15–20，另一个 node 测试 worker 占 130%。
+
+- 判据：**失败集合以「空闲时整套跑」为准**；负载高时多出来的红不算回归。
+- 不要在干净 checkout 里直接跑基线做对照：fresh worktree 会稳定红 4 条（`client.js is the build…`、
+  `link.js is the build…`、`phone.test.js`），那是产物缺失，不是行为差异。
+- **build-link 的坑**：干净 checkout 上 `npm run build` 会在 `link/src/keys.ts` 解析
+  `@noble/curves/ed25519` 失败，需要在 `../link` 里链上 `node_modules`；client 那半没问题。
+
+### 打包 0.4.2 的两个坑（2026-11-13）
+
+1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑
+   `app/scripts/sign-app.sh "<app>"`（取钥匙串里的 Apple Development），**签名后要重新打 zip**
+   （`ditto -c -k --sequesterRsrc --keepParent`），否则 zip 里装的是 ad-hoc 那份。
+2. **`/tmp/package.json` 会毒死打包**：它（`"type": "module"`，11-12 的残留）让 electron-builder 解到
+   `/private/tmp/eb-cache/...` 的 `icon-tool.js` 被当 ESM，报 `require is not defined`。
+   把 `ELECTRON_BUILDER_CACHE` / `DS_BOT_RUNTIME_CACHE` 指到 `$TMPDIR`（不在 `/private/tmp` 下）即可；
+   不要为此删 `/tmp/package.json`（可能是别人的产物）。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
