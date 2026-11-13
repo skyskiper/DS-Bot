@@ -256,6 +256,19 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 未修：两套号在存储层仍是两套，`topic-*` 只认 room seq；`roomSeq` 是匹配出来的，room log 里没有原文
 （被 60 行窗口挤掉）时会缺，届时以 `topic-thread` 返回的为准。
 
+### 动效测量：隐藏窗口会把采样节流成假阴性（2026-11-14）
+
+Web Animations / `setInterval` 采样在 Electron **隐藏窗口**下被 Chromium 节流到约 1 次/秒，
+8ms 级的采样会只拿到 3 行左右（`land` 220、`fly` 的样本量都被它坑过一次），看起来像「动画没触发」。
+
+- 测动画时间轴前**先把窗口显示出来**；隐藏窗口下的 8ms 采样结果一律不算数；
+- 结论必须附**样本行数**：隐藏 3 行 vs 显示 303 行（2.5s / 8ms）；
+- 产品侧的可读接口：`window.__btTopicsAnim()`（`{kind, duration, delay}`），以及
+  `.bt-topics-fly-layer` 上的 `data-anim-*`；动画本身是 Web Animations + CSS，
+  `getAnimations({subtree: true})` 在窗口可见时可靠；
+- 落地标记 `data-landed` 只在**飞行结束后的 900ms 窗口**内存在（`topics-tray.js` 的
+  `setLanding` / 900ms 清除），采样窗口要覆盖 t≈900–1800ms。
+
 ### 打包 0.4.2 的两个坑（2026-11-13）
 
 1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑
