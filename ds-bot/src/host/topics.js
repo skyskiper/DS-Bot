@@ -209,20 +209,33 @@ export function install(rt) {
     return { num, seq, otherCount: book.other.msgs.length }
   }
 
-  // One turn's declaration: the topic this member said its reply belongs to. It is set by
-  // topic_record while a turn runs and spent by the reply that lands in it, so a question
-  // and its answer share a topic without guessing a seq the reply does not have yet.
-  rt.turnTopics ??= new Map()
-  const turnKey = (room, bot) => `${room.id}:${bot?.id ?? ''}`
-  rt.turnTopicSet = (room, bot, num) => { rt.turnTopics.set(turnKey(room, bot), num) }
-  rt.turnTopicClear = (room, bot) => { rt.turnTopics.delete(turnKey(room, bot)) }
-  rt.turnTopicOf = (room, bot) => rt.turnTopics.get(turnKey(room, bot))
+  // One turn's declaration: the topic this member said its reply belongs to. It is kept on
+  // the room, not in memory, so an in-place plugin reload between the tool call and the
+  // reply cannot lose it. A declaration older than DECLARE_TTL_MS is ignored rather than
+  // landing some later message in a topic nobody asked for.
+  const DECLARE_TTL_MS = 10 * 60 * 1000
+  const declareOf = (room) => (room.turnTopic ??= {})
+  rt.turnTopicSet = (room, bot, num) => {
+    if (bot?.id === undefined) return
+    declareOf(room)[bot.id] = { num, at: now() }
+    void rt.save?.().catch?.(() => {})
+  }
+  rt.turnTopicClear = (room, bot) => {
+    if (bot?.id === undefined) return
+    delete declareOf(room)[bot.id]
+  }
+  rt.turnTopicOf = (room, bot) => {
+    const entry = bot?.id === undefined ? undefined : declareOf(room)[bot.id]
+    if (entry === undefined) return undefined
+    return now() - entry.at > DECLARE_TTL_MS ? undefined : entry.num
+  }
   // Take the declaration, once: whichever writer lands the reply first spends it.
   rt.takeTurnTopic = (room, bot) => {
-    // TEMP probe: what the writers see when a reply lands. Removed once the path is known.
-    rt.warn?.('ds-bot: probe takeTurnTopic room=%s bot=%s keys=%s', room.id, bot?.id, [...rt.turnTopics.keys()].join(','))
-    const num = rt.turnTopics.get(turnKey(room, bot))
-    if (num !== undefined) rt.turnTopics.delete(turnKey(room, bot))
+    const num = rt.turnTopicOf(room, bot)
+    if (num !== undefined) {
+      delete declareOf(room)[bot.id]
+      void rt.save?.().catch?.(() => {})
+    }
     return num
   }
 
