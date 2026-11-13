@@ -225,6 +225,15 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 客户端渲染成 `—`（`aria-label="text unavailable"`），**不丢行、不画空气泡**。ledger 是 append-only，
 现实中很难撞到；这是取舍，不是缺陷。
 
+### `npm run check-packed` 会开窗口抢焦点（2026-11-13，事故记录）
+
+`app/scripts/check-packed.mjs` **真的启动打包好的 App 并开窗口**（输出里有 `team window shown (focused)`），
+不是纯静态检查。2026-11-13 出 0.4.2 时在用户 App 前台跑过一次，闪窗并抢焦点（事后核对：用户 App
+`pid=19553 bounds=0,30,1920,969` 未变、无残留进程）。
+
+- **只许在测试 App / 虚拟屏侧跑**，或指向测试 home 并在隐藏窗口里跑，并先约好时间窗；
+- 与「任何脚本不许激活窗口、不许移动正式 App 窗口」同级，不是可选项。
+
 ### 打包 0.4.2 的两个坑（2026-11-13）
 
 1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑
