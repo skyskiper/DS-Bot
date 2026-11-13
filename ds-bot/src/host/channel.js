@@ -266,29 +266,30 @@ export function install(rt) {
             const own = rt.groupOwners.get(body.session)
             if (own === undefined || own.roomId !== room.id) return fail('That group is not yours to read', 'bot/refused')
           }
+          const other = body.other === true || Number(body.num) === 0
           const num = Number(body.num)
           const book = room.topics
-          const item = book?.items?.[num]
-          if (item === undefined) return fail(`There is no topic #${num}`, 'bot/not-found')
+          const item = other ? undefined : book?.items?.[num]
+          if (!other && item === undefined) return fail(`There is no topic #${num}`, 'bot/not-found')
           const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200)
           const before = Number.isFinite(Number(body.before)) ? Number(body.before) : undefined
-          const seqs = new Set()
-          if (Number.isInteger(item.fromSeq)) seqs.add(item.fromSeq)
-          for (const sub of Object.values(item.subs ?? {})) {
+          const seqs = new Set(other ? (book?.other?.msgs ?? []) : [])
+          if (!other && Number.isInteger(item.fromSeq)) seqs.add(item.fromSeq)
+          if (!other) for (const sub of Object.values(item.subs ?? {})) {
             for (const seq of sub.messages ?? []) if (Number.isInteger(seq)) seqs.add(seq)
           }
           const all = [...seqs].sort((a, b) => a - b).filter(seq => before === undefined || seq < before)
           const page = all.slice(-limit)
           const items = page.map((seq) => {
             const line = rt.groupLine === undefined ? undefined : room.log?.find(entry => entry.seq === seq)
-            const sub = Object.entries(item.subs ?? {}).find(([, entry]) => (entry.messages ?? []).includes(seq))
+            const sub = other ? undefined : Object.entries(item.subs ?? {}).find(([, entry]) => (entry.messages ?? []).includes(seq))
             return {
               seq,
               ts: line?.time ?? null,
               who: line?.botId ?? null,
               name: line?.name ?? line?.who ?? 'User',
               text: line?.text ?? null,
-              ...(sub === undefined ? {} : { sub: `${item.num}.${sub[0]}` }),
+              ...(sub === undefined ? {} : { sub: `${item.num}.${sub[0]}`, ...(sub[1].title === undefined ? {} : { subTitle: sub[1].title }) }),
             }
           })
           return ok({ items, hasMore: all.length > page.length })

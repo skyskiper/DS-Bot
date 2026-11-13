@@ -223,7 +223,8 @@ test('topic-thread pages a topic\'s messages; topic-source answers missing inste
   assert.equal(thread.value.items.length, 1)
   assert.equal(thread.value.hasMore, true)
   assert.deepEqual(thread.value.items.map(entry => entry.seq), [2], 'the newest page first when asking less')
-  assert.equal(thread.value.items[0].sub, '1.1')
+  assert.equal(thread.value.items[0].sub, '1.1', 'the bare value; the client adds the #')
+  assert.equal(thread.value.items[0].subTitle, '回退用例', 'the subtopic title rides along')
 
   const first = await call('topic-thread', { roomId: 'r1', num: 1, before: 2, limit: 10 })
   assert.deepEqual(first.value.items.map(entry => entry.seq), [1])
@@ -242,6 +243,11 @@ test('topic-thread pages a topic\'s messages; topic-source answers missing inste
   const crossSource = await call('topic-source', { roomId: 'r1', seq: 1, session: 'someone-else' })
   assert.equal(crossSource.error.code, 'bot/refused')
   assert.equal((await call('topic-thread', { roomId: 'r1', num: 1, session: 'gc' })).value.items.length > 0, true, 'its own group is fine')
+  // #Other has no number, so it is asked for by name and answers the same shape.
+  rt.topicToOther(rt.state.rooms.r1, 2, 'no clear topic', 'Chief')
+  const otherThread = await call('topic-thread', { roomId: 'r1', other: true })
+  assert.equal(otherThread.ok, true)
+  assert.deepEqual(otherThread.value.items.map(entry => entry.seq), [2])
   assert.equal((await call('topic-thread', { roomId: 'nope', num: 1 })).error.code, 'bot/not-found')
   assert.equal((await call('topic-thread', { roomId: 'r1', num: 9 })).error.code, 'bot/not-found')
   assert.equal((await call('topic-source', { roomId: 'r1', seq: 'x' })).error.code, 'bot/invalid')

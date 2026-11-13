@@ -13474,14 +13474,79 @@ var withForkCopy = (dict) => {
   for (const [key, copy2] of Object.entries(FORK_COPY)) dict[key] ??= copy2;
   return dict;
 };
+var TOPIC_COPY = {
+  zh: {
+    "Topics": "话题",
+    "{count} active": "{count} 活跃",
+    "{count} queued": "{count} 待排",
+    "{count} archived": "{count} 归档",
+    "Unclassified": "未归类",
+    "→ Recorded as #{num}": "→ 记为 #{num}",
+    "→ #{num} replaces #{old}": "→ #{num}，替换 #{old}"
+  },
+  "zh-TW": {
+    "Topics": "話題",
+    "{count} active": "{count} 活躍",
+    "{count} queued": "{count} 待排",
+    "{count} archived": "{count} 封存",
+    "Unclassified": "未歸類",
+    "→ Recorded as #{num}": "→ 記為 #{num}",
+    "→ #{num} replaces #{old}": "→ #{num}，替換 #{old}"
+  },
+  ja: {
+    "Topics": "トピック",
+    "{count} active": "{count} 件進行中",
+    "{count} queued": "{count} 件待機",
+    "{count} archived": "{count} 件アーカイブ",
+    "Unclassified": "未分類",
+    "→ Recorded as #{num}": "→ #{num} として記録",
+    "→ #{num} replaces #{old}": "→ #{num} が #{old} を置き換え"
+  },
+  ko: {
+    "Topics": "주제",
+    "{count} active": "{count}개 진행 중",
+    "{count} queued": "{count}개 대기",
+    "{count} archived": "{count}개 보관됨",
+    "Unclassified": "미분류",
+    "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
+    "→ #{num} replaces #{old}": "→ #{num}이(가) #{old}을(를) 대체"
+  },
+  es: {
+    "Topics": "Temas",
+    "{count} active": "{count} activos",
+    "{count} queued": "{count} en cola",
+    "{count} archived": "{count} archivados",
+    "Unclassified": "Sin clasificar",
+    "→ Recorded as #{num}": "→ Registrado como #{num}",
+    "→ #{num} replaces #{old}": "→ #{num} sustituye a #{old}"
+  },
+  fr: {
+    "Topics": "Sujets",
+    "{count} active": "{count} actifs",
+    "{count} queued": "{count} en attente",
+    "{count} archived": "{count} archivés",
+    "Unclassified": "Non classé",
+    "→ Recorded as #{num}": "→ Enregistré comme #{num}",
+    "→ #{num} replaces #{old}": "→ #{num} remplace #{old}"
+  },
+  de: {
+    "Topics": "Themen",
+    "{count} active": "{count} aktiv",
+    "{count} queued": "{count} wartend",
+    "{count} archived": "{count} archiviert",
+    "Unclassified": "Nicht zugeordnet",
+    "→ Recorded as #{num}": "→ Erfasst als #{num}",
+    "→ #{num} replaces #{old}": "→ #{num} ersetzt #{old}"
+  }
+};
 var DICTIONARY = {
-  zh: ZH,
-  "zh-TW": ZH_TW,
-  ja: withForkCopy(JA),
-  ko: withForkCopy(KO),
-  es: withForkCopy(ES),
-  fr: withForkCopy(FR),
-  de: withForkCopy(DE)
+  zh: { ...ZH, ...TOPIC_COPY.zh },
+  "zh-TW": { ...ZH_TW, ...TOPIC_COPY["zh-TW"] },
+  ja: { ...withForkCopy(JA), ...TOPIC_COPY.ja },
+  ko: { ...withForkCopy(KO), ...TOPIC_COPY.ko },
+  es: { ...withForkCopy(ES), ...TOPIC_COPY.es },
+  fr: { ...withForkCopy(FR), ...TOPIC_COPY.fr },
+  de: { ...withForkCopy(DE), ...TOPIC_COPY.de }
 };
 var HOST_ERROR_TABLE = {
   zh: HOST_ERRORS,
