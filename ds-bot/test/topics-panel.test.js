@@ -53,22 +53,28 @@ test('an empty ledger draws no entry at all', () => {
   assert.equal(TopicEntry({ book: { items: {}, other: { msgs: [] } } }), null)
 })
 
-test('the list keeps active newest first, then queued, then archived by time, with #Other last', () => {
+test('the list folds the archived rows into one line, with #Other last', () => {
   const tree = TopicList({ book })
   const cards = nodes(tree).filter(node => node.props?.className === 'bt-topics-card')
-  assert.deepEqual(cards.map(card => texts(card)[0].split(' ')[0]), ['#2', '#1', '#4', '#3', '#5', '#Other'])
-  assert.deepEqual(nodes(tree).filter(node => node.props?.className === 'bt-topics-section-head').map(node => texts(node)[0]), ['Active', 'Queued', 'Archived', 'Unclassified'])
+  assert.deepEqual(cards.map(card => texts(card)[0].split(' ')[0]), ['#2', '#1', '#4', '#Other'], 'archived rows are folded away')
+  assert.deepEqual(texts(nodes(tree).find(node => node.props?.className === 'bt-topics-fold')), ['Archived 2 ›'])
+  assert.deepEqual(nodes(tree).filter(node => node.props?.className === 'bt-topics-section-head').map(node => texts(node)[0]), ['Active', 'Queued', 'Unclassified'])
+
+  const opened = TopicList({ book, archivedOpen: true })
+  const openCards = nodes(opened).filter(node => node.props?.className === 'bt-topics-card')
+  assert.deepEqual(openCards.map(card => texts(card)[0].split(' ')[0]), ['#2', '#1', '#4', '#3', '#5', '#Other'], 'opening drops them in place, newest first')
+  assert.deepEqual(nodes(opened).filter(node => node.props?.className === 'bt-topics-section-head').map(node => texts(node)[0]), ['Active', 'Queued', 'Archived', 'Unclassified'])
 })
 
 test('an archived row asks to reopen, and waits while the house is full', () => {
   const asked = []
-  const open = TopicList({ book, onReopen: num => asked.push(['reopen', num]), onCancelReopen: num => asked.push(['cancel', num]) })
+  const open = TopicList({ book, archivedOpen: true, onReopen: num => asked.push(['reopen', num]), onCancelReopen: num => asked.push(['cancel', num]) })
   const reopen = nodes(open).filter(node => node.type === 'button' && texts(node).join('') === 'Reopen')
   assert.equal(reopen.length, 2)
   reopen[0].props.onClick()
   assert.deepEqual(asked, [['reopen', 3]])
 
-  const waiting = TopicList({ book, reopening: [3], onCancelReopen: num => asked.push(['cancel', num]) })
+  const waiting = TopicList({ book, archivedOpen: true, reopening: [3], onCancelReopen: num => asked.push(['cancel', num]) })
   assert.ok(texts(waiting).includes('已申请重开 · 待排') || texts(waiting).some(text => /Reopen queued/.test(text)), 'the row says it waits')
   const cancel = nodes(waiting).filter(node => node.type === 'button' && texts(node).join('') === 'Cancel')
   assert.equal(cancel.length, 1)
@@ -120,4 +126,11 @@ test('a message whose text is gone shows a placeholder, not an empty bubble', ()
   assert.ok(gone, 'a placeholder is drawn')
   assert.deepEqual(texts(gone), ['—'])
   assert.equal(gone.props['aria-label'], 'text unavailable')
+})
+
+test('the fold line opens and closes the archived rows in place', () => {
+  const asked = []
+  const tree = TopicList({ book, onToggleArchived: () => asked.push('toggle') })
+  nodes(tree).find(node => node.props?.className === 'bt-topics-fold').props.onClick()
+  assert.deepEqual(asked, ['toggle'])
 })

@@ -22,7 +22,7 @@ export function TopicEntry({ book, onOpen }) {
 
 // The list inside the column: active (newest first), queued, archived (recent first), and
 // #Other last. An archived row asks to reopen; a full house leaves it waiting, not lost.
-export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [] }) {
+export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], archivedOpen = false, onToggleArchived }) {
   const items = Object.values(book?.items ?? {})
   const active = items.filter(item => item.state === 'active').sort((a, b) => b.num - a.num)
   const queued = items.filter(item => item.state === 'pending').sort((a, b) => a.num - b.num)
@@ -43,7 +43,15 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
   return h('div', { className: 'bt-topics-panel' },
     section(t('Active'), active.map(item => row(item, meta(item)))),
     queued.length > 0 ? section(t('Queued'), queued.map(item => row(item, t('Queued')))) : null,
-    archived.length > 0
+    // Twelve archived rows pushed the active ones off the screen — the fault the strip was
+    // meant to fix — so they fold into one line that opens in place.
+    archived.length > 0 && !archivedOpen
+      ? h('button', {
+        type: 'button', className: 'bt-topics-fold',
+        onClick: () => { if (typeof onToggleArchived === 'function') onToggleArchived() },
+      }, `${t('Archived')} ${archived.length} ›`)
+      : null,
+    archived.length > 0 && archivedOpen
       ? section(t('Archived'), archived.map((item) => {
         const waiting = reopening.includes(item.num)
         return h('div', { key: `a${item.num}`, className: 'bt-topics-archived' },
@@ -52,7 +60,10 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
             type: 'button', className: 'bt-soft bt-soft-sm',
             onClick: () => { if (waiting) { if (typeof onCancelReopen === 'function') onCancelReopen(item.num) } else if (typeof onReopen === 'function') onReopen(item.num) },
           }, waiting ? t('Cancel') : t('Reopen')))
-      }))
+      }).concat([h('button', {
+        key: 'fold', type: 'button', className: 'bt-topics-fold',
+        onClick: () => { if (typeof onToggleArchived === 'function') onToggleArchived() },
+      }, `${t('Archived')} ${archived.length} ‹`)]))
       : null,
     other.length > 0
       ? section(t('Unclassified'), [h('button', {
