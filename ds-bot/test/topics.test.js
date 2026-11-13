@@ -209,3 +209,40 @@ test('topic-call exists only under DS_BOT_TEST, and forwards to the tool', async
   const refused = await call('topic-call', { tool: 'topic_record', args: { title: '越界' }, session: 'gw' })
   assert.match(String(refused.value.value), /Only the group's admin or a Main Bot/)
 })
+
+// The group's log stays on the host: a topic's messages come one page at a time, and the
+// message a topic points back at is read from the book even when the room's log is short.
+test('topic-thread pages a topic\'s messages; topic-source answers missing instead of throwing', async (t) => {
+  const { tool, call, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '群卡作答链路', fromSeq: 1 })
+  await tool('topic_subtopic', { parent: 1, title: '回退用例', kind: 'detail', fromSeq: 2 })
+
+  const thread = await call('topic-thread', { roomId: 'r1', num: 1, limit: 1 })
+  assert.equal(thread.ok, true)
+  assert.equal(thread.value.items.length, 1)
+  assert.equal(thread.value.hasMore, true)
+  assert.deepEqual(thread.value.items.map(entry => entry.seq), [2], 'the newest page first when asking less')
+  assert.equal(thread.value.items[0].sub, '1.1')
+
+  const first = await call('topic-thread', { roomId: 'r1', num: 1, before: 2, limit: 10 })
+  assert.deepEqual(first.value.items.map(entry => entry.seq), [1])
+  assert.equal(first.value.hasMore, false)
+
+  const source = await call('topic-source', { roomId: 'r1', seq: 1 })
+  assert.equal(source.ok, true)
+  assert.equal(source.value.text, 'the card does not react')
+  const gone = await call('topic-source', { roomId: 'r1', seq: 999 })
+  assert.deepEqual(gone.value, { missing: true }, 'A8: a normal answer, not an error')
+
+  // A bot Session from another group cannot read this one's messages.
+  const crossThread = await call('topic-thread', { roomId: 'r1', num: 1, session: 'someone-else' })
+  assert.equal(crossThread.error.code, 'bot/refused')
+  assert.match(crossThread.error.message, /not yours to read/)
+  const crossSource = await call('topic-source', { roomId: 'r1', seq: 1, session: 'someone-else' })
+  assert.equal(crossSource.error.code, 'bot/refused')
+  assert.equal((await call('topic-thread', { roomId: 'r1', num: 1, session: 'gc' })).value.items.length > 0, true, 'its own group is fine')
+  assert.equal((await call('topic-thread', { roomId: 'nope', num: 1 })).error.code, 'bot/not-found')
+  assert.equal((await call('topic-thread', { roomId: 'r1', num: 9 })).error.code, 'bot/not-found')
+  assert.equal((await call('topic-source', { roomId: 'r1', seq: 'x' })).error.code, 'bot/invalid')
+})

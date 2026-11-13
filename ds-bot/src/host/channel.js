@@ -178,7 +178,7 @@ export function install(rt) {
   }
   // What a host that only reads the team may still answer.
   // Updates change the dsh profile, not the team, so a reading host may run them too.
-  const READS = new Set(['state', 'models', 'efforts', 'providers', 'provider-models', 'earlier', 'chat', 'run-stats', 'room-progress', 'group-rows', 'exchange', 'exchange-text', 'file-text', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'thinking', 'avatar-library', 'computer-system-status', 'computer-shot', 'local-agents', 'local-agent-models', 'browser-frame', 'hello', 'notices', 'avatar', 'room-chat', 'usage-summary', 'image'])
+  const READS = new Set(['state', 'models', 'efforts', 'providers', 'provider-models', 'earlier', 'chat', 'run-stats', 'room-progress', 'group-rows', 'exchange', 'exchange-text', 'file-text', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'thinking', 'avatar-library', 'computer-system-status', 'computer-shot', 'local-agents', 'local-agent-models', 'browser-frame', 'hello', 'notices', 'avatar', 'room-chat', 'usage-summary', 'image', 'topic-source', 'topic-thread'])
 
   async function setPrefs(body) {
     if (body.theme !== undefined) {
@@ -257,6 +257,59 @@ export function install(rt) {
         // Tests only, and only with DS_BOT_TEST=1: the topic tools are agent tools with no HTTP
         // entrance, and the data checks need one that does not depend on a model taking turns.
         // It forwards to the tool itself, so the tool's own gate and rules still decide.
+        // The group's log is not shipped to the client (state strips it), so a topic's own
+        // messages come from here, one page at a time, in the order they were said.
+        case 'topic-thread': {
+          const room = rt.roomOf(String(body.roomId ?? ''))
+          if (room === undefined) return fail('No such group', 'bot/not-found')
+          if (typeof body.session === 'string' && body.session !== '') {
+            const own = rt.groupOwners.get(body.session)
+            if (own === undefined || own.roomId !== room.id) return fail('That group is not yours to read', 'bot/refused')
+          }
+          const num = Number(body.num)
+          const book = room.topics
+          const item = book?.items?.[num]
+          if (item === undefined) return fail(`There is no topic #${num}`, 'bot/not-found')
+          const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200)
+          const before = Number.isFinite(Number(body.before)) ? Number(body.before) : undefined
+          const seqs = new Set()
+          if (Number.isInteger(item.fromSeq)) seqs.add(item.fromSeq)
+          for (const sub of Object.values(item.subs ?? {})) {
+            for (const seq of sub.messages ?? []) if (Number.isInteger(seq)) seqs.add(seq)
+          }
+          const all = [...seqs].sort((a, b) => a - b).filter(seq => before === undefined || seq < before)
+          const page = all.slice(-limit)
+          const items = page.map((seq) => {
+            const line = rt.groupLine === undefined ? undefined : room.log?.find(entry => entry.seq === seq)
+            const sub = Object.entries(item.subs ?? {}).find(([, entry]) => (entry.messages ?? []).includes(seq))
+            return {
+              seq,
+              ts: line?.time ?? null,
+              who: line?.botId ?? null,
+              name: line?.name ?? line?.who ?? 'User',
+              text: line?.text ?? null,
+              ...(sub === undefined ? {} : { sub: `${item.num}.${sub[0]}` }),
+            }
+          })
+          return ok({ items, hasMore: all.length > page.length })
+        }
+        // The message a topic points back at: read from the book, so it is whole even when
+        // the room's own log kept only its start. Gone from both means it is gone.
+        case 'topic-source': {
+          const room = rt.roomOf(String(body.roomId ?? ''))
+          if (room === undefined) return fail('No such group', 'bot/not-found')
+          if (typeof body.session === 'string' && body.session !== '') {
+            const own = rt.groupOwners.get(body.session)
+            if (own === undefined || own.roomId !== room.id) return fail('That group is not yours to read', 'bot/refused')
+          }
+          const seq = Number(body.seq)
+          if (!Number.isInteger(seq)) return fail('seq must be an integer', 'bot/invalid')
+          const whole = rt.groupLine === undefined ? undefined : rt.ledger?.record?.(`group-${room.id}`, seq)
+          const kept = room.log?.find(entry => entry.seq === seq)
+          const text = whole?.text ?? kept?.text
+          if (typeof text !== 'string') return ok({ missing: true })
+          return ok({ text, name: kept?.name ?? kept?.who ?? whole?.who ?? 'User', ts: kept?.time ?? whole?.time ?? null })
+        }
         case 'topic-call': {
           if (process.env.DS_BOT_TEST !== '1') return fail(`Unknown endpoint ${endpoint}`, 'bot/not-found')
           const name = String(body.tool ?? '')
