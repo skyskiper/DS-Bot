@@ -1150,11 +1150,12 @@ html[data-platform=darwin] header[class*="_header"]:has(.bt-head) :is(a,button,i
 [data-content-phase=hero] [class*="_composerHero"] [class*="_input"]{min-height:0!important}
 /* The right sides give back the scrollbar gutter so both edges sit 16px from the column. */
 [class*="_scroll"]:has(> [class*="_column"]){padding:calc(60px + env(safe-area-inset-top,0px)) calc(11px + env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px))!important}
-/* The goal island's pod hangs off the header over the transcript. Padding moved only the
-   first message: a scrolled transcript still ran under the pod, which is what the window
-   showed. Take the band out of the scroller itself instead (pod 71px over the chat's top
-   edge, measured on a 1x window; 84 leaves the pod's own gap). */
-body[data-bt-goal] [class*="_scroll"]:has(> [class*="_column"]){margin-top:calc(84px + env(safe-area-inset-top,0px))!important;padding-top:0!important}
+/* The goal island's pod hangs off the header over the transcript. Offsetting the scroller
+   moved only its layout box: it is overflow:visible and its content is painted from where
+   the content column sits, so a scrolled transcript still ran under the pod. Put the band
+   on the content column instead, which travels with the content (pod 72px tall on a 1x
+   window, 84 leaves its own gap). */
+body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px + env(safe-area-inset-top,0px))!important}
 /* The shell's running status only hosts the activity row (.bt-typing). */
 [data-chat-running]{display:block!important;width:100%;min-height:0!important;margin:0!important;padding:0!important}
 [data-chat-running]>span:not([role=status]){display:none!important}
