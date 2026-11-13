@@ -1,8 +1,9 @@
 // The right column's topic entry and the list it opens in place. Stateless: the page owns
 // which room is open and what a click does, so the markup is checked without a browser.
-import { createElement as h } from 'react'
+import { createElement as h, useCallback, useEffect, useState } from 'react'
+import { call } from './api.js'
 import { t } from './i18n.js'
-import { entryLabel, shortTitle } from './topics-view.js'
+import { entryLabel, moveTargets, shortTitle, threadTitle } from './topics-view.js'
 
 // D2/D23: one 36px row under the group's name — up to three dots for the active topics, the
 // counts, and a chevron. #Other is not counted here; it is a row of the list.
@@ -96,7 +97,112 @@ const section = (title, rows) => h('div', { className: 'bt-topics-section' },
   h('div', { className: 'bt-topics-section-head' }, title),
   ...rows)
 
+
+// The right column's topic view. It swaps the column's own body — the group's overview, or
+// the list — in place: nothing outside the column moves, and no second page or drawer opens.
+export function TopicView({ room, book, target = null, onBack, onOpen, reopening = [], onReopen, onCancelReopen, archivedOpen = false, onToggleArchived }) {
+  const { active } = counts(book)
+  const head = (title, count, back) => h('div', { className: 'bt-topics-view-head' },
+    h('button', { type: 'button', className: 'bt-topics-back', 'aria-label': t('Back'), onClick: back }, '‹'),
+    h('span', { className: 'bt-topics-view-title' }, title),
+    Number.isFinite(count) ? h('span', { className: 'bt-topics-view-count' }, t('{count} active', { count })) : null)
+  if (target === null) {
+    return h('div', { className: 'bt-topics-view' },
+      head(t('Topics'), active, onBack),
+      h(TopicList, { book, onOpen, onReopen, onCancelReopen, reopening, archivedOpen, onToggleArchived }))
+  }
+  return h(TopicThreadView, { room, book, target, onBack })
+}
+
+// One topic's messages in the column: the newest page first, older pages on demand, and the
+// long press that moves a message out of #Other and into a topic.
+function TopicThreadView({ room, book, target, onBack }) {
+  const [page, setPage] = useState({ items: [], hasMore: false, loading: true, error: '' })
+  const [moving, setMoving] = useState(undefined)
+  const [busy, setBusy] = useState(false)
+  const key = target?.other === true ? 'other' : String(target?.num ?? '')
+  const count = page.items.length
+  const fetchPage = useCallback(async (before) => {
+    try {
+      const value = await call('topic-thread', {
+        roomId: room.id,
+        ...(target?.other === true ? { other: true } : { num: target?.num }),
+        limit: 50,
+        ...(before === undefined ? {} : { before }),
+      })
+      setPage(previous => {
+        const older = before === undefined ? [] : previous.items
+        const seen = new Set()
+        const items = [...(value.items ?? []), ...older].filter(item => (seen.has(item.seq) ? false : seen.add(item.seq)))
+        return { items, hasMore: before === undefined ? value.hasMore === true : previous.hasMore, loading: false, error: '' }
+      })
+    } catch (error) {
+      setPage(previous => ({ ...previous, loading: false, error: error?.message ?? String(error) }))
+    }
+  }, [room.id, key])
+  useEffect(() => {
+    setPage({ items: [], hasMore: false, loading: true, error: '' })
+    void fetchPage()
+  }, [fetchPage])
+  const pick = async (num) => {
+    setBusy(true)
+    try {
+      await call('topic-move', { roomId: room.id, seq: moving?.seq, num })
+      setMoving(undefined)
+      await fetchPage()
+    } catch (error) {
+      setPage(previous => ({ ...previous, error: error?.message ?? String(error) }))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const targets = moveTargets(book)
+  return h('div', { className: 'bt-topics-view' },
+    h('div', { className: 'bt-topics-view-head' },
+      h('button', { type: 'button', className: 'bt-topics-back', 'aria-label': t('Back'), onClick: onBack }, '‹'),
+      h('span', { className: 'bt-topics-view-title' }, threadTitle(book, target)),
+      h('span', { className: 'bt-topics-view-count' }, t('{count} messages', { count }))),
+    page.loading && count === 0 ? h('div', { className: 'bt-topics-empty' }, '…') : null,
+    h(TopicThread, {
+      title: threadTitle(book, target), items: page.items, hasMore: page.hasMore, count,
+      onEarlier: () => { void fetchPage(page.items[0]?.seq) },
+      onMove: target?.other === true ? (item) => setMoving(item) : undefined,
+    }),
+    moving === undefined ? null : h(TopicMoveMenu, {
+      item: moving, targets, busy,
+      onPick: (num) => { if (!busy) void pick(num) },
+      onKeep: () => setMoving(undefined),
+      onClose: () => setMoving(undefined),
+    }),
+    page.error !== '' ? h('div', { className: 'bt-error', role: 'alert' }, page.error) : null)
+}
+
 export const TOPICS_PANEL_CSS = `
+.bt-topics-body{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;gap:8px}
+.bt-topics-view{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;animation:bt-topics-view-in 160ms ease both}
+@keyframes bt-topics-view-in{from{opacity:0;transform:translateY(4px)}}
+.bt-topics-view-head{display:flex;align-items:center;gap:8px;height:36px;flex:none;padding:0 2px;border-bottom:1px solid var(--bt-line)}
+.bt-topics-back{flex:none;width:20px;height:20px;border:0;border-radius:6px;background:none;color:var(--bt-ink-2);font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.bt-topics-back:hover{background:var(--bt-hover);color:var(--bt-ink)}
+.bt-topics-view-title{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-topics-view-count{flex:none;font-size:11px;color:var(--bt-ink-3)}
+.bt-topics-thread{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1 1 auto;overflow-y:auto;padding:8px 0}
+.bt-topics-thread-head{display:flex;align-items:center;gap:8px}
+.bt-topics-thread-title{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-topics-thread-count{flex:none;font-size:11px;color:var(--bt-ink-3)}
+.bt-topics-day{display:flex;align-items:center;gap:8px;font-size:9.5px;color:var(--bt-ink-3)}
+.bt-topics-day::after{content:"";flex:1 1 auto;height:1px;background:var(--bt-line)}
+.bt-topics-msg{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;font-size:11.5px;line-height:16px;border-radius:6px;padding:2px 4px;margin:0 -4px}
+.bt-topics-msg:hover{background:var(--bt-hover)}
+.bt-topics-msg-name{flex:none;font-size:10.5px;font-weight:600;color:var(--bt-ink-2)}
+.bt-topics-msg-text{flex:1 1 auto;min-width:0;color:var(--bt-ink-2);white-space:pre-wrap;word-break:break-word}
+.bt-topics-end{align-self:center;font-size:9.5px;color:var(--bt-ink-3);margin:2px 0}
+.bt-topics-move{position:absolute;z-index:60;display:flex;flex-direction:column;gap:2px;min-width:200px;padding:6px;border-radius:12px;background:var(--bt-card);border:1px solid var(--bt-line-2);box-shadow:0 18px 40px -20px rgba(0,0,0,.8)}
+.bt-topics-move-head{padding:2px 8px 6px;font-size:11px;color:var(--bt-ink-3)}
+.bt-topics-move-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--bt-ink);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+.bt-topics-move-row:hover{background:var(--bt-hover)}
+.bt-topics-move-num{flex:none;color:var(--bt-accent);font-variant-numeric:tabular-nums}
+.bt-topics-move-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-topics-entry{display:flex;align-items:center;gap:8px;width:100%;height:36px;padding:0 12px;border:0;background:none;color:var(--bt-ink);font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 .bt-topics-entry:hover{background:var(--bt-hover)}
 .bt-topics-dots{display:inline-flex;gap:3px;flex:none}
@@ -121,10 +227,51 @@ export const TOPICS_PANEL_CSS = `
 .bt-topics-empty{padding:16px 12px;font-size:12px;color:var(--bt-ink-2)}
 `
 
+// A message's own menu, opened by a long press: where it goes instead of #Other. Stateless,
+// so the choice is tested without a page — the caller does the move.
+export function TopicMoveMenu({ item, targets = [], onPick, onKeep, onClose }) {
+  if (item === undefined) return null
+  return h('div', { className: 'bt-topics-move', role: 'menu' },
+    h('div', { className: 'bt-topics-move-head' }, t('Move to a topic')),
+    ...targets.map(target => h('button', {
+      key: target.num, type: 'button', role: 'menuitem', className: 'bt-topics-move-row',
+      'data-num': target.num, onClick: () => onPick(target.num),
+    },
+    h('span', { className: 'bt-topics-move-num' }, target.label),
+    h('span', { className: 'bt-topics-move-title' }, target.title))),
+    h('button', { type: 'button', role: 'menuitem', className: 'bt-topics-move-row', onClick: () => onKeep() }, t('Keep in #Other')),
+    h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => onClose() }, t('Cancel')))
+}
+
+const LONG_PRESS_MS = 550
+
+// A long press asks where a message should go instead. The press is cancelled by any
+// movement, so scrolling a topic never opens the menu.
+const pressProps = (item, onMove) => {
+  if (typeof onMove !== 'function') return {}
+  let timer = 0
+  let from = null
+  return {
+    onPointerDown: (event) => {
+      if (event.button === 2) return
+      from = { x: event.clientX, y: event.clientY }
+      clearTimeout(timer)
+      timer = setTimeout(() => onMove(item), LONG_PRESS_MS)
+    },
+    onPointerMove: (event) => {
+      if (from !== null && (Math.abs(event.clientX - from.x) > 6 || Math.abs(event.clientY - from.y) > 6)) clearTimeout(timer)
+    },
+    onPointerUp: () => clearTimeout(timer),
+    onPointerLeave: () => clearTimeout(timer),
+    onPointerCancel: () => clearTimeout(timer),
+    onContextMenu: (event) => { event.preventDefault(); onMove(item) },
+  }
+}
+
 // One topic's messages, drawn where the list was: oldest first, a day separator when the
 // date changes, the subtopic tag on messages that belong to one, and a row to load what is
 // older. The host pages it (topic-thread: before / hasMore), so this only draws.
-export function TopicThread({ title, items = [], hasMore = false, onEarlier, onBack }) {
+export function TopicThread({ title, items = [], hasMore = false, onEarlier, onBack, onMove, count }) {
   const rows = []
   let day = ''
   for (const item of items) {
@@ -133,22 +280,27 @@ export function TopicThread({ title, items = [], hasMore = false, onEarlier, onB
       day = label
       rows.push(h('div', { key: `d${label}${item.seq}`, className: 'bt-topics-day' }, label))
     }
-    rows.push(h('div', { key: `m${item.seq}`, className: 'bt-topics-msg', 'data-seq': item.seq },
-      h('span', { className: 'bt-topics-msg-name' }, item.name ?? ''),
-      item.text === null || item.text === undefined
-        ? h('span', { className: 'bt-topics-msg-text bt-topics-msg-gone', 'aria-label': t('text unavailable') }, '—')
-        : h('span', { className: 'bt-topics-msg-text' }, item.text),
-      item.sub === undefined ? null : h('span', { className: 'bt-topic-subtag', 'data-sub': item.sub },
-        item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`)))
+    rows.push(h('div', {
+      key: `m${item.seq}`, className: 'bt-topics-msg', 'data-seq': item.seq, ...pressProps(item, onMove),
+    },
+    h('span', { className: 'bt-topics-msg-name' }, item.name ?? ''),
+    item.text === null || item.text === undefined
+      ? h('span', { className: 'bt-topics-msg-text bt-topics-msg-gone', 'aria-label': t('text unavailable') }, '—')
+      : h('span', { className: 'bt-topics-msg-text' }, item.text),
+    item.sub === undefined ? null : h('span', { className: 'bt-topic-subtag', 'data-sub': item.sub },
+      item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`)))
   }
   return h('div', { className: 'bt-topics-thread' },
     h('div', { className: 'bt-topics-thread-head' },
       h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => { if (typeof onBack === 'function') onBack() } }, '‹'),
-      h('span', { className: 'bt-topics-thread-title' }, title ?? '')),
+      h('span', { className: 'bt-topics-thread-title' }, title ?? ''),
+      Number.isFinite(count) ? h('span', { className: 'bt-topics-thread-count' }, t('{count} messages', { count })) : null),
     hasMore
       ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm', onClick: () => { if (typeof onEarlier === 'function') onEarlier() } }, t('Load earlier'))
       : null,
-    rows.length === 0 ? h('div', { className: 'bt-topics-empty' }, t('No messages in this topic')) : rows)
+    rows.length === 0
+      ? h('div', { className: 'bt-topics-empty' }, t('No messages in this topic'))
+      : rows.concat([h('div', { key: 'end', className: 'bt-topics-end' }, t('· End ·'))]))
 }
 
 // A message with no time (a line the room log dropped) gets no separator rather than a wrong one.

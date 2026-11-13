@@ -1510,4 +1510,6 @@ export function installCompiledStyles(text, tag) {
 // a mid grey reads on the shell's light and dark themes.
 export const RETURN_TOKENS = `
 body{--bt-return-fill:rgba(127,127,127,.08);--bt-return-fill-hover:rgba(127,127,127,.14)}
+/* The floating topic tray is always a dark pane, whatever the theme: its tokens are fixed. */
+body{--bt-topic-1:#7c8cf0;--bt-topic-2:#d9a05b;--bt-topic-3:#5fb894;--bt-tray-chip:#23262d;--bt-tray-ink:#dbdee6;--bt-tray-num:#8c929e;--bt-tray-bg:#21242c;--bt-tray-card:#1f232b;--bt-tray-card-hover:#242832;--bt-tray-pop:#242831;--bt-tray-fly:rgba(20,22,28,.94);--bt-tray-on:#111;--bt-tray-line:rgba(255,255,255,.12);--bt-tray-line-strong:rgba(255,255,255,.22);--bt-tray-line-hover:rgba(255,255,255,.26);--bt-tray-edge:rgba(255,255,255,.13);--bt-tray-divider:rgba(255,255,255,.08);--bt-tray-card-line:rgba(255,255,255,.10);--bt-tray-card-line-hover:rgba(255,255,255,.16);--bt-tray-pop-line:rgba(255,255,255,.15)}
 `

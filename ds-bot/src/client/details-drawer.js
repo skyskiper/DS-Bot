@@ -13,6 +13,7 @@ import { ModelMenu, modelOf } from './model-menu.js'
 import { FolderMenu } from './folder-menu.js'
 import { MemoryRow } from './memory-panel.js'
 import { ScheduleSummary } from './schedules.js'
+import { TopicEntry, TopicView } from './topics-panel.js'
 import { useGlide, useMorph } from './motion.js'
 import { MemberApprovals, MemberState, StopMemberWork, StopRoomWork, useMemberWork, workState } from './member-status.js'
 import { MapEntry } from './session-map.js'
@@ -158,7 +159,34 @@ function MemberRow({ member, entry, room, roster, actions }) {
 function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) {
   const members = room.members.map(id => roster.byId[id]).filter(Boolean)
   const { entries } = useMemberWork(room, useWork)
+  // The topic view replaces this column's own body in place; the chat beside it never moves.
+  const [topicTarget, setTopicTarget] = useState(null)
+  const [archivedOpen, setArchivedOpen] = useState(false)
+  const [reopening, setReopening] = useState([])
+  const book = room.topics
+  const openTopics = () => setTopicTarget({ list: true })
+  const reopen = (num) => {
+    setReopening(list => (list.includes(num) ? list : [...list, num]))
+    void call('topic-reopen', { roomId: room.id, num }).then(() => {
+      setReopening(list => list.filter(kept => kept !== num))
+    }).catch(() => {})
+  }
+  if (topicTarget !== null) {
+    const target = topicTarget.list === true ? null : topicTarget
+    return [
+      h('div', { key: 'topics', className: 'bt-topics-body' }, h(TopicView, {
+        room, book, target,
+        onBack: () => setTopicTarget(target === null ? null : { list: true }),
+        onOpen: next => setTopicTarget(next),
+        reopening, archivedOpen,
+        onToggleArchived: () => setArchivedOpen(value => !value),
+        onReopen: reopen,
+        onCancelReopen: num => setReopening(list => list.filter(kept => kept !== num)),
+      })),
+    ]
+  }
   return [
+    h(TopicEntry, { key: 'topics-entry', book, onOpen: openTopics }),
     room.notice
       ? h(About, { key: 'notice', title: 'Notice', text: room.notice })
       : h('button', { key: 'notice', type: 'button', className: 'bt-more', onClick: openSettings }, t('Add a notice in group settings')),

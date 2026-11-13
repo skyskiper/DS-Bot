@@ -42,6 +42,9 @@ import { SESSION_MAP_CSS } from './session-map.js'
 import { TEAM_DRAWER_CSS } from './team-drawer.js'
 import { IMAGE_VIEWER_CSS, viewerFor } from './image-viewer.js'
 import { GROUP_CARD_CSS } from './group-card.js'
+import { TOPICS_PANEL_CSS } from './topics-panel.js'
+import { TOPICS_STRIP_CSS } from './topics-strip.js'
+import { TopicsDock, TOPICS_TRAY_CSS } from './topics-tray.js'
 import { FOLDER_CSS } from './folder-menu.js'
 import { USAGE_CSS } from './usage-page.js'
 import { SCHEDULE_CSS } from './schedules.js'
@@ -1099,6 +1102,7 @@ export function apply(ctx) {
     [TEAM_DRAWER_CSS, 'team-drawer'],
     [IMAGE_VIEWER_CSS, 'image-viewer'],
     [GROUP_CARD_CSS, 'group-cards'],
+    [TOPICS_PANEL_CSS + TOPICS_STRIP_CSS + TOPICS_TRAY_CSS, 'topics'],
     [USAGE_CSS, 'usage'],
     [SCHEDULE_CSS, 'schedules'],
     [FEEDBACK_CSS, 'feedback'],
@@ -1142,6 +1146,9 @@ export function apply(ctx) {
     // Desktop's "··· More"), which comes back in Agent mode.
     () => shadow('settings.launcher', { priority: BOT_PRIORITY, inject: face }, AccountLauncher),
     () => shadow('shell.overlay', { id: 'bot-computer', order: 40, inject: face }, ComputerIndicator),
+    // The floating topic tray: it hangs above the composer and reads the main view's own
+    // group, so every window shows its own room's topics without a second fetch.
+    () => shadow('shell.overlay', { id: 'bot-topics', order: 45, inject: face }, TopicsDock),
     () => shadow('shell.overlay', { id: 'bot', order: 50, inject: () => ({ ...face(), canOpenInDsh: true }) }, Overlays),
     () => shadow('shell.overlay', { id: 'bot-signin', order: 55, inject: face }, DeepSeekSignIn),
     () => shadow('shell.overlay', { id: 'bot-toast', order: 60, inject: face }, ErrorToast),
