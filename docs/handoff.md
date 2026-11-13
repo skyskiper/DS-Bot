@@ -161,8 +161,22 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 3. 用例必须包含**左对齐的 Bot 消息**从 pod 下穿过（右对齐的填充消息本来就不压 pod，验不出来）；
 4. 反向断言：加 padding 后 `_column` 的 `scrollHeight` 不被压小、最后一条不被裁。
 
-**验证状态**：顶部位置已验不重叠；「滚到中间 + 左对齐 Bot 消息」截至 2026-11-13 10:25 仍未验成。
-`f12d0e39` 已在 `personal/main` 与 fork 上，**未 FF 到运行中的 `DS-Bot-stable`**。
+**第二道兜底（2026-11-13，同一个提交）**：pod 换成不透明底 —— 转录上的玻璃底在这套合成下
+没有模糊可依，字会透出来；`body[data-bt-goal] .bt-island{background:var(--bt-main);backdrop-filter:none}`
+只换底色，圆角/边框/阴影/尺寸/位置都不动。
+
+**验证状态（2026-11-13 10:30 收口）**
+- **顶部已验**（测试通道，`f12d0e39`）：`scrollerTop=40 podBottom=123 首条气泡 top=213` → **gap = 90px**；
+  `_column padding-top=84px`、`_scroll margin-top=0`（只有一处生效）；`bubbleCount=25`、
+  `_column scrollHeight=1241` 没被压小。
+- **「滚到中间」未验成（环境限制，不是代码问题）**：这个 transcript 是 transform 滚动，
+  脚本设 `scrollTop` 内容不动；CDP 真实 `mouseWheel` 在隐藏/虚拟屏窗口下无回执、调用挂住（已 kill）。
+  所以「滚到中间时左对齐 Bot 消息不从 pod 下穿过」**没有证据**，按未验处理。
+- 因为滚动中途的穿透无法用留白根治，最终以**不透明底**兜底：它不依赖滚动位置。
+
+**不要再做的事**：不要试图用 `margin`/`padding` 解决这个 transform 滚动层的穿透——
+`_scroll` 不裁剪（`overflow:visible`，`clientHeight==scrollHeight`），改它只挪布局盒。
+留白只解决「滚到顶部时的第一条」，别的交给不透明底。
 
 **FF 之后的生效方式（兜底话术）**：这次只改 client，`git -C "DS Bot/DS-Bot-stable" merge --ff-only`
 会替换工作树里的 `client.js`，已打开的页面由 `dsh-client-hmr` 自动换入；若没自动刷新，
