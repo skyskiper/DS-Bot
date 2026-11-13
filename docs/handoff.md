@@ -234,6 +234,15 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 - **只许在测试 App / 虚拟屏侧跑**，或指向测试 home 并在隐藏窗口里跑，并先约好时间窗；
 - 与「任何脚本不许激活窗口、不许移动正式 App 窗口」同级，不是可选项。
 
+### 一轮内问答同归（2026-11-14）
+
+模型写回复时拿不到回复自己的 seq（落库那刻才有），所以「回复也要有话题」不能靠 seq 事后补。做法：
+`topic_record` 在落到某个 `num` 时顺带声明「本轮回复归这个话题」（`reply` 默认 true，`false` 可关），
+存在 `rt.turnTopics` 里（key = `roomId:botId`）。成员回合开始（`groups.js` 的 `memberTurn` 里
+`slot.status = 'speaking'` 之后）先清一次，回复落库时读声明，命中就 `attachTopicLine` 直接挂进话题、
+从 `other.msgs` 移出。一轮里多次 record 以**最后一次**为准；重复 record 同一条不产生重复。
+`topic_record` 的工具参数新增 `reply`，文档在 `design/topics/PRD-topics-v1.md`。
+
 ### 两套消息编号（2026-11-13 实测，已修一半）
 
 一条群消息有两个号：

@@ -370,3 +370,36 @@ test('every message lands in #Other by itself, and leaves when a topic takes it'
   const thread = await call('topic-thread', { roomId: 'r1', other: true })
   assert.deepEqual(thread.value.items.map(item => item.seq), [second.seq], 'only what is still unplaced is in #Other')
 })
+
+// A question and its answer share a topic: the turn declares the topic once, and the reply
+// that lands later joins it without waiting for the next turn.
+test('a turn declares where its reply goes, and the last declaration wins', async (t) => {
+  const { tool, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '话题系统' })
+  await tool('topic_record', { title: '另一个话题' })
+  const chief = rt.state.bots.chief
+  const book = () => room().topics
+
+  const asked = rt.logRoom(room(), { who: 'User', text: 'how does this work' })
+  await tool('topic_record', { num: 1, fromSeq: asked.seq }, 'gc')
+  assert.equal(rt.turnTopicOf(room(), chief), 1, 'the turn remembers where its reply belongs')
+
+  // The reply lands after the declaration: it joins #1 and leaves #Other without a second turn.
+  const reply = rt.logRoom(room(), { who: 'Chief', botId: 'chief', text: 'like this' })
+  assert.ok(book().other.msgs.includes(reply.seq), 'a message starts in #Other')
+  rt.attachTopicLine(room(), reply.seq, rt.turnTopicOf(room(), chief), 'Chief')
+  assert.ok(book().items[1].messages.includes(reply.seq))
+  assert.equal(book().other.msgs.includes(reply.seq), false)
+
+  // `reply: false` keeps the next reply unplaced.
+  await tool('topic_record', { num: 2, fromSeq: asked.seq, reply: false })
+  assert.equal(rt.turnTopicOf(room(), chief), undefined, 'the declaration is cleared on request')
+
+  // Last one wins: a turn that changes its mind does not place the reply twice.
+  await tool('topic_record', { num: 1, fromSeq: asked.seq })
+  await tool('topic_record', { num: 2, fromSeq: asked.seq })
+  assert.equal(rt.turnTopicOf(room(), chief), 2)
+  assert.deepEqual(book().items[1].messages.filter(seq => seq === asked.seq), [asked.seq], 'no duplicates from repeating a placement')
+  assert.deepEqual(book().items[2].messages.filter(seq => seq === asked.seq), [asked.seq])
+})

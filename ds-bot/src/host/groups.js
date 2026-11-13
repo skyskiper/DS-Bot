@@ -1092,6 +1092,8 @@ export function install(rt) {
       return
     }
     slot.status = 'speaking'
+    // A new turn declares its own topics; an older turn's declaration never leaks into it.
+    rt.turnTopicClear?.(room, member)
     let session
     try {
       session = await groupSessionFor(room, member)
@@ -1265,7 +1267,13 @@ export function install(rt) {
         if (post.failed !== undefined) round.failed.push(sender.name)
         else if (post.resumed || post.stopped || post.done) say(room, { who: sender.name, botId: sender.id, kind: post.done ? 'done' : post.stopped ? 'stopped' : post.again ? 'cut' : 'resumed', text: '' })
         else {
-          say(room, { who: sender.name, botId: sender.id, text, ...(post.files === undefined ? {} : { files: post.files }), session: true })
+          const line = say(room, { who: sender.name, botId: sender.id, text, ...(post.files === undefined ? {} : { files: post.files }), session: true })
+          // The turn said which topic its reply belongs to: land it there, not in #Other.
+          const declared = rt.turnTopicOf?.(room, sender)
+          if (declared !== undefined) {
+            rt.attachTopicLine?.(room, line.seq, declared, sender.name)
+            rt.turnTopicClear?.(room, sender)
+          }
           if (post.batch !== undefined && text !== '') recordResult(post.batch, sender.name, room.seq)
         }
         callPost(room, round, sender, post.text ?? '', post)

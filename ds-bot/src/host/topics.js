@@ -177,6 +177,28 @@ export function install(rt) {
     return { num, seq, otherCount: book.other.msgs.length }
   }
 
+  // One turn's declaration: the topic this member said its reply belongs to. It is set by
+  // topic_record while a turn runs and spent by the reply that lands in it, so a question
+  // and its answer share a topic without guessing a seq the reply does not have yet.
+  rt.turnTopics ??= new Map()
+  const turnKey = (room, bot) => `${room.id}:${bot?.id ?? ''}`
+  rt.turnTopicSet = (room, bot, num) => { rt.turnTopics.set(turnKey(room, bot), num) }
+  rt.turnTopicClear = (room, bot) => { rt.turnTopics.delete(turnKey(room, bot)) }
+  rt.turnTopicOf = (room, bot) => rt.turnTopics.get(turnKey(room, bot))
+
+  // A reply that lands in the topic its turn declared joins it straight away, instead of
+  // waiting in #Other for the next turn to move it.
+  rt.attachTopicLine = (room, seq, num, by) => {
+    const book = bookOf(room)
+    const item = book.items[num]
+    if (item === undefined) return false
+    if (!(item.messages ?? []).includes(seq)) item.messages = [...(item.messages ?? []), seq]
+    book.other.msgs = book.other.msgs.filter(kept => kept !== seq)
+    item.events.push({ at: now(), kind: 'attach', by, seq, why: 'the reply of the turn that placed it' })
+    void rt.save?.().catch?.(() => {})
+    return true
+  }
+
   rt.topicTools = { record, move, bookOf, prefsOf, titleOf }
 
   const tool = (name, description, parameters, run) => rt.teamTools?.push(defineTool({
@@ -199,6 +221,7 @@ export function install(rt) {
     acceptance: { type: 'string', description: 'One line: how this topic will be known to be done' },
     parent: { type: 'number', description: 'Put it under this topic as a subtopic' },
     num: { type: 'number', description: 'A topic already open that this message belongs to; no new number is spent' },
+    reply: { type: 'boolean', description: 'Also place this turn\'s own reply in that topic (default true); false leaves the reply in #Other' },
     other: { type: 'boolean', description: 'The message fits no topic: keep it in #Other until someone says where it goes' },
     kind: { type: 'string', enum: SUB_KINDS, description: 'progress: a step moved; detail: one point being aligned' },
     why: { type: 'string', description: 'Why it belongs there, in one line; kept in the audit trail' },
@@ -207,6 +230,12 @@ export function install(rt) {
       room, title: args.title, fromSeq: args.fromSeq, acceptance: args.acceptance, parent: args.parent,
       kind: args.kind, by: bot?.name, why: args.why, num: args.num, other: args.other === true,
     })
+    // The turn's declaration follows the last placement it asked for: a later topic wins,
+    // and an explicit `reply: false` clears it so the reply stays in #Other.
+    if (result.error === undefined && bot !== undefined) {
+      if (args.reply === false) rt.turnTopicClear(room, bot)
+      else if (Number.isInteger(args.num) && args.other !== true) rt.turnTopicSet(room, bot, args.num)
+    }
     return result.error ?? JSON.stringify(result)
   })
 
