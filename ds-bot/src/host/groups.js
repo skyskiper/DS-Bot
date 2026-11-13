@@ -1276,7 +1276,8 @@ export function install(rt) {
         else {
           const line = say(room, { who: sender.name, botId: sender.id, text, ...(post.files === undefined ? {} : { files: post.files }), session: true })
           // The turn said which topic its reply belongs to: land it there, not in #Other.
-          const declared = rt.turnTopicOf?.(room, sender)
+          // A post forwarded through the group's own Session carries it in its source.
+          const declared = Number.isInteger(post.topic) ? post.topic : rt.takeTurnTopic?.(room, sender)
           if (declared !== undefined) {
             rt.attachTopicLine?.(room, line.seq, declared, sender.name)
             rt.turnTopicClear?.(room, sender)
@@ -1729,9 +1730,12 @@ export function install(rt) {
       return
     }
     const agent = await rt.resolveAgent(rt.sessionOfRoom(room))
+    // The reply the turn placed is handed to the group's own Session with it: that Session
+    // writes the message, so the topic has to travel in the post's source.
+    const declared = extra.topic ?? rt.takeTurnTopic?.(room, sender)
     agent.followup(createUserMessage({
       content: [{ type: 'text', text: `[Group post from ${sender.name}]\n${text}` }, ...files.map(attachment => ({ type: 'file', attachment }))],
-      source: { kind: SOURCE_KIND, form: 'relay', role: 'post', exchangeId: randomUUID(), senderName: sender.name, senderSessionId: sender.id, roomId: room.id, ...extra },
+      source: { kind: SOURCE_KIND, form: 'relay', role: 'post', exchangeId: randomUUID(), senderName: sender.name, senderSessionId: sender.id, roomId: room.id, ...extra, ...(declared === undefined ? {} : { topic: declared }) },
     }))
     await ctx.sessions.flush(agent.session)
   }
