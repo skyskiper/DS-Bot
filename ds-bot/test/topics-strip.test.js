@@ -48,7 +48,7 @@ const book = {
 
 test('the strip is one row while closed, and the list carries the rows plus #Other last', () => {
   const closed = TopicStrip({ book, open: false })
-  assert.deepEqual(texts(closed).filter(text => /^Topics ·/.test(text)), ['Topics · 2 active · 1 archived'])
+  assert.deepEqual(texts(closed).filter(text => text.startsWith('Topics ·')), ['Topics · 2 active · 1 archived'])
   assert.equal(find(closed, node => node.props?.className === 'bt-topics-list'), undefined, 'closed draws no list')
 
   const open = TopicStrip({ book, open: true })
