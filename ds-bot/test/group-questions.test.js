@@ -145,3 +145,32 @@ test('an app access ask outside a group writes nothing', () => {
   rt.noteAppAccessAsk({ sessionId: 'own', botId: 'b', questionId: 'ask-3', appName: 'Notes' })
   assert.equal(lines.length, 0)
 })
+
+// The group's own buttons answer the same ask the Bot's chat draws, so the session
+// decision (or an "always" grant) lands as if it were clicked there, and the row says
+// which answer it was.
+test('the group answers the ask in place, once', () => {
+  const { rt, lines } = bench(new Map())
+  const asked = []
+  rt.answerAppAccessAsk = (id, decision) => {
+    asked.push([id, decision])
+    rt.noteAppAccessDone({ sessionId: 'gb', questionId: id, answer: decision })
+    return true
+  }
+  rt.noteAppAccessAsk({ sessionId: 'gb', questionId: 'ask-9', appName: '计算器' })
+  assert.equal(rt.answerGroupQuestion('ask-9', 'once'), true)
+  assert.deepEqual(asked, [['ask-9', 'once']])
+  const answer = lines.find(line => line.kind === 'group-question-answer')
+  assert.deepEqual([answer.sessionId, answer.questionId, answer.outcome], ['gb', 'ask-9', { answered: true, choice: 'once' }])
+  // The ask is gone, so a second click is refused instead of writing a second row.
+  assert.equal(rt.answerGroupQuestion('ask-9', 'deny'), false)
+  assert.equal(lines.filter(line => line.kind === 'group-question-answer').length, 1)
+})
+
+test('a question the group does not hold, or an answer it does not offer, writes nothing', () => {
+  const { rt, lines } = bench(new Map())
+  assert.equal(rt.answerGroupQuestion('unknown', 'once'), false)
+  rt.noteAppAccessAsk({ sessionId: 'gb', questionId: 'ask-8', appName: 'Calculator' })
+  assert.equal(rt.answerGroupQuestion('ask-8', 'maybe'), false)
+  assert.equal(lines.filter(line => line.kind === 'group-question-answer').length, 0)
+})

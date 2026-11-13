@@ -9,6 +9,8 @@
 // The pending set is still read as a fallback for a DSH whose dispatch shape changes: it only
 // ever holds timed asks, so a shape change costs the untimed card, not the state request.
 import { randomUUID } from 'node:crypto'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { output } from './tools.js'
 
 const seen = new Map()
 const settled = new Map()
@@ -71,6 +73,8 @@ export function install(rt) {
     rt.logRoom?.(room, {
       who: member?.name ?? 'Bot', kind: 'group-question-answer', sessionId: record.sessionId,
       questionId: record.questionId, requestId: record.questionId, outcome,
+      // An admin's answer says so, with the reason it gave, so the user can undo it.
+      ...(record.answeredBy === undefined ? {} : { by: record.answeredBy.by, reason: record.answeredBy.reason }),
       at: Date.now(), time: Date.now(),
     })
     void rt.save?.().catch?.(() => {})
@@ -125,6 +129,20 @@ export function install(rt) {
       return undefined
     }
   }
+  // The group's own buttons answer the card in place: resolve the same ask, so the
+  // session decision and any "always" grant land as if it were clicked in the Bot's
+  // chat. False once that ask is gone, and the caller then writes nothing.
+  rt.answerGroupQuestion = (questionId, decision, answeredBy) => {
+    if (typeof questionId !== 'string' || !['deny', 'once', 'always'].includes(decision)) return false
+    const record = [...seen.values()].find(item => item.questionId === questionId)
+    if (record === undefined || record.source !== 'ask') return false
+    // Set before the ask resolves: the settle runs inside that call and reads it.
+    record.answeredBy = answeredBy
+    const asked = rt.answerAppAccessAsk?.(questionId, decision) === true
+    if (!asked) delete record.answeredBy
+    return asked
+  }
+
   rt.noteAppAccessDone = ({ sessionId, questionId, answer }) => {
     try {
       const record = typeof sessionId === 'string' && typeof questionId === 'string'
@@ -133,6 +151,47 @@ export function install(rt) {
       settle(record, { answered: true, ...(answer === undefined ? {} : { choice: answer }) })
     } catch { /* the card's own answer must not break */ }
   }
+
+  // An admin answers on the user's behalf when nobody is at the card: the same resolve,
+  // so the same decision and the same row. True only while that ask still waits.
+  const answerAsAdmin = ({ sessionId, questionId, decision, reason }) => {
+    if (decision === 'always') return { error: 'Always is the user\'s own answer; an admin may deny or allow this time only.' }
+    if (decision !== 'deny' && decision !== 'once') return { error: 'decision must be "deny" or "once".' }
+    if (typeof questionId !== 'string' || questionId === '') return { error: 'questionId is required.' }
+    const said = typeof reason === 'string' ? reason.trim() : ''
+    if (said === '') return { error: 'reason is required: the user reads it next to the answer.' }
+    const owner = sessionId === undefined ? undefined : rt.groupOwners.get(sessionId)
+    if (owner === undefined) return { error: 'Only a group member Session has a group question to answer.' }
+    const room = rt.roomOf(owner.roomId)
+    if (room === undefined || room.admin !== owner.botId) return { error: 'Only the group\'s admin answers for the user.' }
+    if (rt.answerGroupQuestion?.(questionId, decision, { by: 'admin', reason: said.slice(0, 200) }) !== true) {
+      return { error: 'That question is no longer waiting for an answer.' }
+    }
+    return { answered: true, decision, questionId }
+  }
+  rt.answerGroupQuestionAsAdmin = answerAsAdmin
+
+  rt.teamTools?.push(defineTool({
+    name: 'answer_group_question',
+    description: 'Answer a group question card that nobody is answering, on the user\'s behalf: deny it, or allow it for this time. Always allow is the user\'s own answer and is refused here. Use it only when the user has handed that call to you and the Bot is stuck waiting; say why in reason, which the user reads next to the answer.',
+    parameters: {
+      questionId: { type: 'string', required: true, description: 'The questionId of the group card that waits, from the group card or the room ledger' },
+      decision: { type: 'string', enum: ['deny', 'once', 'always'], required: true, description: '"deny" refuses this attempt; "once" allows this time only, for this Session. "always" is refused here: that grant is the user\'s own' },
+      reason: { type: 'string', required: true, description: 'One line on why you decided this, kept next to the answer' },
+    },
+    output,
+    async execute(args, exec) {
+      await rt.load?.()
+      const result = answerAsAdmin({
+        sessionId: exec.agent?.id,
+        questionId: String(args?.questionId ?? ''),
+        decision: String(args?.decision ?? ''),
+        reason: String(args?.reason ?? ''),
+      })
+      if (result.error !== undefined) throw new Error(result.error)
+      return `Answered ${result.questionId}: ${result.decision}. The user sees who answered and why.`
+    },
+  }))
 
   // Called while the team state is built; it must never throw into that path.
   rt.groupQuestionsSync = () => {

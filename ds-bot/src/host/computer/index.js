@@ -1260,6 +1260,9 @@ export function install(rt) {
     holds: Object.fromEntries(holds),
   })
   rt.computerEndpoint = computerEndpoint
+  // The group answers the same card from its own row: the same resolve, so the
+  // decision and any grant it makes land exactly as a click in the Bot's chat.
+  rt.answerAppAccessAsk = (id, answer) => answerAppAccess(id, answer)
   rt.computerLevelOf = levelOf
   rt.computerEnabled = enabled
   rt.isProtectedApp = isProtectedApp

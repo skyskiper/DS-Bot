@@ -114,7 +114,7 @@ const openFromCard = (reply, { botKnown = true, actions } = {}) => {
     ...actions,
   }
   const tree = draw(cells.GroupQuestionRow, { reply, bot: WRITER, botKnown, actions: app, settled: false })
-  const button = find(tree, node => node.type === 'button')
+  const button = find(tree, node => node.type === 'button' && strings(node).join('').startsWith('Open'))
   assert.ok(button, 'the card offers a way into the question')
   button.props.onClick()
   assert.ok(landed, 'the button goes somewhere')
@@ -132,8 +132,8 @@ test('a Bot that left the roster falls back to the raw Session', () => {
   assert.deepEqual(landed, { surface: 'raw', sessionId: 'sess-b1' })
 })
 
-test('a settled card keeps the answer line and drops the way in', () => {
+test('a settled card says so and keeps only the way into the chat', () => {
   const tree = draw(cells.GroupQuestionRow, { reply: question, bot: WRITER, botKnown: true, actions: { openSession: () => {}, openRawSession: () => {} }, settled: true })
   assert.deepEqual(strings(tree).filter(text => text === 'Answered.'), ['Answered.'])
-  assert.equal(find(tree, node => node.type === 'button'), undefined)
+  assert.deepEqual(buttons(tree), ['Open Writer’s chat'])
 })

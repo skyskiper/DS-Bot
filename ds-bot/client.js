@@ -14086,7 +14086,7 @@ function teamActions({ call: call2, after, partFor, roster, ui: ui2, live, cards
     dismissView: (sessionId) => after(call2("dismiss-view", { sessionId: partFor(sessionId) })),
     deleteBtw: (sessionId, cardId) => after(call2("btw-delete", { sessionId, cardId })),
     answerApproval: (id, choice) => after(call2("approval-answer", { id, choice })),
-    answerGroupQuestion: (requestId, answers) => after(call2("answer-group-question", { requestId, answers })),
+    answerGroupQuestion: (questionId, decision) => after(call2("answer-group-question", { questionId, decision })),
     computerSetEnabled: (enabled) => after(call2("computer-set-enabled", { enabled })),
     computerSetLevel: (botId, level) => after(call2("computer-set-level", { botId, level })),
     computerRevokeApp: (botId, appKey) => after(call2("computer-revoke-app", { botId, appKey })),
@@ -16649,6 +16649,27 @@ function RoomAvatar({ room: room2, roster, size = 36 }) {
 
 // src/client/dsh-primitives.js
 var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
+
+// src/client/needs.js
+var QUESTION_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+var freshQuestion = (askedAt, now) => !Number.isFinite(askedAt) || now - askedAt < QUESTION_MAX_AGE_MS;
+function needsOf(roster, approvals = [], now = Date.now()) {
+  const list = [];
+  for (const bot of roster.bots) {
+    const card = roster.questions?.[currentPart(bot)];
+    if (card?.question && freshQuestion(card.askedAt, now)) list.push({ id: `q:${card.id}`, kind: "question", botId: bot.id, text: card.question, at: card.askedAt ?? 0 });
+  }
+  for (const room2 of roster.rooms) {
+    for (const [botId, sessionId] of Object.entries(room2.memberSessions ?? {})) {
+      const card = roster.questions?.[sessionId];
+      if (card?.question && freshQuestion(card.askedAt, now)) list.push({ id: `q:${card.id}`, kind: "question", botId, roomId: room2.id, text: card.question, at: card.askedAt ?? 0 });
+    }
+  }
+  for (const entry of approvals) {
+    list.push({ id: `a:${entry.id}`, kind: "approval", botId: entry.botId, ...entry.roomId ? { roomId: entry.roomId } : {}, text: entry.reason || entry.tool || "", at: entry.at ?? 0 });
+  }
+  return list.sort((a, b) => b.at - a.at);
+}
 
 // src/client/icons.js
 var import_react3 = require("react");
@@ -27226,14 +27247,40 @@ function RelayEvent({ reply, bot, sessionId, actions, botKnown = false, settled 
   return null;
 }
 function GroupQuestionRow({ reply, bot, botKnown = true, actions, settled = false }) {
+  const [state2, setState] = (0, import_react34.useState)("open");
+  const [error, setError] = (0, import_react34.useState)("");
+  const answer = (decision) => {
+    if (state2 !== "open" || reply.questionId === void 0) return;
+    setState("busy");
+    setError("");
+    void Promise.resolve(actions.answerGroupQuestion?.(reply.questionId, decision)).then(
+      () => setState("answered"),
+      (failure) => {
+        const message = String(failure?.message ?? failure);
+        setState(/no longer waiting/i.test(message) ? "stale" : "open");
+        setError(/no longer waiting/i.test(message) ? "" : message);
+      }
+    );
+  };
   const canOpenBot = botKnown && bot?.id !== void 0 && typeof actions.openSession === "function";
   const canOpenRaw = actions.canOpenInDsh !== false && typeof actions.openRawSession === "function" && reply.sessionId !== void 0;
+  const open = canOpenBot ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openSession(bot.id) }, t("Open {name}’s chat", { name: bot.name })) : canOpenRaw ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null;
+  const canAnswer = typeof actions.answerGroupQuestion === "function" && reply.questionId !== void 0;
+  const done = settled || state2 === "answered" || state2 === "stale";
   return (0, import_react34.createElement)(
     "div",
     { className: "bt-appr" },
     (0, import_react34.createElement)("div", { className: "bt-appr-head" }, (0, import_react34.createElement)(BotMark, { bot, size: 16 }), (0, import_react34.createElement)("span", { className: "bt-appr-name" }, bot.name)),
     (0, import_react34.createElement)("div", { className: "bt-appr-reason" }, t("{name} is waiting for your answer in its own chat.", { name: bot.name })),
-    settled ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, t("Answered.")) : canOpenBot ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openSession(bot.id) }, t("Open {name}’s chat", { name: bot.name })) : canOpenRaw ? (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-appr-open", onClick: () => actions.openRawSession(reply.sessionId) }, t("Open {name}’s chat", { name: bot.name })) : null
+    done ? (0, import_react34.createElement)("div", { className: "bt-appr-state" }, t("Answered.")) : canAnswer ? (0, import_react34.createElement)(
+      "div",
+      { className: "bt-appr-actions" },
+      (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: state2 === "busy", onClick: () => answer("deny") }, t("Deny")),
+      (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: state2 === "busy", onClick: () => answer("once") }, t("This time")),
+      (0, import_react34.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", disabled: state2 === "busy", onClick: () => answer("always") }, t("Always"))
+    ) : null,
+    open,
+    error !== "" ? (0, import_react34.createElement)("div", { className: "bt-appr-error", role: "alert" }, error) : null
   );
 }
 function ApprovalRow({ reply, bot, actions }) {
@@ -28277,23 +28324,7 @@ function TeamSidebar(props) {
   }, [busyRaw]);
   const approvalsRaw = props.useWork ? props.useWork((work) => JSON.stringify(work.approvals ?? [])) : "[]";
   const approvals = (0, import_react36.useMemo)(() => JSON.parse(approvalsRaw), [approvalsRaw]);
-  const needs = (0, import_react36.useMemo)(() => {
-    const list = [];
-    for (const bot of roster.bots) {
-      const card = roster.questions?.[currentPart(bot)];
-      if (card?.question) list.push({ id: `q:${card.id}`, kind: "question", botId: bot.id, text: card.question, at: card.askedAt ?? 0 });
-    }
-    for (const room2 of roster.rooms) {
-      for (const [botId, sessionId] of Object.entries(room2.memberSessions ?? {})) {
-        const card = roster.questions?.[sessionId];
-        if (card?.question) list.push({ id: `q:${card.id}`, kind: "question", botId, roomId: room2.id, text: card.question, at: card.askedAt ?? 0 });
-      }
-    }
-    for (const entry of approvals) {
-      list.push({ id: `a:${entry.id}`, kind: "approval", botId: entry.botId, ...entry.roomId ? { roomId: entry.roomId } : {}, text: entry.reason || entry.tool || "", at: entry.at ?? 0 });
-    }
-    return list.sort((a, b) => b.at - a.at);
-  }, [roster, approvals]);
+  const needs = (0, import_react36.useMemo)(() => needsOf(roster, approvals), [roster, approvals]);
   const [olderOpen, setOlderOpen] = (0, import_react36.useState)(false);
   const running = (0, import_react36.useMemo)(() => items.filter((entry) => entry.kind === "room" && runningIds.has(entry.item.id)), [items, runningIds]);
   const waiting = (0, import_react36.useMemo)(() => items.filter((entry) => entry.kind !== "room" || !runningIds.has(entry.item.id)), [items, runningIds]);
