@@ -84,7 +84,7 @@ mac:
   # CFBundleShortVersionString takes numbers and dots only, so the prerelease version that
   # the update check compares cannot go in as it is. Keep these two in step with the
   # version in both package.json files (docs/self-host.md, "Version numbers").
-  bundleShortVersion: '0.4.1'
+  bundleShortVersion: '0.4.2'
   bundleVersion: '202611130900'
   # Without this key macOS registers no Local Network entry for the app and
   # blocks LAN connections from tool processes outright ("No route to host").
