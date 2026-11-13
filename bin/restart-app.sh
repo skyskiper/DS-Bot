@@ -1,35 +1,28 @@
 #!/bin/bash
-# Restart the DS Bot app from outside it, the way it is installed: a launchd one-shot job
-# in the user's GUI domain, so the quit it performs cannot kill the restart itself.
+# Restart the DS Bot app from outside it. A launchd one-shot job runs this script, so the
+# quit it performs cannot kill the restart itself; `open` from a plain shell is unreliable
+# (two failures in three tries on 2026-11-14), a submitted job runs in the user's session.
 #
 #   bin/restart-app.sh                 restart once
 #   bin/restart-app.sh --times 3       three restarts in a row, each recorded
 #
-# `open` from a dead Aqua session is unreliable (twice in three tries on 2026-11-14); a job
-# bootstrapped into gui/<uid> runs in the user's own session, which is why this path works.
-# A run that ends with no live pid is written down as FAILED; nothing retries silently.
+# Every run: SIGTERM the old process, wait up to 15s, SIGKILL if it is still there, open the
+# app, wait for a pid, then check it is still up ten seconds later. A run with no live pid
+# is written down as FAILED with this log's path; nothing retries silently.
 set -u
 
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 APP="/Applications/DS Bot.app"
-BUNDLE="io.github.fei2411.dsbot"
-LABEL="io.github.fei2411.dsbot.restart.$(date +%s)"
+JOB="${DS_BOT_RESTART_JOB:-ds-bot-restart}"
 LOG="${DS_BOT_RESTART_LOG:-$HOME/.ds-bot/restart-app.log}"
-PLIST="$(mktemp -t ds-bot-restart).plist"
-TIMES=1
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --times) TIMES="${2:-1}"; shift 2 ;;
-    *) shift ;;
-  esac
-done
 mkdir -p "$(dirname "$LOG")"
 say() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG"; }
-exe_pid() { pgrep -f '^/Applications/DS Bot\.app/Contents/MacOS/DS Bot$' | head -1; }
+# The app's own process: pgrep's anchored pattern misses it, and helpers are not it.
+exe_pid() { ps -eo pid=,command= | awk '$2 == "/Applications/DS" && $3 == "Bot.app/Contents/MacOS/DS" && $4 == "Bot" { print $1 }' | head -1; }
 
-# The work the job runs: one restart, recorded.
 if [ "${1:-}" = "--job" ]; then
-  times="${2:-1}"
-  for run in $(seq 1 "$times"); do
+  trap 'launchctl remove "$JOB" >/dev/null 2>&1 || true' EXIT
+  for run in $(seq 1 "${2:-1}"); do
     before=$(exe_pid || true)
     if [ -n "$before" ]; then
       kill -TERM "$before" 2>/dev/null || true
@@ -37,9 +30,8 @@ if [ "${1:-}" = "--job" ]; then
         [ -z "$(exe_pid)" ] && break
         sleep 0.5
       done
-      # Still there after fifteen seconds: it is not going to quit on its own.
       if [ -n "$(exe_pid)" ]; then
-        say "run=$run kill9 $(exe_pid)"
+        say "run=$run kill9 pid=$(exe_pid)"
         kill -9 "$(exe_pid)" 2>/dev/null || true
         sleep 1
       fi
@@ -61,26 +53,17 @@ if [ "${1:-}" = "--job" ]; then
   exit 0
 fi
 
-# Schedule that work as a one-shot job in the user's GUI domain, then leave.
-cat >"$PLIST" <<PLIST_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/bin/bash</string><string>$0</string><string>--job</string><string>$TIMES</string>
-  </array>
-  <key>RunAtLoad</key><true/>
-</dict>
-</plist>
-PLIST_EOF
-launchctl bootstrap "gui/$(id -u)" "$PLIST" || { say "bootstrap failed for $LABEL"; rm -f "$PLIST"; exit 2; }
-for _ in $(seq 1 120); do
-  launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
+TIMES=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --times) TIMES="${2:-1}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+launchctl submit -l "$JOB" -- /bin/bash "$SELF" --job "$TIMES" || { say "submit failed for $JOB"; exit 2; }
+for _ in $(seq 1 180); do
+  launchctl list 2>/dev/null | awk -v name="$JOB" '$3 == name { found = 1 } END { exit found ? 0 : 1 }' || break
   sleep 1
 done
-launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
-rm -f "$PLIST"
-say "job $LABEL finished"
+launchctl remove "$JOB" >/dev/null 2>&1 || true
+say "job $JOB finished"
