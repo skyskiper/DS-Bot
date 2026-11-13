@@ -56,13 +56,13 @@ export function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
       type: 'button', className: 'bt-topics-open', 'aria-label': t('Expand'), title: t('Expand'),
       style: { marginBottom: 8 }, onClick: () => { if (typeof onExpand === 'function') onExpand() },
     }, '⌃'),
-    chips.map(chip => h('button', {
+    chips.map((chip, index) => h('button', {
       key: chip.key, type: 'button',
-      className: 'bt-topic-chip', 'data-kind': chip.kind,
+      className: 'bt-topic-chip', 'data-kind': chip.kind, 'data-key': chip.key,
       'data-active': chip.active ? '' : undefined,
       'data-state': chip.state,
       'data-landed': landing?.key === chip.key ? '' : undefined,
-      style: { marginTop: chip.gapBefore === 0 ? undefined : chip.gapBefore },
+      style: { marginTop: chip.gapBefore === 0 ? undefined : chip.gapBefore, '--bt-chip-delay': `${index * 60}ms` },
       title: `${chip.kind === 'sub' ? chip.label : `#${chip.num}`} ${chip.title}`,
       onClick: () => (chip.active ? onExpand() : onActivate(chip.num)),
     },
@@ -70,12 +70,60 @@ export function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
     h('span', { className: 'bt-topic-num' }, chip.kind === 'sub' ? chip.label : `#${chip.num}`),
     h('span', { className: 'bt-topic-label' }, chip.title)))),
     landing !== null && landing !== undefined
-      ? h('span', { key: `fly${landing.seq}`, className: 'bt-topics-fly', 'data-num': landing.num },
-        h('span', { className: 'bt-topics-fly-ava', style: { background: 'var(--bt-ink-3)' } }, String(landing.name ?? '?').slice(0, 1)),
-        h('span', { className: 'bt-topics-fly-name' }, landing.name ?? ''),
-        h('span', { className: 'bt-topics-fly-to' }, landing.sub === undefined ? `#${landing.num}` : `#${landing.num} › ${landing.subTitle ?? landing.sub}`))
+      ? h('span', { key: `landing${landing.seq}`, className: 'bt-topics-landing', 'data-num': landing.num },
+        landing.sub === undefined ? `#${landing.num}` : `#${landing.num} › ${landing.subTitle ?? landing.sub}`)
       : null)
 }
+
+
+// The message flying into its topic (design: 900ms, a quadratic arc, 4 trail dots at
+// 45/90/135/180ms, scale .86 → 1, rotate −4° → +4°). It starts where the message really
+// sits on screen, so the slip comes out of the bubble the reader just saw.
+export function FlySlip({ from, to, name, text, num, onArrived }) {
+  const box = useRef(null)
+  useEffect(() => {
+    if (box.current === null) return undefined
+    const dur = 900
+    const lags = [0, 45, 90, 135, 180]
+    const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 }
+    const start = performance.now()
+    let raf = 0
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / dur)
+      const node = box.current
+      if (node !== null) {
+        for (let i = 0; i < lags.length; i += 1) {
+          const el = node.children[i]
+          if (el === undefined) continue
+          const at = easeInOutCubic(Math.max(0, Math.min(1, (t * dur - lags[i]) / dur)))
+          const x = bezier(from.x, control.x, to.x, at)
+          const y = bezier(from.y, control.y, to.y, at)
+          if (i === 0) {
+            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)`
+            el.style.opacity = String(t < 0.08 ? t / 0.08 : t > 0.86 ? Math.max(0, (1 - t) / 0.14) : 1)
+          } else {
+            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`
+            el.style.opacity = String(0.34 * (1 - at))
+          }
+        }
+      }
+      if (t < 1) raf = requestAnimationFrame(tick)
+      else onArrived?.()
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [from, to, onArrived])
+  const head = Array.from(String(text ?? '')).slice(0, 6).join('')
+  return h('div', { ref: box, className: 'bt-topics-fly-layer', 'aria-hidden': true },
+    h('div', { className: 'bt-topics-fly', style: { borderColor: topicColor(num) } },
+      h('span', { className: 'bt-topics-fly-ava', style: { background: topicColor(num) } }, String(name ?? '?').slice(0, 1)),
+      h('span', { className: 'bt-topics-fly-name' }, name ?? ''),
+      h('span', { className: 'bt-topics-fly-text' }, head)),
+    ...[1, 2, 3, 4].map(index => h('span', { key: index, className: 'bt-topics-fly-trail', style: { background: topicColor(num) } })))
+}
+
+const bezier = (a, b, c, t) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c
+const easeInOutCubic = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
 
 // The expanded stack: one card per live topic, the way the design draws them. The stack is
 // anchored to the same corner and only grows upwards, so nothing under it moves.
@@ -215,6 +263,22 @@ const dayOf = (ts) => {
   return at.toDateString() === new Date().toDateString() ? t('Today') : `${at.getMonth() + 1}/${at.getDate()}`
 }
 
+// Where the last message sits on screen, and where the chip a message belongs to sits.
+const bubbleRect = () => {
+  const rows = document.querySelectorAll('.bt-msg')
+  const last = rows[rows.length - 1]
+  const rect = last?.getBoundingClientRect()
+  if (rect === undefined || rect.width === 0) return undefined
+  return { x: rect.right, y: rect.top + rect.height / 2 }
+}
+
+const chipRect = (key) => {
+  const chip = document.querySelector(`.bt-topic-chip[data-key="${key}"]`)
+  const rect = chip?.getBoundingClientRect()
+  if (rect === undefined) return undefined
+  return { x: rect.left + 26, y: rect.top + 22 }
+}
+
 // The tray as the page mounts it: it follows the main view, reads the room's own `topics`,
 // and keeps only what a click needs (which chip is active, which card is open). The data
 // itself is never copied out of the roster, so a pull with new topics shows at once.
@@ -229,6 +293,7 @@ export function TopicsDock({ useRoster, useSessions }) {
   const [cardNum, setCardNum] = useState(undefined)
   const [cardAnchor, setCardAnchor] = useState(null)
   const [landing, setLanding] = useState(null)
+  const [fly, setFly] = useState(null)
   const previous = useRef(undefined)
   const items = Object.values(book?.items ?? {})
   const live = items.filter(item => item.state === 'active' || item.state === 'blocked' || item.state === 'pending')
@@ -243,8 +308,8 @@ export function TopicsDock({ useRoster, useSessions }) {
     setActiveNum(newest.num)
   }, [liveKey, activeNum])
 
-  // A message landing in another topic: that chip becomes the active one, and a small slip
-  // names who spoke and where it landed (`#1 › 回退用例`), then fades.
+  // A message landing: a slip flies from the bubble it was said in to the chip it belongs
+  // to (900ms), then the chip pulses and a label names where it landed for another 900ms.
   useEffect(() => {
     const before = previous.current
     previous.current = book
@@ -252,12 +317,26 @@ export function TopicsDock({ useRoster, useSessions }) {
     const land = landedIn(before, book)
     if (land === undefined) return
     setActiveNum(land.num)
-    setLanding({ ...land, key: land.sub === undefined ? `n${land.num}` : `n${land.num}.${land.sub}`, seq: Date.now() })
-    // Who spoke comes from the topic's own newest line; the book only keeps the seq.
+    const key = land.sub === undefined ? `n${land.num}` : `n${land.num}.${land.sub}`
+    // Who spoke, and what they said, come from the topic's own newest line.
     void call('topic-thread', { roomId: room.id, num: land.num, limit: 1 })
-      .then((value) => setLanding(current => (current !== null && current.num === land.num ? { ...current, name: value.items?.at(-1)?.name } : current)))
-      .catch(() => {})
+      .then((value) => {
+        const last = value.items?.at(-1)
+        const from = bubbleRect()
+        const to = chipRect(key)
+        if (from !== undefined && to !== undefined) {
+          setFly({ id: Date.now(), from, to, name: last?.name ?? '', text: last?.text ?? '', num: land.num, sub: land.sub, key })
+        } else setLanding({ ...land, key, seq: Date.now() })
+      })
+      .catch(() => setLanding({ ...land, key, seq: Date.now() }))
   }, [book])
+
+  const arrive = () => {
+    const slip = fly
+    setFly(null)
+    if (slip === undefined || slip === null) return
+    setLanding({ key: slip.key, num: slip.num, sub: slip.sub, seq: Date.now() })
+  }
 
   // The slip and the chip's pulse last 900ms. Their timer belongs to the slip, not to the
   // book: a state read arriving meanwhile used to cancel it, so the chip kept the class.
@@ -292,6 +371,7 @@ export function TopicsDock({ useRoster, useSessions }) {
         onActivate: (num) => setActiveNum(num),
         onExpand: () => setExpanded(true),
       }),
+    fly !== null && fly !== undefined ? h(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
     cardNum !== undefined && cardAnchor !== null
       ? h(TopicPopover, { roomId: room.id, target: { num: cardNum }, anchor: cardAnchor, onClose: () => setCardNum(undefined) })
       : null)
@@ -304,24 +384,32 @@ export const TOPICS_TRAY_CSS = `
 .bt-topics-tray-col{display:flex;flex-direction:column;align-items:flex-end;width:100%}
 .bt-topics-open{flex:none;width:22px;height:22px;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-num);font:inherit;font-size:11px;line-height:1;cursor:pointer}
 .bt-topics-open:hover{color:var(--bt-tray-ink);border-color:var(--bt-tray-line-hover)}
-.bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .18s cubic-bezier(.16,1,.3,1),height .18s cubic-bezier(.16,1,.3,1),border-color .18s ease,box-shadow .18s ease}
+.bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .32s cubic-bezier(.16,1,.3,1) var(--bt-chip-delay,0ms),height .32s cubic-bezier(.16,1,.3,1) var(--bt-chip-delay,0ms),border-color .16s ease,box-shadow .16s ease}
 .bt-topic-chip[data-kind=topic]{width:156px;height:26px;font-size:12px;line-height:16px;font-weight:500}
 .bt-topic-chip[data-kind=topic][data-active]{width:180px;height:40px;font-size:13px;line-height:18px;font-weight:600;border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip[data-kind=sub]{width:142px;height:22px;font-size:10.5px;line-height:15px;padding-left:14px}
 .bt-topic-chip[data-active][data-kind=sub]{border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip:hover{border-color:var(--bt-tray-line-hover)}
-/* A landing shows as a ring, not a scale: the chip keeps its 22 (or 26) so a window's
-   rect read is the same before, during and after the pulse. */
-.bt-topic-chip[data-landed]{animation:bt-topic-land .22s cubic-bezier(.16,1,.3,1)}
-@keyframes bt-topic-land{from{box-shadow:0 0 0 3px color-mix(in srgb,var(--bt-topic-1) 55%,transparent)}to{box-shadow:0 0 0 0 transparent}}
+/* A subtopic chip pops when a message lands in it (1.10 → 1, 220ms); a parent chip only
+   glows for 240ms and keeps its size. */
+.bt-topic-chip[data-kind=sub][data-landed]{animation:bt-sub-land .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes bt-sub-land{from{transform:scale(1.1)}to{transform:scale(1)}}
+.bt-topic-chip[data-kind=topic][data-landed]{animation:bt-topic-glow .24s ease}
+@keyframes bt-topic-glow{from{box-shadow:0 0 0 2px color-mix(in srgb,var(--bt-topic-1) 24%,transparent)}to{box-shadow:0 0 0 0 transparent}}
+/* The speaker dot blinks twice in 500ms: opacity = .3 + .7·|sin(2πt/.5)|. */
+.bt-topic-chip[data-landed] .bt-topic-dot{animation:bt-topic-blink .5s linear}
+@keyframes bt-topic-blink{0%{opacity:.3}25%{opacity:1}50%{opacity:.3}75%{opacity:1}100%{opacity:1}}
 .bt-topic-dot{flex:none;width:6px;height:6px;border-radius:50%;margin-right:7px}
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-topics-fly{position:absolute;right:calc(100% + 8px);bottom:8px;display:flex;align-items:center;gap:6px;max-width:260px;height:24px;padding:0 10px 0 6px;border-radius:8px;background:var(--bt-tray-fly);border:1px solid color-mix(in srgb,var(--bt-topic-1) 45%,transparent);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;animation:bt-topics-fly 900ms ease both;pointer-events:none}
-@keyframes bt-topics-fly{0%{opacity:0;transform:translateX(6px)}13%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateX(4px)}}
-.bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
+.bt-topics-fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
+.bt-topics-fly{position:fixed;top:0;left:0;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 5px;border-radius:10px;border:1.5px solid;background:var(--bt-tray-fly);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;will-change:transform,opacity}
+.bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
 .bt-topics-fly-name{color:var(--bt-ink-2);font-weight:500}
-.bt-topics-fly-to{color:var(--bt-accent)}
+.bt-topics-fly-text{color:var(--bt-ink)}
+.bt-topics-fly-trail{position:fixed;top:0;left:0;width:8px;height:8px;border-radius:50%;pointer-events:none}
+.bt-topics-landing{position:absolute;right:calc(100% + 8px);bottom:8px;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:8px;background:var(--bt-tray-fly);border:1px solid color-mix(in srgb,var(--bt-topic-1) 45%,transparent);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;animation:bt-topics-landing 900ms ease both;pointer-events:none}
+@keyframes bt-topics-landing{0%{opacity:0;transform:translateX(6px)}13.3%{opacity:1;transform:none}91%{opacity:1}100%{opacity:0;transform:translateX(4px)}}
 .bt-topics-stack-wrap{position:fixed;pointer-events:auto;animation:bt-topics-stack-in 160ms ease both}
 @keyframes bt-topics-stack-in{from{opacity:0;transform:translateY(4px)}}
 .bt-topics-stack{display:flex;flex-direction:column;width:380px;max-height:min(580px,60vh);padding:8px;box-sizing:border-box;border-radius:22px;background:var(--bt-tray-bg);border:1px solid var(--bt-tray-edge);box-shadow:0 24px 48px -28px rgba(0,0,0,.85)}

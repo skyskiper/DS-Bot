@@ -42988,17 +42988,18 @@ function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
           if (typeof onExpand === "function") onExpand();
         }
       }, "⌃"),
-      chips.map((chip) => (0, import_react71.createElement)(
+      chips.map((chip, index) => (0, import_react71.createElement)(
         "button",
         {
           key: chip.key,
           type: "button",
           className: "bt-topic-chip",
           "data-kind": chip.kind,
+          "data-key": chip.key,
           "data-active": chip.active ? "" : void 0,
           "data-state": chip.state,
           "data-landed": landing?.key === chip.key ? "" : void 0,
-          style: { marginTop: chip.gapBefore === 0 ? void 0 : chip.gapBefore },
+          style: { marginTop: chip.gapBefore === 0 ? void 0 : chip.gapBefore, "--bt-chip-delay": `${index * 60}ms` },
           title: `${chip.kind === "sub" ? chip.label : `#${chip.num}`} ${chip.title}`,
           onClick: () => chip.active ? onExpand() : onActivate(chip.num)
         },
@@ -43009,13 +43010,61 @@ function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
     ),
     landing !== null && landing !== void 0 ? (0, import_react71.createElement)(
       "span",
-      { key: `fly${landing.seq}`, className: "bt-topics-fly", "data-num": landing.num },
-      (0, import_react71.createElement)("span", { className: "bt-topics-fly-ava", style: { background: "var(--bt-ink-3)" } }, String(landing.name ?? "?").slice(0, 1)),
-      (0, import_react71.createElement)("span", { className: "bt-topics-fly-name" }, landing.name ?? ""),
-      (0, import_react71.createElement)("span", { className: "bt-topics-fly-to" }, landing.sub === void 0 ? `#${landing.num}` : `#${landing.num} › ${landing.subTitle ?? landing.sub}`)
+      { key: `landing${landing.seq}`, className: "bt-topics-landing", "data-num": landing.num },
+      landing.sub === void 0 ? `#${landing.num}` : `#${landing.num} › ${landing.subTitle ?? landing.sub}`
     ) : null
   );
 }
+function FlySlip({ from, to, name, text, num: num2, onArrived }) {
+  const box = (0, import_react71.useRef)(null);
+  (0, import_react71.useEffect)(() => {
+    if (box.current === null) return void 0;
+    const dur = 900;
+    const lags = [0, 45, 90, 135, 180];
+    const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 };
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now) => {
+      const t2 = Math.min(1, (now - start) / dur);
+      const node = box.current;
+      if (node !== null) {
+        for (let i = 0; i < lags.length; i += 1) {
+          const el = node.children[i];
+          if (el === void 0) continue;
+          const at = easeInOutCubic(Math.max(0, Math.min(1, (t2 * dur - lags[i]) / dur)));
+          const x = bezier(from.x, control.x, to.x, at);
+          const y = bezier(from.y, control.y, to.y, at);
+          if (i === 0) {
+            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)`;
+            el.style.opacity = String(t2 < 0.08 ? t2 / 0.08 : t2 > 0.86 ? Math.max(0, (1 - t2) / 0.14) : 1);
+          } else {
+            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`;
+            el.style.opacity = String(0.34 * (1 - at));
+          }
+        }
+      }
+      if (t2 < 1) raf = requestAnimationFrame(tick);
+      else onArrived?.();
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [from, to, onArrived]);
+  const head = Array.from(String(text ?? "")).slice(0, 6).join("");
+  return (0, import_react71.createElement)(
+    "div",
+    { ref: box, className: "bt-topics-fly-layer", "aria-hidden": true },
+    (0, import_react71.createElement)(
+      "div",
+      { className: "bt-topics-fly", style: { borderColor: topicColor(num2) } },
+      (0, import_react71.createElement)("span", { className: "bt-topics-fly-ava", style: { background: topicColor(num2) } }, String(name ?? "?").slice(0, 1)),
+      (0, import_react71.createElement)("span", { className: "bt-topics-fly-name" }, name ?? ""),
+      (0, import_react71.createElement)("span", { className: "bt-topics-fly-text" }, head)
+    ),
+    ...[1, 2, 3, 4].map((index) => (0, import_react71.createElement)("span", { key: index, className: "bt-topics-fly-trail", style: { background: topicColor(num2) } }))
+  );
+}
+var bezier = (a, b, c, t2) => (1 - t2) * (1 - t2) * a + 2 * (1 - t2) * t2 * b + t2 * t2 * c;
+var easeInOutCubic = (t2) => t2 < 0.5 ? 4 * t2 * t2 * t2 : 1 - (-2 * t2 + 2) ** 3 / 2;
 function TopicsStack({ activeNum, onPick, onCollapse, cards = [] }) {
   return (0, import_react71.createElement)(
     "div",
@@ -43175,6 +43224,19 @@ var dayOf = (ts) => {
   const at = new Date(ts);
   return at.toDateString() === (/* @__PURE__ */ new Date()).toDateString() ? t("Today") : `${at.getMonth() + 1}/${at.getDate()}`;
 };
+var bubbleRect = () => {
+  const rows2 = document.querySelectorAll(".bt-msg");
+  const last = rows2[rows2.length - 1];
+  const rect = last?.getBoundingClientRect();
+  if (rect === void 0 || rect.width === 0) return void 0;
+  return { x: rect.right, y: rect.top + rect.height / 2 };
+};
+var chipRect = (key) => {
+  const chip = document.querySelector(`.bt-topic-chip[data-key="${key}"]`);
+  const rect = chip?.getBoundingClientRect();
+  if (rect === void 0) return void 0;
+  return { x: rect.left + 26, y: rect.top + 22 };
+};
 function TopicsDock({ useRoster, useSessions }) {
   const roster = useRoster((value) => value);
   const sessionId = useSessions((list) => Object.values(list.byId ?? {}).find((session) => (session?.retainedBy?.mainView ?? 0) > 0)?.id);
@@ -43186,6 +43248,7 @@ function TopicsDock({ useRoster, useSessions }) {
   const [cardNum, setCardNum] = (0, import_react71.useState)(void 0);
   const [cardAnchor, setCardAnchor] = (0, import_react71.useState)(null);
   const [landing, setLanding] = (0, import_react71.useState)(null);
+  const [fly, setFly] = (0, import_react71.useState)(null);
   const previous = (0, import_react71.useRef)(void 0);
   const items = Object.values(book?.items ?? {});
   const live = items.filter((item) => item.state === "active" || item.state === "blocked" || item.state === "pending");
@@ -43209,10 +43272,22 @@ function TopicsDock({ useRoster, useSessions }) {
     const land = landedIn(before, book);
     if (land === void 0) return;
     setActiveNum(land.num);
-    setLanding({ ...land, key: land.sub === void 0 ? `n${land.num}` : `n${land.num}.${land.sub}`, seq: Date.now() });
-    void call("topic-thread", { roomId: room2.id, num: land.num, limit: 1 }).then((value) => setLanding((current) => current !== null && current.num === land.num ? { ...current, name: value.items?.at(-1)?.name } : current)).catch(() => {
-    });
+    const key = land.sub === void 0 ? `n${land.num}` : `n${land.num}.${land.sub}`;
+    void call("topic-thread", { roomId: room2.id, num: land.num, limit: 1 }).then((value) => {
+      const last = value.items?.at(-1);
+      const from = bubbleRect();
+      const to = chipRect(key);
+      if (from !== void 0 && to !== void 0) {
+        setFly({ id: Date.now(), from, to, name: last?.name ?? "", text: last?.text ?? "", num: land.num, sub: land.sub, key });
+      } else setLanding({ ...land, key, seq: Date.now() });
+    }).catch(() => setLanding({ ...land, key, seq: Date.now() }));
   }, [book]);
+  const arrive = () => {
+    const slip = fly;
+    setFly(null);
+    if (slip === void 0 || slip === null) return;
+    setLanding({ key: slip.key, num: slip.num, sub: slip.sub, seq: Date.now() });
+  };
   (0, import_react71.useEffect)(() => {
     if (landing === null || landing === void 0) return void 0;
     const timer2 = setTimeout(() => setLanding(null), 900);
@@ -43253,6 +43328,7 @@ function TopicsDock({ useRoster, useSessions }) {
       onActivate: (num2) => setActiveNum(num2),
       onExpand: () => setExpanded(true)
     }),
+    fly !== null && fly !== void 0 ? (0, import_react71.createElement)(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
     cardNum !== void 0 && cardAnchor !== null ? (0, import_react71.createElement)(TopicPopover, { roomId: room2.id, target: { num: cardNum }, anchor: cardAnchor, onClose: () => setCardNum(void 0) }) : null
   );
 }
@@ -43263,24 +43339,32 @@ var TOPICS_TRAY_CSS = `
 .bt-topics-tray-col{display:flex;flex-direction:column;align-items:flex-end;width:100%}
 .bt-topics-open{flex:none;width:22px;height:22px;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-num);font:inherit;font-size:11px;line-height:1;cursor:pointer}
 .bt-topics-open:hover{color:var(--bt-tray-ink);border-color:var(--bt-tray-line-hover)}
-.bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .18s cubic-bezier(.16,1,.3,1),height .18s cubic-bezier(.16,1,.3,1),border-color .18s ease,box-shadow .18s ease}
+.bt-topic-chip{position:relative;display:flex;align-items:center;gap:0;flex:none;border:1px solid var(--bt-tray-line);border-radius:999px;background:var(--bt-tray-chip);color:var(--bt-tray-ink);font:inherit;cursor:pointer;text-align:left;padding:0 12px 0 10px;box-sizing:border-box;transition:width .32s cubic-bezier(.16,1,.3,1) var(--bt-chip-delay,0ms),height .32s cubic-bezier(.16,1,.3,1) var(--bt-chip-delay,0ms),border-color .16s ease,box-shadow .16s ease}
 .bt-topic-chip[data-kind=topic]{width:156px;height:26px;font-size:12px;line-height:16px;font-weight:500}
 .bt-topic-chip[data-kind=topic][data-active]{width:180px;height:40px;font-size:13px;line-height:18px;font-weight:600;border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip[data-kind=sub]{width:142px;height:22px;font-size:10.5px;line-height:15px;padding-left:14px}
 .bt-topic-chip[data-active][data-kind=sub]{border-color:var(--bt-tray-line-strong)}
 .bt-topic-chip:hover{border-color:var(--bt-tray-line-hover)}
-/* A landing shows as a ring, not a scale: the chip keeps its 22 (or 26) so a window's
-   rect read is the same before, during and after the pulse. */
-.bt-topic-chip[data-landed]{animation:bt-topic-land .22s cubic-bezier(.16,1,.3,1)}
-@keyframes bt-topic-land{from{box-shadow:0 0 0 3px color-mix(in srgb,var(--bt-topic-1) 55%,transparent)}to{box-shadow:0 0 0 0 transparent}}
+/* A subtopic chip pops when a message lands in it (1.10 → 1, 220ms); a parent chip only
+   glows for 240ms and keeps its size. */
+.bt-topic-chip[data-kind=sub][data-landed]{animation:bt-sub-land .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes bt-sub-land{from{transform:scale(1.1)}to{transform:scale(1)}}
+.bt-topic-chip[data-kind=topic][data-landed]{animation:bt-topic-glow .24s ease}
+@keyframes bt-topic-glow{from{box-shadow:0 0 0 2px color-mix(in srgb,var(--bt-topic-1) 24%,transparent)}to{box-shadow:0 0 0 0 transparent}}
+/* The speaker dot blinks twice in 500ms: opacity = .3 + .7·|sin(2πt/.5)|. */
+.bt-topic-chip[data-landed] .bt-topic-dot{animation:bt-topic-blink .5s linear}
+@keyframes bt-topic-blink{0%{opacity:.3}25%{opacity:1}50%{opacity:.3}75%{opacity:1}100%{opacity:1}}
 .bt-topic-dot{flex:none;width:6px;height:6px;border-radius:50%;margin-right:7px}
 .bt-topic-num{flex:none;color:var(--bt-tray-num);font-size:10.5px;margin-right:6px;font-variant-numeric:tabular-nums}
 .bt-topic-label{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-topics-fly{position:absolute;right:calc(100% + 8px);bottom:8px;display:flex;align-items:center;gap:6px;max-width:260px;height:24px;padding:0 10px 0 6px;border-radius:8px;background:var(--bt-tray-fly);border:1px solid color-mix(in srgb,var(--bt-topic-1) 45%,transparent);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;animation:bt-topics-fly 900ms ease both;pointer-events:none}
-@keyframes bt-topics-fly{0%{opacity:0;transform:translateX(6px)}13%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateX(4px)}}
-.bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
+.bt-topics-fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
+.bt-topics-fly{position:fixed;top:0;left:0;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 5px;border-radius:10px;border:1.5px solid;background:var(--bt-tray-fly);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;will-change:transform,opacity}
+.bt-topics-fly-ava{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--bt-tray-on);font-size:9px;font-weight:700}
 .bt-topics-fly-name{color:var(--bt-ink-2);font-weight:500}
-.bt-topics-fly-to{color:var(--bt-accent)}
+.bt-topics-fly-text{color:var(--bt-ink)}
+.bt-topics-fly-trail{position:fixed;top:0;left:0;width:8px;height:8px;border-radius:50%;pointer-events:none}
+.bt-topics-landing{position:absolute;right:calc(100% + 8px);bottom:8px;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:8px;background:var(--bt-tray-fly);border:1px solid color-mix(in srgb,var(--bt-topic-1) 45%,transparent);color:var(--bt-ink);font-size:11px;font-weight:600;white-space:nowrap;animation:bt-topics-landing 900ms ease both;pointer-events:none}
+@keyframes bt-topics-landing{0%{opacity:0;transform:translateX(6px)}13.3%{opacity:1;transform:none}91%{opacity:1}100%{opacity:0;transform:translateX(4px)}}
 .bt-topics-stack-wrap{position:fixed;pointer-events:auto;animation:bt-topics-stack-in 160ms ease both}
 @keyframes bt-topics-stack-in{from{opacity:0;transform:translateY(4px)}}
 .bt-topics-stack{display:flex;flex-direction:column;width:380px;max-height:min(580px,60vh);padding:8px;box-sizing:border-box;border-radius:22px;background:var(--bt-tray-bg);border:1px solid var(--bt-tray-edge);box-shadow:0 24px 48px -28px rgba(0,0,0,.85)}

@@ -339,3 +339,34 @@ test('the window can move a message out of #Other, and reopen an ended topic onl
   assert.equal(room().topics.items[4].state, 'archived', 'the seat limit is not widened')
   assert.equal((await call('topic-reopen', { roomId: 'r1', num: 9 })).error.code, 'bot/not-found')
 })
+
+// Nothing is said without a home: every message starts in #Other and leaves it only when
+// someone says which topic it belongs to. The fallback is code, not a habit.
+test('every message lands in #Other by itself, and leaves when a topic takes it', async (t) => {
+  const { tool, call, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '话题系统' })
+  const book = () => room().topics
+
+  const said = rt.logRoom(room(), { who: 'User', text: 'this line has no topic yet' })
+  assert.ok(book().other.msgs.includes(said.seq), 'a message nobody placed sits in #Other')
+  const notices = rt.logRoom(room(), { who: 'DS Bot', kind: 'notice', reason: 'folder', path: '/tmp' })
+  assert.equal(book().other.msgs.includes(notices.seq), false, 'a notice is not a message')
+
+  const moved = JSON.parse(await tool('topic_record', { num: 1, fromSeq: said.seq }))
+  assert.equal(moved.attached, true)
+  assert.equal(book().other.msgs.includes(said.seq), false, 'the topic took it out of #Other')
+  assert.ok(book().items[1].messages.includes(said.seq))
+
+  // Twice is once.
+  await tool('topic_record', { num: 1, fromSeq: said.seq })
+  assert.deepEqual(book().items[1].messages.filter(seq => seq === said.seq), [said.seq])
+  assert.equal(book().other.msgs.includes(said.seq), false)
+
+  // #Other is not a topic: archiving everything else leaves it alone.
+  await tool('topic_state', { num: 1, state: 'archived', why: 'done' })
+  const second = rt.logRoom(room(), { who: 'User', text: 'after the archive' })
+  assert.ok(book().other.msgs.includes(second.seq), '#Other never goes away')
+  const thread = await call('topic-thread', { roomId: 'r1', other: true })
+  assert.deepEqual(thread.value.items.map(item => item.seq), [second.seq], 'only what is still unplaced is in #Other')
+})

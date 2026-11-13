@@ -280,6 +280,9 @@ export function install(rt) {
   }
 
   const roomLineListeners = new Set()
+  // A message someone said: not a notice, not a card answer, not a state event.
+  const isMessageLine = line => line.kind === undefined && typeof line.text === 'string'
+
   // The one way anything is said in a group: into its book, then into the room's log for
   // the members' turns. `session` marks a message the group's own Session shows already.
   const say = (room, line) => {
@@ -287,6 +290,13 @@ export function install(rt) {
     room.seq += 1
     const record = { ...line, seq: room.seq, time: line.time ?? Date.now() }
     rt.ledger.append(bookOf(room.id), record)
+    // Nothing is said without a home: a message starts in #Other and leaves it only when
+    // someone says which topic it belongs to. A line that is a notice or a card answer is
+    // not a message and stays out of the ledger of topics.
+    if (isMessageLine(record)) {
+      const book = rt.topicBook?.(room.id)
+      if (book !== undefined && !book.other.msgs.includes(record.seq)) book.other.msgs.push(record.seq)
+    }
     // The phone link hears every line the chat will draw (mobile.js).
     rt.roomLineAdded?.(room, record)
     if (!memberLine(record)) return record

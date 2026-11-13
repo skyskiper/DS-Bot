@@ -13,14 +13,22 @@ const bundle = async (contents) => {
     bundle: true, format: 'cjs', platform: 'browser', write: false, logLevel: 'silent',
     external: ['react', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
   })
-  const react = { Fragment: 'Fragment', createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity) }) }
+  const react = {
+    Fragment: 'Fragment',
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity) }),
+    useRef: () => ({ current: null }),
+    useEffect: () => {},
+    useState: () => [null, () => {}],
+    useCallback: fn => fn,
+    useMemo: fn => fn(),
+  }
   const module = { exports: {} }
   const window = { innerWidth: 1920, innerHeight: 969, addEventListener() {}, removeEventListener() {}, setTimeout, clearTimeout, setInterval, clearInterval, localStorage: { getItem: () => null, setItem() {} } }
   runInNewContext(outputFiles[0].text, { module, exports: module.exports, require: name => (name === 'react' ? react : {}), window, document: { querySelector: () => null }, console, setTimeout, clearTimeout, setInterval, clearInterval, fetch: () => Promise.reject(new Error('no network in a unit test')) }, { filename: 'bundle.cjs' })
   return module.exports
 }
 const view = await bundle("export * from './src/client/topics-view.js'")
-const tray = await bundle("export { TopicsTray, TopicsStack, TOPICS_TRAY_CSS } from './src/client/topics-tray.js'")
+const tray = await bundle("export { TopicsTray, TopicsStack, FlySlip, TOPICS_TRAY_CSS } from './src/client/topics-tray.js'")
 const panel = await bundle("export { TopicMoveMenu } from './src/client/topics-panel.js'")
 
 const nodes = (tree, out = []) => {
@@ -159,15 +167,26 @@ test('the column carries a handle that opens the stack without guessing which ch
   assert.equal(JSON.stringify(asked), JSON.stringify(['expand']))
 })
 
-test('a landing slip names the speaker and the chip it hit', () => {
-  const chips = view.chipsOf(book, 3)
-  const tree = tray.TopicsTray({
-    chips, activeNum: 3, anchor: { right: 24, bottom: 120 },
-    landing: { key: 'n1.2', num: 1, sub: 2, subTitle: '回退用例', name: 'Dev', seq: 5 },
+test('the slip carries the speaker, the first words and the topic colour', () => {
+  const tree = tray.FlySlip({
+    from: { x: 900, y: 400 }, to: { x: 1400, y: 800 },
+    name: 'Dev', text: '卡片点下去没反应，我复现了两次', num: 1, sub: 2,
   })
-  const fly = nodes(tree).find(node => node.props?.className === 'bt-topics-fly')
-  assert.ok(fly, 'the slip is drawn')
-  assert.deepEqual(texts(fly), ['D', 'Dev', '#1 › 回退用例'])
+  const slip = nodes(tree).find(node => node.props?.className === 'bt-topics-fly')
+  assert.ok(slip, 'the slip is drawn')
+  assert.deepEqual(texts(slip), ['D', 'Dev', '卡片点下去没'], 'speaker initial, name, and the first six characters')
+  assert.match(slip.props.style.borderColor, /topic-1/, 'the border is the topic colour')
+  const trails = nodes(tree).filter(node => node.props?.className === 'bt-topics-fly-trail')
+  assert.equal(trails.length, 4, 'four trail dots')
+})
+
+test('the landing label names where the message went', () => {
+  const tree = tray.TopicsTray({
+    chips: view.chipsOf(book, 3), anchor: { right: 24, bottom: 120 },
+    landing: { key: 'n1.2', num: 1, sub: 2, subTitle: '回退用例', seq: 5 },
+  })
+  const label = nodes(tree).find(node => node.props?.className === 'bt-topics-landing')
+  assert.deepEqual(texts(label), ['#1 › 回退用例'])
   assert.equal(nodes(tree).find(node => node.props?.['data-landed'] !== undefined).props['data-landed'], '')
 })
 

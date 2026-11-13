@@ -110,7 +110,8 @@ export function install(rt) {
       const target = book.items[num]
       if (target === undefined) return { error: `There is no topic #${num}.` }
       if (Number.isInteger(fromSeq)) {
-        target.messages = [...(target.messages ?? []), fromSeq]
+        // Recording the same line twice is one line, not two.
+        if (!(target.messages ?? []).includes(fromSeq)) target.messages = [...(target.messages ?? []), fromSeq]
         book.other.msgs = book.other.msgs.filter(kept => kept !== fromSeq)
       }
       target.events.push({ at: now(), kind: 'attach', by, why, seq: fromSeq })
