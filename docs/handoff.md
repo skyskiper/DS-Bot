@@ -225,6 +225,18 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 客户端渲染成 `—`（`aria-label="text unavailable"`），**不丢行、不画空气泡**。ledger 是 append-only，
 现实中很难撞到；这是取舍，不是缺陷。
 
+### 话题 UI 的四处已知取舍（2026-11-13）
+
+1. **`TopicStrip`（32/24 那行）没挂进页面**。聊天气泡区右下角是 A1 浮窗，右栏是总入口；
+   `pill-d-spec` 把「一条状态条」这一级取消掉了，`TopicStrip` 只剩组件与单测，别再拿它当已上线 UI。
+2. **位满重开只是 UI 排队**。`topic-reopen` 在活跃 3 条时返回 `bot/refused`，右栏按 `pill-d-spec` 把该行
+   标成 `Reopen requested · queued` 并允许 `Cancel`；但**host 没有重开队列**，空出座位后它不会自动顶上，
+   要等用户再点一次。要真排队得在 `topics.js` 加队列，v2 再做。
+3. **420×320 小窗的锚点只在打开时量一次**。卡片滚出视区、或窗口缩放后，小窗不跟着重贴
+   （`pill-d-spec` §9 要求 resize/滚动重贴，没做）。
+4. **浮窗配色是固定深色 token**（`--bt-tray-*`，在 `styles.js` 的 body 里定义），不随主题变；
+   设计与原型就是深色面板，浅色主题下也是深色。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
