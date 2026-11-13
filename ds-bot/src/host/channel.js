@@ -287,12 +287,18 @@ export function install(rt) {
             const whole = rt.ledger?.record?.(`group-${room.id}`, seq)
             const line = room.log?.find(entry => entry.seq === seq)
             const sub = other ? undefined : Object.entries(item.subs ?? {}).find(([, entry]) => (entry.messages ?? []).includes(seq))
+            // A message can sit in several topics: name the others so the reader is not
+            // left thinking it was written twice.
+            const elsewhere = Object.values(book?.items ?? {})
+              .filter(entry => !(other === false && entry.num === num) && (entry.messages ?? []).includes(seq))
+              .map(entry => entry.num)
             return {
               seq,
               ts: line?.time ?? null,
               who: line?.botId ?? null,
               name: line?.name ?? line?.who ?? 'User',
               text: whole?.text ?? line?.text ?? null,
+              ...(elsewhere.length === 0 ? {} : { elsewhere }),
               ...(sub === undefined ? {} : { sub: `${item.num}.${sub[0]}`, ...(sub[1].title === undefined ? {} : { subTitle: sub[1].title }) }),
             }
           })

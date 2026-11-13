@@ -400,6 +400,44 @@ test('a turn declares where its reply goes, and the last declaration wins', asyn
   await tool('topic_record', { num: 1, fromSeq: asked.seq })
   await tool('topic_record', { num: 2, fromSeq: asked.seq })
   assert.equal(rt.turnTopicOf(room(), chief), 2)
-  assert.deepEqual(book().items[1].messages.filter(seq => seq === asked.seq), [asked.seq], 'no duplicates from repeating a placement')
-  assert.deepEqual(book().items[2].messages.filter(seq => seq === asked.seq), [asked.seq])
+  assert.deepEqual(book().items[2].messages.filter(seq => seq === asked.seq), [asked.seq], 'no duplicates from repeating a placement')
+  assert.equal(book().items[1].messages.includes(asked.seq), false, 'the last placement wins: the older topic loses it')
+})
+
+// A message can ask two things at once: it belongs to more than one topic, with one primary
+// that decides its order and is the only one whose count includes it.
+test('a message joins several topics with one primary, and leaving a topic takes it out', async (t) => {
+  const { tool, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '话题方案' })
+  await tool('topic_record', { title: '动效' })
+  await tool('topic_record', { title: '第三个' })
+  await tool('topic_record', { title: '第四个' })
+  const book = () => room().topics
+  const said = rt.logRoom(room(), { who: 'User', text: 'one line, two questions' })
+
+  const placed = JSON.parse(await tool('topic_record', { nums: [1, 2], fromSeq: said.seq }))
+  assert.equal(placed.primary, 1)
+  assert.deepEqual(placed.related, [2])
+  assert.ok(book().items[1].messages.includes(said.seq))
+  assert.ok(book().items[2].messages.includes(said.seq), 'the related topic shows it too')
+  assert.equal(book().primary[said.seq], 1, 'one primary, and it is the first name')
+  assert.equal(book().other.msgs.includes(said.seq), false)
+
+  // Archiving the primary leaves the related entry where it is.
+  await tool('topic_state', { num: 1, state: 'archived', why: 'done' })
+  assert.ok(book().items[2].messages.includes(said.seq))
+
+  // Naming fewer topics takes the message out of the ones left out.
+  await tool('topic_record', { nums: [3], fromSeq: said.seq })
+  assert.equal(book().items[2].messages.includes(said.seq), false, 'the related topic lost it')
+  assert.ok(book().items[3].messages.includes(said.seq))
+  assert.equal(book().primary[said.seq], 3, 'the primary moved')
+  assert.ok(book().items[2].events.some(event => event.kind === 'detach'), 'the topic that lost it says so in its audit')
+
+  // A fourth name is dropped, and the reply says so instead of failing.
+  const capped = JSON.parse(await tool('topic_record', { nums: [4, 2, 3, 1], fromSeq: said.seq }))
+  assert.deepEqual(capped.related, [2, 3], 'three names are kept, the fourth is dropped')
+  assert.deepEqual(capped.dropped, [1], 'and the answer says which one was left out')
+  assert.equal(book().items[4].messages.filter(seq => seq === said.seq).length, 1, 'idempotent')
 })

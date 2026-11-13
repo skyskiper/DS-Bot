@@ -13515,6 +13515,7 @@ var TOPIC_COPY = {
     "A seat is free": "有位置了",
     "Full · waiting for {count} to end": "位满 · 等 {count} 个话题结束",
     "Reopen now ▸": "可重开 ▸",
+    "also in": "也属",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 个话题正在活跃，等空出位置再重开。",
     "Nothing is lost; the number stays.": "不会丢，编号不变。"
   },
@@ -13556,6 +13557,7 @@ var TOPIC_COPY = {
     "A seat is free": "有位置了",
     "Full · waiting for {count} to end": "位滿 · 等 {count} 個話題結束",
     "Reopen now ▸": "可重開 ▸",
+    "also in": "也屬",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 個話題正在活躍，等空出位置再重開。",
     "Nothing is lost; the number stays.": "不會丟，編號不變。",
     "→ Recorded as #{num}": "→ 記為 #{num}",
@@ -13599,6 +13601,7 @@ var TOPIC_COPY = {
     "A seat is free": "空きがあります",
     "Full · waiting for {count} to end": "満席 · {count} 件の終了待ち",
     "Reopen now ▸": "今すぐ再開 ▸",
+    "also in": "にも属する",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 件が進行中です。空きが出たら再開してください。",
     "Nothing is lost; the number stays.": "失われません。番号も変わりません。",
     "→ Recorded as #{num}": "→ #{num} として記録",
@@ -13642,6 +13645,7 @@ var TOPIC_COPY = {
     "A seat is free": "자리가 났습니다",
     "Full · waiting for {count} to end": "만석 · {count}개 종료 대기",
     "Reopen now ▸": "지금 다시 열기 ▸",
+    "also in": "포함",
     "{count} topics are already active. Reopen it once a seat frees.": "{count}개 주제가 진행 중입니다. 자리가 나면 다시 열어 주세요.",
     "Nothing is lost; the number stays.": "사라지지 않습니다. 번호도 그대로입니다.",
     "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
@@ -13685,6 +13689,7 @@ var TOPIC_COPY = {
     "A seat is free": "Hay un sitio libre",
     "Full · waiting for {count} to end": "Lleno · esperando a que termine {count}",
     "Reopen now ▸": "Reabrir ahora ▸",
+    "also in": "también en",
     "{count} topics are already active. Reopen it once a seat frees.": "Ya hay {count} temas activos. Reábrelo cuando se libere un sitio.",
     "Nothing is lost; the number stays.": "Nada se pierde; el número no cambia.",
     "→ Recorded as #{num}": "→ Registrado como #{num}",
@@ -13728,6 +13733,7 @@ var TOPIC_COPY = {
     "A seat is free": "Une place est libre",
     "Full · waiting for {count} to end": "Complet · en attente de {count} fin",
     "Reopen now ▸": "Rouvrir maintenant ▸",
+    "also in": "aussi dans",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} sujets sont déjà actifs. Rouvrez-le dès qu'une place se libère.",
     "Nothing is lost; the number stays.": "Rien n'est perdu ; le numéro ne change pas.",
     "→ Recorded as #{num}": "→ Enregistré comme #{num}",
@@ -13771,6 +13777,7 @@ var TOPIC_COPY = {
     "A seat is free": "Ein Platz ist frei",
     "Full · waiting for {count} to end": "Voll · wartet auf {count} Ende",
     "Reopen now ▸": "Jetzt wieder öffnen ▸",
+    "also in": "auch in",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} Themen sind bereits aktiv. Öffne es wieder, sobald ein Platz frei wird.",
     "Nothing is lost; the number stays.": "Nichts geht verloren; die Nummer bleibt.",
     "→ Recorded as #{num}": "→ Erfasst als #{num}",
@@ -38694,12 +38701,17 @@ var landedIn = (before, after) => {
   }
   return void 0;
 };
-var cardMeta = (item, now = Date.now()) => {
+var cardMeta = (item, now = Date.now(), primary = void 0) => {
   const subs = Object.values(item?.subs ?? {}).filter((sub) => sub.state !== "archived").length;
-  const messages = messageCountOf(item);
+  const messages = primary === void 0 ? messageCountOf(item) : countPrimary(item, primary);
   const when3 = timeAgo(lastAtOf(item), now);
   if (messages === 0) return [subs === 0 ? "" : t("{count} subtopics", { count: subs }), t("No messages yet")].filter(Boolean).join(" · ");
   return [subs === 0 ? "" : t("{count} subtopics", { count: subs }), t("{count} messages", { count: messages }), when3].filter(Boolean).join(" · ");
+};
+var countPrimary = (item, primary) => {
+  const mine = (item?.messages ?? []).filter((seq) => primary[seq] === void 0 || primary[seq] === item.num).length;
+  const subs = Object.values(item?.subs ?? {}).reduce((sum, sub) => sum + (sub?.messages ?? []).filter((seq) => primary[seq] === void 0 || primary[seq] === item.num).length, 0);
+  return mine + subs + (Number.isInteger(item?.fromSeq) && (primary[item.fromSeq] === void 0 || primary[item.fromSeq] === item.num) ? 1 : 0);
 };
 var timeAgo = (ts, now = Date.now()) => {
   if (!Number.isFinite(ts) || ts <= 0) return "";
@@ -38791,7 +38803,7 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
       (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("{count} topics are already active. Reopen it once a seat frees.", { count: active.length })),
       (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("Nothing is lost; the number stays."))
     ) : null,
-    section(t("Active"), active.map((item) => row(item, cardMeta(item)))),
+    section(t("Active"), active.map((item) => row(item, cardMeta(item, Date.now(), book?.primary)))),
     queued.length > 0 ? section(t("Queued"), queued.map((item) => row(item, t("Queued")))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.
@@ -43017,42 +43029,49 @@ function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
 }
 function FlySlip({ from, to, name, text, num: num2, onArrived }) {
   const box = (0, import_react71.useRef)(null);
+  const arrived = (0, import_react71.useRef)(onArrived);
+  arrived.current = onArrived;
   (0, import_react71.useEffect)(() => {
     if (box.current === null) return void 0;
     const dur = 900;
     const lags = [0, 45, 90, 135, 180];
     const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 };
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now) => {
-      const t2 = Math.min(1, (now - start) / dur);
-      const node = box.current;
-      if (node !== null) {
-        for (let i = 0; i < lags.length; i += 1) {
-          const el = node.children[i];
-          if (el === void 0) continue;
-          const at = easeInOutCubic(Math.max(0, Math.min(1, (t2 * dur - lags[i]) / dur)));
-          const x = bezier(from.x, control.x, to.x, at);
-          const y = bezier(from.y, control.y, to.y, at);
-          if (i === 0) {
-            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)`;
-            el.style.opacity = String(t2 < 0.08 ? t2 / 0.08 : t2 > 0.86 ? Math.max(0, (1 - t2) / 0.14) : 1);
-          } else {
-            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`;
-            el.style.opacity = String(0.34 * (1 - at));
-          }
-        }
+    const anims = [];
+    for (let i = 0; i < lags.length; i += 1) {
+      const el = box.current.children[i];
+      if (el === void 0 || typeof el.animate !== "function") continue;
+      const frames = [];
+      for (let step = 0; step <= 30; step += 1) {
+        const t2 = step / 30;
+        const at = easeInOutCubic(Math.max(0, Math.min(1, (t2 * dur - lags[i]) / dur)));
+        const x = bezier(from.x, control.x, to.x, at);
+        const y = bezier(from.y, control.y, to.y, at);
+        frames.push({
+          offset: t2,
+          transform: i === 0 ? `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)` : `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`,
+          opacity: i === 0 ? t2 < 0.08 ? t2 / 0.08 : t2 > 0.86 ? Math.max(0, (1 - t2) / 0.14) : 1 : 0.34 * (1 - at)
+        });
       }
-      if (t2 < 1) raf = requestAnimationFrame(tick);
-      else onArrived?.();
+      anims.push(el.animate(frames, { duration: dur, fill: "forwards" }));
+    }
+    const main = anims[0];
+    if (main !== void 0) main.finished.then(() => arrived.current?.()).catch(() => {
+    });
+    return () => {
+      for (const anim of anims) anim.cancel();
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [from, to, onArrived]);
+  }, []);
   const head = Array.from(String(text ?? "")).slice(0, 6).join("");
   return (0, import_react71.createElement)(
     "div",
-    { ref: box, className: "bt-topics-fly-layer", "aria-hidden": true },
+    {
+      ref: box,
+      className: "bt-topics-fly-layer",
+      "aria-hidden": true,
+      "data-anim": "fly",
+      "data-duration": "900",
+      "data-trails": "45,90,135,180"
+    },
     (0, import_react71.createElement)(
       "div",
       { className: "bt-topics-fly", style: { borderColor: topicColor(num2) } },
@@ -43065,7 +43084,7 @@ function FlySlip({ from, to, name, text, num: num2, onArrived }) {
 }
 var bezier = (a, b, c, t2) => (1 - t2) * (1 - t2) * a + 2 * (1 - t2) * t2 * b + t2 * t2 * c;
 var easeInOutCubic = (t2) => t2 < 0.5 ? 4 * t2 * t2 * t2 : 1 - (-2 * t2 + 2) ** 3 / 2;
-function TopicsStack({ activeNum, onPick, onCollapse, cards = [] }) {
+function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary }) {
   return (0, import_react71.createElement)(
     "div",
     { className: "bt-topics-stack", role: "dialog", "aria-label": t("Topics") },
@@ -43091,7 +43110,7 @@ function TopicsStack({ activeNum, onPick, onCollapse, cards = [] }) {
             (0, import_react71.createElement)("span", { className: "bt-topics-tcard-num" }, `#${item.num}`),
             (0, import_react71.createElement)("span", { className: "bt-topics-tcard-title" }, shortTitle(item.title))
           ),
-          (0, import_react71.createElement)("span", { className: "bt-topics-tcard-meta" }, cardMeta(item))
+          (0, import_react71.createElement)("span", { className: "bt-topics-tcard-meta" }, cardMeta(item, Date.now(), primary))
         )
       );
     })),
@@ -43175,7 +43194,8 @@ function TopicPopover({ roomId, target, anchor, onClose }) {
             "span",
             { className: "bt-topic-subtag", "data-sub": item.sub },
             item.subTitle === void 0 ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`
-          )
+          ),
+          ...Array.isArray(item.elsewhere) && item.elsewhere.length > 0 ? [(0, import_react71.createElement)("span", { key: "else", className: "bt-topics-else" }, `${t("also in")} ${item.elsewhere.map((num2) => `#${num2}`).join(", ")}`)] : []
         ),
         item.text === null || item.text === void 0 ? (0, import_react71.createElement)("span", { className: "bt-topics-pop-text bt-topics-msg-gone" }, "—") : (0, import_react71.createElement)("span", { className: "bt-topics-pop-text" }, item.text)
       )
@@ -43311,6 +43331,7 @@ function TopicsDock({ useRoster, useSessions }) {
       { className: "bt-topics-stack-wrap", style: { right: anchor.right, bottom: anchor.bottom } },
       (0, import_react71.createElement)(TopicsStack, {
         activeNum,
+        primary: book?.primary,
         cards: live.slice().sort((a, b) => b.num - a.num),
         onPick: (num2, rect) => {
           setCardNum(num2);
@@ -43398,6 +43419,7 @@ var TOPICS_TRAY_CSS = `
 .bt-topics-pop-head{display:flex;align-items:center;gap:6px;min-width:0}
 .bt-topics-pop-name{font-size:10.5px;font-weight:600;color:var(--bt-ink-2)}
 .bt-topics-pop-time{font-size:9.5px;color:var(--bt-ink-3)}
+.bt-topics-else{font-size:9px;color:var(--bt-tray-num);border:1px solid var(--bt-tray-line);border-radius:999px;padding:0 5px;line-height:14px;white-space:nowrap}
 .bt-topics-pop-text{font-size:12px;line-height:17px;color:var(--bt-ink-2);white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .bt-topics-msg-gone{color:var(--bt-ink-3)}
 .bt-topics-pop-new{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;height:24px;padding:0 10px;border:0;border-radius:999px;background:var(--bt-tray-card-line);color:var(--bt-ink);font:inherit;font-size:10px;cursor:pointer}

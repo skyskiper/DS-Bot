@@ -99,24 +99,56 @@ export function install(rt) {
     if (changed) void rt.save?.().catch?.(() => {})
   }
 
-  const record = ({ room, title, fromSeq, acceptance, parent, kind, by, why, num, other }) => {
+  // The topics a message was placed in: `nums` (or a single `num`) with the first as the
+  // primary. A fourth name is dropped and reported, never silently kept.
+  const placeOf = (book, nums, num) => {
+    const asked = (Array.isArray(nums) ? nums : Number.isInteger(num) ? [num] : [])
+      .map(Number).filter(value => Number.isInteger(value))
+    if (asked.length === 0) return { wanted: false }
+    const unique = [...new Set(asked)]
+    const kept = []
+    for (const value of unique.slice(0, 3)) {
+      const item = book.items[value]
+      if (item === undefined) return { wanted: true, error: `There is no topic #${value}.` }
+      kept.push(item)
+    }
+    if (kept.length === 0) return { wanted: false }
+    return { wanted: true, nums: kept, ...(unique.length > kept.length ? { dropped: unique.slice(3) } : {}) }
+  }
+
+  const record = ({ room, title, fromSeq, acceptance, parent, kind, by, why, num, nums, other }) => {
     const book = bookOf(room)
     // A message the admin could not place: it keeps its seq in #Other until someone says
     // where it belongs. No title is needed, and no number is spent.
     if (other === true) return rt.topicToOther(room, fromSeq, why, by)
-    // A message that belongs to a topic that is already open: it joins that one, so the
-    // topic's own thread shows it without a new number being spent.
-    if (Number.isInteger(num) && parent === undefined) {
-      const target = book.items[num]
-      if (target === undefined) return { error: `There is no topic #${num}.` }
-      if (Number.isInteger(fromSeq)) {
-        // Recording the same line twice is one line, not two.
+    // A message can belong to more than one topic: one primary — the first — decides its
+    // order and is the only one whose count includes it; the rest are related, shown but
+    // never counted. Leaving one out takes it out of that topic.
+    const wanted = placeOf(book, nums, num)
+    if (wanted.wanted) {
+      if (wanted.error !== undefined) return { error: wanted.error }
+      if (!Number.isInteger(fromSeq)) return { error: 'Name the message this belongs to.' }
+      const book2 = book
+      const kept = wanted.nums
+      for (const target of kept) {
         if (!(target.messages ?? []).includes(fromSeq)) target.messages = [...(target.messages ?? []), fromSeq]
-        book.other.msgs = book.other.msgs.filter(kept => kept !== fromSeq)
+        target.events.push({ at: now(), kind: 'attach', by, why, seq: fromSeq })
       }
-      target.events.push({ at: now(), kind: 'attach', by, why, seq: fromSeq })
+      // A topic this message was in and is no longer named loses it.
+      for (const item of Object.values(book2.items)) {
+        if (kept.includes(item) || !(item.messages ?? []).includes(fromSeq)) continue
+        item.messages = item.messages.filter(seq => seq !== fromSeq)
+        item.events.push({ at: now(), kind: 'detach', by, why, seq: fromSeq })
+      }
+      book2.primary ??= {}
+      book2.primary[fromSeq] = kept[0].num
+      book2.other.msgs = book2.other.msgs.filter(seq => seq !== fromSeq)
       void rt.save?.().catch?.(() => {})
-      return { num: target.num, state: target.state, attached: true }
+      return {
+        num: kept[0].num, state: kept[0].state, attached: true, primary: kept[0].num,
+        related: kept.slice(1).map(item => item.num),
+        ...(wanted.dropped === undefined ? {} : { dropped: wanted.dropped }),
+      }
     }
     const text = titleOf(title)
     if (text === '') return { error: 'A topic needs a title of at least one character.' }
@@ -221,6 +253,7 @@ export function install(rt) {
     acceptance: { type: 'string', description: 'One line: how this topic will be known to be done' },
     parent: { type: 'number', description: 'Put it under this topic as a subtopic' },
     num: { type: 'number', description: 'A topic already open that this message belongs to; no new number is spent' },
+    nums: { type: 'array', items: { type: 'number' }, description: 'Every topic this message belongs to, primary first (at most three); the first is the only one whose count includes it' },
     reply: { type: 'boolean', description: 'Also place this turn\'s own reply in that topic (default true); false leaves the reply in #Other' },
     other: { type: 'boolean', description: 'The message fits no topic: keep it in #Other until someone says where it goes' },
     kind: { type: 'string', enum: SUB_KINDS, description: 'progress: a step moved; detail: one point being aligned' },
@@ -228,13 +261,13 @@ export function install(rt) {
   }, (args, { room, bot }) => {
     const result = record({
       room, title: args.title, fromSeq: args.fromSeq, acceptance: args.acceptance, parent: args.parent,
-      kind: args.kind, by: bot?.name, why: args.why, num: args.num, other: args.other === true,
+      kind: args.kind, by: bot?.name, why: args.why, num: args.num, nums: args.nums, other: args.other === true,
     })
     // The turn's declaration follows the last placement it asked for: a later topic wins,
     // and an explicit `reply: false` clears it so the reply stays in #Other.
     if (result.error === undefined && bot !== undefined) {
       if (args.reply === false) rt.turnTopicClear(room, bot)
-      else if (Number.isInteger(args.num) && args.other !== true) rt.turnTopicSet(room, bot, args.num)
+      else if (result.primary !== undefined && args.other !== true) rt.turnTopicSet(room, bot, result.primary)
     }
     return result.error ?? JSON.stringify(result)
   })

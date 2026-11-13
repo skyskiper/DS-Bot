@@ -142,12 +142,22 @@ export const landedIn = (before, after) => {
 }
 
 // `3 subtopics · 12 messages · just now`, or `No messages yet` for a topic with nothing in it.
-export const cardMeta = (item, now = Date.now()) => {
+export const cardMeta = (item, now = Date.now(), primary = undefined) => {
   const subs = Object.values(item?.subs ?? {}).filter(sub => sub.state !== 'archived').length
-  const messages = messageCountOf(item)
+  // A message in several topics counts for its primary one only; the others show it
+  // without inflating their own total.
+  const messages = primary === undefined
+    ? messageCountOf(item)
+    : countPrimary(item, primary)
   const when = timeAgo(lastAtOf(item), now)
   if (messages === 0) return [subs === 0 ? '' : t('{count} subtopics', { count: subs }), t('No messages yet')].filter(Boolean).join(' · ')
   return [subs === 0 ? '' : t('{count} subtopics', { count: subs }), t('{count} messages', { count: messages }), when].filter(Boolean).join(' · ')
+}
+
+const countPrimary = (item, primary) => {
+  const mine = (item?.messages ?? []).filter(seq => primary[seq] === undefined || primary[seq] === item.num).length
+  const subs = Object.values(item?.subs ?? {}).reduce((sum, sub) => sum + (sub?.messages ?? []).filter(seq => primary[seq] === undefined || primary[seq] === item.num).length, 0)
+  return mine + subs + (Number.isInteger(item?.fromSeq) && (primary[item.fromSeq] === undefined || primary[item.fromSeq] === item.num) ? 1 : 0)
 }
 
 export const timeAgo = (ts, now = Date.now()) => {

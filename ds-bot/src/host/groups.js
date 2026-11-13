@@ -710,9 +710,17 @@ export function install(rt) {
     return owed
   }
 
-  // A member's message in the round, for the members after it and the user.
-  const postInRound = (room, member, text, duration) => {
-    say(room, { who: member.name, botId: member.id, text, ...(duration === undefined ? {} : { duration }) })
+  // A member's message in the round, for the members after it and the user. The turn's
+  // final answer is the one the topic declaration belongs to; its progress lines are not.
+  const postInRound = (room, member, text, duration, { final = false } = {}) => {
+    const line = say(room, { who: member.name, botId: member.id, text, ...(duration === undefined ? {} : { duration }) })
+    if (final) {
+      const declared = rt.turnTopicOf?.(room, member)
+      if (declared !== undefined) {
+        rt.attachTopicLine?.(room, line.seq, declared, member.name)
+        rt.turnTopicClear?.(room, member)
+      }
+    }
     void rt.save().catch(() => {})
     return room.seq
   }
@@ -1168,7 +1176,7 @@ export function install(rt) {
       say(room, { who: member.name, botId: member.id, kind: 'working' })
     } else if (subRunning) {
       if (final !== undefined) {
-        postInRound(room, member, final, Date.now() - startedAt)
+        postInRound(room, member, final, Date.now() - startedAt, { final: true })
         callFrom(room, round, member, final, called, { worked: true, byBot: answeredBot })
       }
       slot.status = 'working'
@@ -1177,7 +1185,7 @@ export function install(rt) {
     } else if (final !== undefined || (typeof reply === 'string' && said.length > 0)) {
       slot.status = 'posted'
       if (final !== undefined) {
-        posted.push(postInRound(room, member, final, Date.now() - startedAt))
+        posted.push(postInRound(room, member, final, Date.now() - startedAt, { final: true }))
         callFrom(room, round, member, final, called, { worked, byBot: answeredBot })
       }
     } else {

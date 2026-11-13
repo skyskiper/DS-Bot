@@ -53,7 +53,7 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
         h('div', { className: 'bt-topics-warn-line' }, t('{count} topics are already active. Reopen it once a seat frees.', { count: active.length })),
         h('div', { className: 'bt-topics-warn-line' }, t('Nothing is lost; the number stays.')))
       : null,
-    section(t('Active'), active.map(item => row(item, cardMeta(item)))),
+    section(t('Active'), active.map(item => row(item, cardMeta(item, Date.now(), book?.primary)))),
     queued.length > 0 ? section(t('Queued'), queued.map(item => row(item, t('Queued')))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.

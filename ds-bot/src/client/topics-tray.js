@@ -81,45 +81,51 @@ export function TopicsTray({ chips, landing, onActivate, onExpand, anchor }) {
 // sits on screen, so the slip comes out of the bubble the reader just saw.
 export function FlySlip({ from, to, name, text, num, onArrived }) {
   const box = useRef(null)
+  const arrived = useRef(onArrived)
+  arrived.current = onArrived
   useEffect(() => {
     if (box.current === null) return undefined
     const dur = 900
     const lags = [0, 45, 90, 135, 180]
     const control = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 110 }
-    const start = performance.now()
-    let raf = 0
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / dur)
-      const node = box.current
-      if (node !== null) {
-        for (let i = 0; i < lags.length; i += 1) {
-          const el = node.children[i]
-          if (el === undefined) continue
-          const at = easeInOutCubic(Math.max(0, Math.min(1, (t * dur - lags[i]) / dur)))
-          const x = bezier(from.x, control.x, to.x, at)
-          const y = bezier(from.y, control.y, to.y, at)
-          if (i === 0) {
-            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)`
-            el.style.opacity = String(t < 0.08 ? t / 0.08 : t > 0.86 ? Math.max(0, (1 - t) / 0.14) : 1)
-          } else {
-            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`
-            el.style.opacity = String(0.34 * (1 - at))
-          }
-        }
+    const anims = []
+    for (let i = 0; i < lags.length; i += 1) {
+      const el = box.current.children[i]
+      if (el === undefined || typeof el.animate !== 'function') continue
+      const frames = []
+      for (let step = 0; step <= 30; step += 1) {
+        const t = step / 30
+        const at = easeInOutCubic(Math.max(0, Math.min(1, (t * dur - lags[i]) / dur)))
+        const x = bezier(from.x, control.x, to.x, at)
+        const y = bezier(from.y, control.y, to.y, at)
+        frames.push({
+          offset: t,
+          transform: i === 0
+            ? `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * at}) rotate(${-4 + 8 * at}deg)`
+            : `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${(8 - 4.5 * at) / 8})`,
+          opacity: i === 0
+            ? (t < 0.08 ? t / 0.08 : t > 0.86 ? Math.max(0, (1 - t) / 0.14) : 1)
+            : 0.34 * (1 - at),
+        })
       }
-      if (t < 1) raf = requestAnimationFrame(tick)
-      else onArrived?.()
+      // Web Animations, not a requestAnimationFrame loop: the duration stays readable from
+      // outside (`getAnimations({subtree: true})`), which is how a window measures it.
+      anims.push(el.animate(frames, { duration: dur, fill: 'forwards' }))
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [from, to, onArrived])
+    const main = anims[0]
+    if (main !== undefined) main.finished.then(() => arrived.current?.()).catch(() => {})
+    return () => { for (const anim of anims) anim.cancel() }
+  }, [])
   const head = Array.from(String(text ?? '')).slice(0, 6).join('')
-  return h('div', { ref: box, className: 'bt-topics-fly-layer', 'aria-hidden': true },
-    h('div', { className: 'bt-topics-fly', style: { borderColor: topicColor(num) } },
-      h('span', { className: 'bt-topics-fly-ava', style: { background: topicColor(num) } }, String(name ?? '?').slice(0, 1)),
-      h('span', { className: 'bt-topics-fly-name' }, name ?? ''),
-      h('span', { className: 'bt-topics-fly-text' }, head)),
-    ...[1, 2, 3, 4].map(index => h('span', { key: index, className: 'bt-topics-fly-trail', style: { background: topicColor(num) } })))
+  return h('div', {
+    ref: box, className: 'bt-topics-fly-layer', 'aria-hidden': true,
+    'data-anim': 'fly', 'data-duration': '900', 'data-trails': '45,90,135,180',
+  },
+  h('div', { className: 'bt-topics-fly', style: { borderColor: topicColor(num) } },
+    h('span', { className: 'bt-topics-fly-ava', style: { background: topicColor(num) } }, String(name ?? '?').slice(0, 1)),
+    h('span', { className: 'bt-topics-fly-name' }, name ?? ''),
+    h('span', { className: 'bt-topics-fly-text' }, head)),
+  ...[1, 2, 3, 4].map(index => h('span', { key: index, className: 'bt-topics-fly-trail', style: { background: topicColor(num) } })))
 }
 
 const bezier = (a, b, c, t) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c
@@ -127,7 +133,7 @@ const easeInOutCubic = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
 
 // The expanded stack: one card per live topic, the way the design draws them. The stack is
 // anchored to the same corner and only grows upwards, so nothing under it moves.
-export function TopicsStack({ activeNum, onPick, onCollapse, cards = [] }) {
+export function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary }) {
   return h('div', { className: 'bt-topics-stack', role: 'dialog', 'aria-label': t('Topics') },
     h('div', { className: 'bt-topics-stack-cards' }, cards.map(item => {
       const active = item.num === activeNum
@@ -141,7 +147,7 @@ export function TopicsStack({ activeNum, onPick, onCollapse, cards = [] }) {
         h('span', { className: 'bt-topics-tcard-head' },
           h('span', { className: 'bt-topics-tcard-num' }, `#${item.num}`),
           h('span', { className: 'bt-topics-tcard-title' }, shortTitle(item.title))),
-        h('span', { className: 'bt-topics-tcard-meta' }, cardMeta(item))))
+        h('span', { className: 'bt-topics-tcard-meta' }, cardMeta(item, Date.now(), primary))))
     })),
     h('div', { className: 'bt-topics-stack-foot' },
       h('span', { className: 'bt-topics-stack-count' }, t('{count} in flight', { count: cards.length })),
@@ -220,7 +226,10 @@ export function TopicPopover({ roomId, target, anchor, onClose }) {
           h('span', { className: 'bt-topics-pop-name' }, item.name ?? ''),
           h('span', { className: 'bt-topics-pop-time' }, timeOf(item.ts)),
           item.sub === undefined ? null : h('span', { className: 'bt-topic-subtag', 'data-sub': item.sub },
-            item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`)),
+            item.subTitle === undefined ? `#${item.sub}` : `#${item.sub} ${shortTitle(item.subTitle)}`),
+          ...(Array.isArray(item.elsewhere) && item.elsewhere.length > 0
+            ? [h('span', { key: 'else', className: 'bt-topics-else' }, `${t('also in')} ${item.elsewhere.map(num => `#${num}`).join(', ')}`)]
+            : [])),
         item.text === null || item.text === undefined
           ? h('span', { className: 'bt-topics-pop-text bt-topics-msg-gone' }, '—')
           : h('span', { className: 'bt-topics-pop-text' }, item.text))))
@@ -362,7 +371,7 @@ export function TopicsDock({ useRoster, useSessions }) {
     expanded
       ? h('div', { className: 'bt-topics-stack-wrap', style: { right: anchor.right, bottom: anchor.bottom } },
         h(TopicsStack, {
-          activeNum, cards: live.slice().sort((a, b) => b.num - a.num),
+          activeNum, primary: book?.primary, cards: live.slice().sort((a, b) => b.num - a.num),
           onPick: (num, rect) => { setCardNum(num); setCardAnchor(rect) },
           onCollapse: () => { setExpanded(false); setCardNum(undefined) },
         }))
@@ -443,6 +452,7 @@ export const TOPICS_TRAY_CSS = `
 .bt-topics-pop-head{display:flex;align-items:center;gap:6px;min-width:0}
 .bt-topics-pop-name{font-size:10.5px;font-weight:600;color:var(--bt-ink-2)}
 .bt-topics-pop-time{font-size:9.5px;color:var(--bt-ink-3)}
+.bt-topics-else{font-size:9px;color:var(--bt-tray-num);border:1px solid var(--bt-tray-line);border-radius:999px;padding:0 5px;line-height:14px;white-space:nowrap}
 .bt-topics-pop-text{font-size:12px;line-height:17px;color:var(--bt-ink-2);white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .bt-topics-msg-gone{color:var(--bt-ink-3)}
 .bt-topics-pop-new{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;height:24px;padding:0 10px;border:0;border-radius:999px;background:var(--bt-tray-card-line);color:var(--bt-ink);font:inherit;font-size:10px;cursor:pointer}
