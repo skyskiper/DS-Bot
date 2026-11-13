@@ -13510,8 +13510,13 @@ var TOPIC_COPY = {
     "· End ·": "· 到底了 ·",
     "Live · follows the newest": "实时 · 自动滚到底",
     "New messages": "新消息",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 个话题正在活跃，重开会先进待排，不会丢。",
-    "It moves up when a seat frees. The number stays.": "空出位置后自动顶上，编号不变。"
+    "Requesting…": "申请中…",
+    "Reopen requested": "已申请重开",
+    "A seat is free": "有位置了",
+    "Full · waiting for {count} to end": "位满 · 等 {count} 个话题结束",
+    "Reopen now ▸": "可重开 ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count} 个话题正在活跃，等空出位置再重开。",
+    "Nothing is lost; the number stays.": "不会丢，编号不变。"
   },
   "zh-TW": {
     "Topics": "話題",
@@ -13546,8 +13551,13 @@ var TOPIC_COPY = {
     "· End ·": "· 到底了 ·",
     "Live · follows the newest": "即時 · 自動滾到底",
     "New messages": "新訊息",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 個話題正在活躍，重開會先進待排，不會丟。",
-    "It moves up when a seat frees. The number stays.": "空出位置後自動頂上，編號不變。",
+    "Requesting…": "申請中…",
+    "Reopen requested": "已申請重開",
+    "A seat is free": "有位置了",
+    "Full · waiting for {count} to end": "位滿 · 等 {count} 個話題結束",
+    "Reopen now ▸": "可重開 ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count} 個話題正在活躍，等空出位置再重開。",
+    "Nothing is lost; the number stays.": "不會丟，編號不變。",
     "→ Recorded as #{num}": "→ 記為 #{num}",
     "→ #{num} replaces #{old}": "→ #{num}，替換 #{old}"
   },
@@ -13584,8 +13594,13 @@ var TOPIC_COPY = {
     "· End ·": "· ここまで ·",
     "Live · follows the newest": "ライブ · 最新に追従",
     "New messages": "新着",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} 件が進行中です。再開は待機に入り、失われません。",
-    "It moves up when a seat frees. The number stays.": "空きが出たら自動で上がります。番号は変わりません。",
+    "Requesting…": "申請中…",
+    "Reopen requested": "再開を申請済み",
+    "A seat is free": "空きがあります",
+    "Full · waiting for {count} to end": "満席 · {count} 件の終了待ち",
+    "Reopen now ▸": "今すぐ再開 ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count} 件が進行中です。空きが出たら再開してください。",
+    "Nothing is lost; the number stays.": "失われません。番号も変わりません。",
     "→ Recorded as #{num}": "→ #{num} として記録",
     "→ #{num} replaces #{old}": "→ #{num} が #{old} を置き換え"
   },
@@ -13622,8 +13637,13 @@ var TOPIC_COPY = {
     "· End ·": "· 끝 ·",
     "Live · follows the newest": "실시간 · 최신으로",
     "New messages": "새 메시지",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count}개 주제가 진행 중입니다. 다시 열면 대기로 들어가며 사라지지 않습니다.",
-    "It moves up when a seat frees. The number stays.": "자리가 나면 자동으로 올라갑니다. 번호는 그대로입니다.",
+    "Requesting…": "요청 중…",
+    "Reopen requested": "다시 열기 요청됨",
+    "A seat is free": "자리가 났습니다",
+    "Full · waiting for {count} to end": "만석 · {count}개 종료 대기",
+    "Reopen now ▸": "지금 다시 열기 ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count}개 주제가 진행 중입니다. 자리가 나면 다시 열어 주세요.",
+    "Nothing is lost; the number stays.": "사라지지 않습니다. 번호도 그대로입니다.",
     "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
     "→ #{num} replaces #{old}": "→ #{num}이(가) #{old}을(를) 대체"
   },
@@ -13660,8 +13680,13 @@ var TOPIC_COPY = {
     "· End ·": "· Fin ·",
     "Live · follows the newest": "En vivo · sigue lo último",
     "New messages": "Mensajes nuevos",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "Ya hay {count} temas activos. Reabrirlo lo pone en cola, nada se pierde.",
-    "It moves up when a seat frees. The number stays.": "Sube sola cuando se libera un sitio. El número no cambia.",
+    "Requesting…": "Solicitando…",
+    "Reopen requested": "Reapertura solicitada",
+    "A seat is free": "Hay un sitio libre",
+    "Full · waiting for {count} to end": "Lleno · esperando a que termine {count}",
+    "Reopen now ▸": "Reabrir ahora ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "Ya hay {count} temas activos. Reábrelo cuando se libere un sitio.",
+    "Nothing is lost; the number stays.": "Nada se pierde; el número no cambia.",
     "→ Recorded as #{num}": "→ Registrado como #{num}",
     "→ #{num} replaces #{old}": "→ #{num} sustituye a #{old}"
   },
@@ -13698,8 +13723,13 @@ var TOPIC_COPY = {
     "· End ·": "· Fin ·",
     "Live · follows the newest": "En direct · suit le plus récent",
     "New messages": "Nouveaux messages",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} sujets sont déjà actifs. Le rouvrir le met en attente, rien n'est perdu.",
-    "It moves up when a seat frees. The number stays.": "Il remonte dès qu'une place se libère. Le numéro ne change pas.",
+    "Requesting…": "Demande…",
+    "Reopen requested": "Réouverture demandée",
+    "A seat is free": "Une place est libre",
+    "Full · waiting for {count} to end": "Complet · en attente de {count} fin",
+    "Reopen now ▸": "Rouvrir maintenant ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count} sujets sont déjà actifs. Rouvrez-le dès qu'une place se libère.",
+    "Nothing is lost; the number stays.": "Rien n'est perdu ; le numéro ne change pas.",
     "→ Recorded as #{num}": "→ Enregistré comme #{num}",
     "→ #{num} replaces #{old}": "→ #{num} remplace #{old}"
   },
@@ -13736,8 +13766,13 @@ var TOPIC_COPY = {
     "· End ·": "· Ende ·",
     "Live · follows the newest": "Live · folgt dem Neuesten",
     "New messages": "Neue Nachrichten",
-    "{count} topics are already active. Reopening will queue it — nothing is lost.": "{count} Themen sind bereits aktiv. Beim Wiederöffnen wird es eingereiht, nichts geht verloren.",
-    "It moves up when a seat frees. The number stays.": "Es rückt nach, sobald ein Platz frei wird. Die Nummer bleibt.",
+    "Requesting…": "Wird angefragt…",
+    "Reopen requested": "Wiederöffnung angefragt",
+    "A seat is free": "Ein Platz ist frei",
+    "Full · waiting for {count} to end": "Voll · wartet auf {count} Ende",
+    "Reopen now ▸": "Jetzt wieder öffnen ▸",
+    "{count} topics are already active. Reopen it once a seat frees.": "{count} Themen sind bereits aktiv. Öffne es wieder, sobald ein Platz frei wird.",
+    "Nothing is lost; the number stays.": "Nichts geht verloren; die Nummer bleibt.",
     "→ Recorded as #{num}": "→ Erfasst als #{num}",
     "→ #{num} replaces #{old}": "→ #{num} ersetzt #{old}"
   }
@@ -38728,11 +38763,11 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
     { className: "bt-topics-panel" },
     // A reopen asked with every seat taken says so at the top, in the design's two lines,
     // instead of looking like a quiet queue entry.
-    reopening.length > 0 ? (0, import_react62.createElement)(
+    reopenOf(reopening) !== void 0 && active.length >= 3 && reopenOf(reopening).state === "full" ? (0, import_react62.createElement)(
       "div",
       { className: "bt-topics-warn", role: "status" },
-      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("{count} topics are already active. Reopening will queue it — nothing is lost.", { count: active.length })),
-      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("It moves up when a seat frees. The number stays."))
+      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("{count} topics are already active. Reopen it once a seat frees.", { count: active.length })),
+      (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("Nothing is lost; the number stays."))
     ) : null,
     section(t("Active"), active.map((item) => row(item, cardMeta(item)))),
     queued.length > 0 ? section(t("Queued"), queued.map((item) => row(item, t("Queued")))) : null,
@@ -38746,20 +38781,24 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
       }
     }, `${t("Archived")} ${archived.length} ›`) : null,
     archived.length > 0 && archivedOpen ? section(t("Archived"), archived.map((item) => {
-      const waiting = reopening.includes(item.num);
+      const entry = reopenOf(reopening, item.num);
+      const free = active.length < 3;
+      const label = entry === void 0 ? t("Archived") : entry.state === "asking" ? t("Requesting…") : entry.state === "asked" ? t("Reopen requested") : free ? t("A seat is free") : t("Full · waiting for {count} to end", { count: active.length - 2 });
+      const action = entry === void 0 || entry.state === "full" && free ? "reopen" : "cancel";
       return (0, import_react62.createElement)(
         "div",
-        { key: `a${item.num}`, className: "bt-topics-archived" },
-        row(item, waiting ? t("Reopen queued") : t("Archived")),
+        { key: `a${item.num}`, className: "bt-topics-archived", "data-reopen": entry?.state },
+        row(item, label),
         (0, import_react62.createElement)("button", {
           type: "button",
           className: "bt-soft bt-soft-sm",
+          "data-action": action,
           onClick: () => {
-            if (waiting) {
-              if (typeof onCancelReopen === "function") onCancelReopen(item.num);
-            } else if (typeof onReopen === "function") onReopen(item.num);
+            if (action === "reopen") {
+              if (typeof onReopen === "function") onReopen(item.num);
+            } else if (typeof onCancelReopen === "function") onCancelReopen(item.num);
           }
-        }, waiting ? t("Cancel") : t("Reopen"))
+        }, action === "reopen" && entry !== void 0 ? t("Reopen now ▸") : action === "reopen" ? t("Reopen") : t("Cancel"))
       );
     }).concat([(0, import_react62.createElement)("button", {
       key: "fold",
@@ -38790,6 +38829,10 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
     )]) : null
   );
 }
+var reopenOf = (list, num2) => {
+  const entries2 = (list ?? []).map((entry) => typeof entry === "number" ? { num: entry, state: "full" } : entry);
+  return num2 === void 0 ? entries2[0] : entries2.find((entry) => entry.num === num2);
+};
 var counts2 = (book) => {
   const items = Object.values(book?.items ?? {});
   return {
@@ -39679,16 +39722,22 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
     return () => clearInterval(timer2);
   }, []);
   (0, import_react65.useEffect)(() => {
-    for (const num2 of reopening) {
-      if (book?.items?.[num2]?.state === "active") keepReopening((list) => list.filter((kept) => kept !== num2));
+    for (const entry of reopening) {
+      if (book?.items?.[entry.num]?.state === "active") keepReopening((list) => list.filter((kept) => kept.num !== entry.num));
     }
   }, [book, reopening]);
   const openTopics = () => setTopicTarget({ list: true });
+  const markReopen = (num2, state2) => keepReopening((list) => {
+    const rest = list.filter((entry) => entry.num !== num2);
+    return state2 === void 0 ? rest : [...rest, { num: num2, state: state2 }];
+  });
   const reopen = (num2) => {
-    keepReopening((list) => list.includes(num2) ? list : [...list, num2]);
+    markReopen(num2, "asking");
     void call("topic-reopen", { roomId: room2.id, num: num2 }).then(() => {
+      markReopen(num2, "asked");
       actions.refreshTopics?.();
-    }).catch(() => {
+    }).catch((error) => {
+      markReopen(num2, error?.code === "bot/refused" ? "full" : void 0);
     });
   };
   if (topicTarget !== null) {
@@ -39705,7 +39754,7 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
         archivedOpen,
         onToggleArchived: () => setArchivedOpen((value) => !value),
         onReopen: reopen,
-        onCancelReopen: (num2) => keepReopening((list) => list.filter((kept) => kept !== num2))
+        onCancelReopen: (num2) => markReopen(num2, void 0)
       }))
     ];
   }

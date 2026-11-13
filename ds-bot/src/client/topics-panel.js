@@ -48,10 +48,10 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
   return h('div', { className: 'bt-topics-panel' },
     // A reopen asked with every seat taken says so at the top, in the design's two lines,
     // instead of looking like a quiet queue entry.
-    reopening.length > 0
+    reopenOf(reopening) !== undefined && active.length >= 3 && reopenOf(reopening).state === 'full'
       ? h('div', { className: 'bt-topics-warn', role: 'status' },
-        h('div', { className: 'bt-topics-warn-line' }, t('{count} topics are already active. Reopening will queue it — nothing is lost.', { count: active.length })),
-        h('div', { className: 'bt-topics-warn-line' }, t('It moves up when a seat frees. The number stays.')))
+        h('div', { className: 'bt-topics-warn-line' }, t('{count} topics are already active. Reopen it once a seat frees.', { count: active.length })),
+        h('div', { className: 'bt-topics-warn-line' }, t('Nothing is lost; the number stays.')))
       : null,
     section(t('Active'), active.map(item => row(item, cardMeta(item)))),
     queued.length > 0 ? section(t('Queued'), queued.map(item => row(item, t('Queued')))) : null,
@@ -65,13 +65,26 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
       : null,
     archived.length > 0 && archivedOpen
       ? section(t('Archived'), archived.map((item) => {
-        const waiting = reopening.includes(item.num)
-        return h('div', { key: `a${item.num}`, className: 'bt-topics-archived' },
-          row(item, waiting ? t('Reopen queued') : t('Archived')),
+        // A reopen the user asked for says what is actually true: still asking, asked and
+        // waiting for nothing, or refused because the house is full — and once a seat
+        // frees it turns into a button, so one click is enough instead of leaving the
+        // column and coming back.
+        const entry = reopenOf(reopening, item.num)
+        const free = active.length < 3
+        const label = entry === undefined ? t('Archived')
+          : entry.state === 'asking' ? t('Requesting…')
+          : entry.state === 'asked' ? t('Reopen requested')
+          : free ? t('A seat is free') : t('Full · waiting for {count} to end', { count: active.length - 2 })
+        const action = entry === undefined || (entry.state === 'full' && free) ? 'reopen' : 'cancel'
+        return h('div', { key: `a${item.num}`, className: 'bt-topics-archived', 'data-reopen': entry?.state },
+          row(item, label),
           h('button', {
-            type: 'button', className: 'bt-soft bt-soft-sm',
-            onClick: () => { if (waiting) { if (typeof onCancelReopen === 'function') onCancelReopen(item.num) } else if (typeof onReopen === 'function') onReopen(item.num) },
-          }, waiting ? t('Cancel') : t('Reopen')))
+            type: 'button', className: 'bt-soft bt-soft-sm', 'data-action': action,
+            onClick: () => {
+              if (action === 'reopen') { if (typeof onReopen === 'function') onReopen(item.num) }
+              else if (typeof onCancelReopen === 'function') onCancelReopen(item.num)
+            },
+          }, action === 'reopen' && entry !== undefined ? t('Reopen now ▸') : action === 'reopen' ? t('Reopen') : t('Cancel')))
       }).concat([h('button', {
         key: 'fold', type: 'button', className: 'bt-topics-fold',
         onClick: () => { if (typeof onToggleArchived === 'function') onToggleArchived() },
@@ -87,6 +100,12 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
         h('span', { className: 'bt-topics-card-title' }, `#Other · ${t('unclassified')} · ${other.length}`)),
       h('span', { className: 'bt-topics-chev', 'aria-hidden': true }, '›'))])
       : null)
+}
+
+// A reopen entry is either a bare number (an older caller) or `{ num, state }`.
+const reopenOf = (list, num) => {
+  const entries = (list ?? []).map(entry => (typeof entry === 'number' ? { num: entry, state: 'full' } : entry))
+  return (num === undefined ? entries[0] : entries.find(entry => entry.num === num))
 }
 
 const counts = (book) => {

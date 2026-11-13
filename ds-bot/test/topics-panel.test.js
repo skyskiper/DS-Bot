@@ -66,7 +66,7 @@ test('the list folds the archived rows into one line, with #Other last', () => {
   assert.deepEqual(nodes(opened).filter(node => node.props?.className === 'bt-topics-section-head').map(node => texts(node)[0]), ['Active', 'Queued', 'Archived', 'Unclassified'])
 })
 
-test('an archived row asks to reopen, and waits while the house is full', () => {
+test('an archived row asks to reopen, and names why it cannot yet', () => {
   const asked = []
   const open = TopicList({ book, archivedOpen: true, onReopen: num => asked.push(['reopen', num]), onCancelReopen: num => asked.push(['cancel', num]) })
   const reopen = nodes(open).filter(node => node.type === 'button' && texts(node).join('') === 'Reopen')
@@ -74,12 +74,33 @@ test('an archived row asks to reopen, and waits while the house is full', () => 
   reopen[0].props.onClick()
   assert.deepEqual(asked, [['reopen', 3]])
 
-  const waiting = TopicList({ book, archivedOpen: true, reopening: [3], onCancelReopen: num => asked.push(['cancel', num]) })
-  assert.ok(texts(waiting).includes('已申请重开 · 待排') || texts(waiting).some(text => /Reopen queued/.test(text)), 'the row says it waits')
+  // A full house says so in plain words: it never promises a queue it cannot honour.
+  const full = { items: { ...book.items, 6: { num: 6, title: '第三件', state: 'active', subs: {} } }, other: book.other }
+  const waiting = TopicList({ book: full, archivedOpen: true, reopening: [{ num: 3, state: 'full' }], onCancelReopen: num => asked.push(['cancel', num]) })
+  const line = texts(waiting).find(text => /位满|Full/.test(text))
+  assert.ok(line, 'the row says the house is full')
+  assert.match(line, /1/, 'and how many have to end')
+  assert.equal(texts(waiting).some(text => /待排|queued/.test(text)), false, 'never a queue it cannot keep')
   const cancel = nodes(waiting).filter(node => node.type === 'button' && texts(node).join('') === 'Cancel')
   assert.equal(cancel.length, 1)
   cancel[0].props.onClick()
   assert.deepEqual(asked.at(-1), ['cancel', 3])
+})
+
+test('a seat freeing turns the same waiting row into a button that reopens in one click', () => {
+  const asked = []
+  const full = { items: { ...book.items, 6: { num: 6, title: '第三件', state: 'active', subs: {} } }, other: book.other }
+  const seats = { items: { ...book.items } , other: book.other }
+  const reopening = [{ num: 3, state: 'full' }]
+  const armed = TopicList({ book: seats, archivedOpen: true, reopening, onReopen: num => asked.push(num) })
+  const button = nodes(armed).filter(node => node.type === 'button' && /可重开|Reopen now/.test(texts(node).join('')))
+  assert.equal(button.length, 1, 'the same entry is now a reopen button')
+  assert.ok(texts(armed).some(text => /有位置了|seat is free/.test(text)), 'and says a seat is free')
+  button[0].props.onClick()
+  assert.deepEqual(asked, [3], 'one click, no leaving the column')
+
+  const stillFull = TopicList({ book: full, archivedOpen: true, reopening })
+  assert.equal(nodes(stillFull).filter(node => node.type === 'button' && /可重开|Reopen now/.test(texts(node).join(''))).length, 0, 'with the house full again there is no button')
 })
 
 test('#Other opens as its own view, and an empty list says so', () => {
@@ -137,7 +158,8 @@ test('the fold line opens and closes the archived rows in place', () => {
 
 test('a queued reopen says so at the top of the list, in the design\'s two lines', () => {
   const asked = []
-  const waiting = TopicList({ book, archivedOpen: true, reopening: [3], onCancelReopen: num => asked.push(num) })
+  const full = { items: { ...book.items, 6: { num: 6, title: '第三件', state: 'active', subs: {} } }, other: book.other }
+  const waiting = TopicList({ book: full, archivedOpen: true, reopening: [{ num: 3, state: 'full' }], onCancelReopen: num => asked.push(num) })
   const warn = nodes(waiting).find(node => node.props?.className === 'bt-topics-warn')
   assert.ok(warn, 'the banner has a node of its own')
   const lines = texts(warn)
@@ -145,7 +167,7 @@ test('a queued reopen says so at the top of the list, in the design\'s two lines
   assert.match(lines[0], /topics are already active/)
   assert.match(lines[1], /number stays/)
   // Not there when nobody asked to reopen.
-  assert.equal(nodes(TopicList({ book, archivedOpen: true })).some(node => node.props?.className === 'bt-topics-warn'), false)
+  assert.equal(nodes(TopicList({ book: full, archivedOpen: true })).some(node => node.props?.className === 'bt-topics-warn'), false)
 })
 
 test('#Other is one line with its prefix, and a silent topic says it has no messages yet', () => {

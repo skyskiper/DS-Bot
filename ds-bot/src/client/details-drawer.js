@@ -186,20 +186,31 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
   }, [])
   // A topic that came back to work leaves the queue on its own, and one the host refused
   // stays queued; either way the label is the user's own click, not the host's reply.
+  // A queued reopen disappears the moment the topic really is active again, and nowhere
+  // else: a refusal must keep saying why until the user cancels it.
   useEffect(() => {
-    for (const num of reopening) {
-      if (book?.items?.[num]?.state === 'active') keepReopening(list => list.filter(kept => kept !== num))
+    for (const entry of reopening) {
+      if (book?.items?.[entry.num]?.state === 'active') keepReopening(list => list.filter(kept => kept.num !== entry.num))
     }
   }, [book, reopening])
   const openTopics = () => setTopicTarget({ list: true })
+  const markReopen = (num, state) => keepReopening((list) => {
+    const rest = list.filter(entry => entry.num !== num)
+    return state === undefined ? rest : [...rest, { num, state }]
+  })
   const reopen = (num) => {
-    // Marked here, in the click's own render: the row reads `queued` at once, and the
-    // host's answer only decides whether it stays that way.
-    keepReopening(list => (list.includes(num) ? list : [...list, num]))
+    // Marked here, in the click's own render: the row says `requesting` at once, and the
+    // host's answer only decides what it says next.
+    markReopen(num, 'asking')
     void call('topic-reopen', { roomId: room.id, num }).then(() => {
+      markReopen(num, 'asked')
       // A free seat is taken at once on the host; read it back now, not one poll later.
       actions.refreshTopics?.()
-    }).catch(() => {})
+    }).catch((error) => {
+      // A full house is the only refusal worth keeping: it turns into a button by itself
+      // as soon as a seat frees. Any other failure is not a queue, so the row goes back.
+      markReopen(num, error?.code === 'bot/refused' ? 'full' : undefined)
+    })
   }
   if (topicTarget !== null) {
     const target = topicTarget.list === true ? null : topicTarget
@@ -211,7 +222,7 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
         reopening, archivedOpen,
         onToggleArchived: () => setArchivedOpen(value => !value),
         onReopen: reopen,
-        onCancelReopen: num => keepReopening(list => list.filter(kept => kept !== num)),
+        onCancelReopen: num => markReopen(num, undefined),
       })),
     ]
   }
