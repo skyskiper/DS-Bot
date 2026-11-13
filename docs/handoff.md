@@ -228,6 +228,41 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 - **只许在测试 App / 虚拟屏侧跑**，或指向测试 home 并在隐藏窗口里跑，并先约好时间窗；
 - 与「任何脚本不许激活窗口、不许移动正式 App 窗口」同级，不是可选项。
 
+### 一轮内问答同归（2026-11-14）
+
+模型写回复时拿不到回复自己的 seq（落库那刻才有），所以「回复也要有话题」不能靠 seq 事后补。做法：
+`topic_record` 在落到某个 `num` 时顺带声明「本轮回复归这个话题」（`reply` 默认 true，`false` 可关），
+存在 `rt.turnTopics` 里（key = `roomId:botId`）。成员回合开始（`groups.js` 的 `memberTurn` 里
+`slot.status = 'speaking'` 之后）先清一次，回复落库时读声明，命中就 `attachTopicLine` 直接挂进话题、
+从 `other.msgs` 移出。一轮里多次 record 以**最后一次**为准；重复 record 同一条不产生重复。
+`topic_record` 的工具参数新增 `reply`，文档在 `design/topics/PRD-topics-v1.md`。
+
+### 两套消息编号（2026-11-13 实测，已修一半）
+
+一条群消息有两个号：
+- **room log seq**（`groups.js:287` `room.seq += 1`）：账号权威号，`ledger` 按它存，`read_group_chat` 与
+  `topic_record.fromSeq` / `topic-thread` / `topic-source` 全都认它；
+- **DSH Session event seq**：`room-chat` 的会话行 `id` 用的是它（`mobile.js` `roomItems` 里 `event.seq`）。
+
+测试通道拿会话行的号去调 `topic-source` 得到 `{missing:true}`（45 vs 8），就是这么来的。
+已修：`roomItems` 现在给会话行附 **`roomSeq`**（按 `who` + 原文 + ±2s 与 room log 一对一一对一匹配），
+客户端要写 `fromSeq` 时用 `roomSeq`，不要用 `id`。
+未修：两套号在存储层仍是两套，`topic-*` 只认 room seq；`roomSeq` 是匹配出来的，room log 里没有原文
+（被 60 行窗口挤掉）时会缺，届时以 `topic-thread` 返回的为准。
+
+### 动效测量：隐藏窗口会把采样节流成假阴性（2026-11-14）
+
+Web Animations / `setInterval` 采样在 Electron **隐藏窗口**下被 Chromium 节流到约 1 次/秒，
+8ms 级的采样会只拿到 3 行左右（`land` 220、`fly` 的样本量都被它坑过一次），看起来像「动画没触发」。
+
+- 测动画时间轴前**先把窗口显示出来**；隐藏窗口下的 8ms 采样结果一律不算数；
+- 结论必须附**样本行数**：隐藏 3 行 vs 显示 303 行（2.5s / 8ms）；
+- 产品侧的可读接口：`window.__btTopicsAnim()`（`{kind, duration, delay}`），以及
+  `.bt-topics-fly-layer` 上的 `data-anim-*`；动画本身是 Web Animations + CSS，
+  `getAnimations({subtree: true})` 在窗口可见时可靠；
+- 落地标记 `data-landed` 只在**飞行结束后的 900ms 窗口**内存在（`topics-tray.js` 的
+  `setLanding` / 900ms 清除），采样窗口要覆盖 t≈900–1800ms。
+
 ### 打包 0.4.2 的两个坑（2026-11-13）
 
 1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑
