@@ -298,6 +298,44 @@ export function install(rt) {
           })
           return ok({ items, hasMore: all.length > page.length })
         }
+        // The user's own hand: the long press on a message that landed nowhere moves it to a
+        // topic, and a topic that ended can go back to work. Both are the user acting in their
+        // own window, so the group's membership is the whole check; the limits stay in the book.
+        case 'topic-move': {
+          const room = rt.roomOf(String(body.roomId ?? ''))
+          if (room === undefined) return fail('No such group', 'bot/not-found')
+          if (typeof body.session === 'string' && body.session !== '') {
+            const own = rt.groupOwners.get(body.session)
+            if (own === undefined || own.roomId !== room.id) return fail('That group is not yours to read', 'bot/refused')
+          }
+          const seq = Number(body.seq)
+          const num = Number(body.num)
+          if (!Number.isInteger(seq) || !Number.isInteger(num)) return fail('seq and num must be integers', 'bot/invalid')
+          const moved = rt.topicTools?.move?.({ room, seq, num, by: 'User', why: 'moved by hand from #Other' })
+          if (moved?.error !== undefined) return fail(moved.error, 'bot/not-found')
+          await rt.save()
+          return ok(moved)
+        }
+        case 'topic-reopen': {
+          const room = rt.roomOf(String(body.roomId ?? ''))
+          if (room === undefined) return fail('No such group', 'bot/not-found')
+          if (typeof body.session === 'string' && body.session !== '') {
+            const own = rt.groupOwners.get(body.session)
+            if (own === undefined || own.roomId !== room.id) return fail('That group is not yours to read', 'bot/refused')
+          }
+          const num = Number(body.num)
+          const item = room.topics?.items?.[num]
+          if (item === undefined) return fail(`There is no topic #${num}`, 'bot/not-found')
+          if (item.state === 'active') return ok({ num, state: 'active', unchanged: true })
+          // The third seat is the limit; a fourth topic waits rather than widening it.
+          const active = Object.values(room.topics.items).filter(entry => entry.state === 'active').length
+          if (active >= 3) return fail('Three topics are already active; this one waits for a free seat.', 'bot/refused')
+          item.state = 'active'
+          delete item.archivedAt
+          item.events.push({ at: Date.now(), kind: 'reopen', by: 'User', why: 'reopened from the window' })
+          await rt.save()
+          return ok({ num, state: 'active' })
+        }
         // The message a topic points back at: read from the book, so it is whole even when
         // the room's own log kept only its start. Gone from both means it is gone.
         case 'topic-source': {

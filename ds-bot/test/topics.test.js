@@ -296,3 +296,46 @@ test('a topic message keeps its text after the room log stops keeping it', async
   const text = thread.value.items[0].text
   assert.ok(typeof text === 'string' || text === null)
 })
+
+// The window's own hand: a long press moves a line out of #Other into a topic, and an ended
+// topic goes back to work while a seat is free. The three-topic limit still holds.
+test('the window can move a message out of #Other, and reopen an ended topic only into a free seat', async (t) => {
+  const { tool, call, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '群卡作答链路', fromSeq: 1 })
+  rt.topicToOther(rt.state.rooms.r1, 2, 'no clear topic', 'Chief')
+
+  const moved = await call('topic-move', { roomId: 'r1', seq: 2, num: 1 })
+  assert.equal(moved.ok, true)
+  assert.deepEqual(moved.value, { num: 1, seq: 2, otherCount: 0 })
+  assert.deepEqual(room().topics.other.msgs, [], 'it left #Other')
+  assert.ok((room().topics.items[1].messages ?? []).includes(2), 'and joined the topic it was moved to')
+  const thread = await call('topic-thread', { roomId: 'r1', num: 1 })
+  assert.deepEqual(thread.value.items.map(entry => entry.seq), [1, 2], 'the target thread shows it')
+
+  assert.equal((await call('topic-move', { roomId: 'r1', seq: 'x', num: 1 })).error.code, 'bot/invalid')
+  assert.equal((await call('topic-move', { roomId: 'r1', seq: 2, num: 9 })).error.code, 'bot/not-found')
+  assert.equal((await call('topic-move', { roomId: 'nope', seq: 2, num: 1 })).error.code, 'bot/not-found')
+  assert.equal((await call('topic-move', { roomId: 'r1', seq: 2, num: 1, session: 'someone-else' })).error.code, 'bot/refused')
+
+  // An ended topic comes back while there are fewer than three active ones.
+  await tool('topic_state', { num: 1, state: 'archived', why: 'done' })
+  const reopened = await call('topic-reopen', { roomId: 'r1', num: 1 })
+  assert.equal(reopened.ok, true)
+  assert.equal(reopened.value.state, 'active')
+  assert.equal(room().topics.items[1].state, 'active')
+
+  // Three active topics leave no seat: an ended one reopens only when one frees.
+  await tool('topic_record', { title: '话题入口' })
+  assert.equal(room().topics.items[2].state, 'active')
+  await tool('topic_record', { title: '打包校验' })
+  assert.equal(room().topics.items[3].state, 'active')
+  const fourth = JSON.parse(await tool('topic_record', { title: '第四件事' }))
+  assert.equal(fourth.state, 'pending', 'the fourth waits for a seat')
+  await tool('topic_state', { num: 4, state: 'archived', why: 'dropped' })
+  const queued = await call('topic-reopen', { roomId: 'r1', num: 4 })
+  assert.equal(queued.error.code, 'bot/refused')
+  assert.match(queued.error.message, /already active/)
+  assert.equal(room().topics.items[4].state, 'archived', 'the seat limit is not widened')
+  assert.equal((await call('topic-reopen', { roomId: 'r1', num: 9 })).error.code, 'bot/not-found')
+})

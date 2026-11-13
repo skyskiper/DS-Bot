@@ -168,6 +168,9 @@ export function install(rt) {
     const item = book.items[num]
     if (item === undefined) return { error: `There is no topic #${num}.` }
     book.other.msgs = book.other.msgs.filter(kept => kept !== seq)
+    // The topic's own thread reads its messages, so a moved line joins them or it would be
+    // nowhere: out of #Other and not yet in the topic it was moved to.
+    if (Number.isInteger(seq) && !(item.messages ?? []).includes(seq)) item.messages = [...(item.messages ?? []), seq]
     item.events.push({ at: now(), kind: 'moved', by, why, seq })
     void rt.save?.().catch?.(() => {})
     return { num, seq, otherCount: book.other.msgs.length }
