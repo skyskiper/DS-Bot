@@ -185,6 +185,30 @@ test('roomItems turns a group Session into speaker-attributed items, oldest firs
   assert.deepEqual(open, [{ callId: 'r2', at: 7 }])
 })
 
+// Two numbers name one message: the row carries the Session's event seq as its id, and the
+// room log's own seq as `roomSeq` — the number the topic tools write and read. A caller that
+// only has the row can still reach the topic endpoints.
+test('a conversation row carries the room log seq beside its Session id', () => {
+  const events = [
+    user(45, 'Plan the launch'),
+    { seq: 46, time: 500, type: 'user/message', data: { source: { kind: 'bot', role: 'post', senderSessionId: 'b2', senderName: 'Writer' }, content: [{ type: 'text', text: '[Group post from Writer]\nDraft is ready' }] } },
+    user(47, 'not in the room log'),
+  ]
+  const lines = [
+    { seq: 7, who: 'Chief', text: 'earlier', time: 100 },
+    { seq: 8, who: 'User', text: 'Plan the launch', time: 1 },
+    { seq: 9, who: 'Writer', text: 'Draft is ready', time: 501 },
+  ]
+  const { items } = roomItems(events, () => [], lines)
+  assert.equal(items[0].id, '45', 'the row keeps the Session id it was drawn from')
+  assert.equal(items[0].roomSeq, 8, 'and names the room log line the topic tools use')
+  assert.equal(items[1].roomSeq, 9)
+  assert.equal(items[2].roomSeq, undefined, 'a row with no room line claims no number')
+  // One line is claimed once: two rows with the same words never share a number.
+  const twice = roomItems([user(50, 'same words'), user(51, 'same words')], () => [], [{ seq: 12, who: 'User', text: 'same words', time: 2 }])
+  assert.deepEqual(twice.items.map(item => item.roomSeq), [12, undefined])
+})
+
 test('a group round logs notices a returning client reads back, and the feed says the group changed', async (t) => {
   const { call, emit, relay, answer, sent, history, routes, ctx, rt, stop } = start()
   t.after(stop)

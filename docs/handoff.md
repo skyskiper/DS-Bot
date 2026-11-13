@@ -234,6 +234,19 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 - **只许在测试 App / 虚拟屏侧跑**，或指向测试 home 并在隐藏窗口里跑，并先约好时间窗；
 - 与「任何脚本不许激活窗口、不许移动正式 App 窗口」同级，不是可选项。
 
+### 两套消息编号（2026-11-13 实测，已修一半）
+
+一条群消息有两个号：
+- **room log seq**（`groups.js:287` `room.seq += 1`）：账号权威号，`ledger` 按它存，`read_group_chat` 与
+  `topic_record.fromSeq` / `topic-thread` / `topic-source` 全都认它；
+- **DSH Session event seq**：`room-chat` 的会话行 `id` 用的是它（`mobile.js` `roomItems` 里 `event.seq`）。
+
+测试通道拿会话行的号去调 `topic-source` 得到 `{missing:true}`（45 vs 8），就是这么来的。
+已修：`roomItems` 现在给会话行附 **`roomSeq`**（按 `who` + 原文 + ±2s 与 room log 一对一一对一匹配），
+客户端要写 `fromSeq` 时用 `roomSeq`，不要用 `id`。
+未修：两套号在存储层仍是两套，`topic-*` 只认 room seq；`roomSeq` 是匹配出来的，room log 里没有原文
+（被 60 行窗口挤掉）时会缺，届时以 `topic-thread` 返回的为准。
+
 ### 打包 0.4.2 的两个坑（2026-11-13）
 
 1. **`npm run dist` 不签名**：electron-builder 出来的是 ad-hoc（`identityName=-`），装前必须再跑

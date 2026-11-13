@@ -100,9 +100,21 @@ function replyItem(reply, id, extra = {}) {
 // user's messages, Bots' posts from outside the group, and one group_relay call per
 // round. A round's result names where its rows are in the group's book of the ledger
 // (`rowsOf` reads them); one from before the ledger lists the replies itself.
-export function roomItems(events, rowsOf = () => []) {
+export function roomItems(events, rowsOf = () => [], lines = []) {
   const items = []
   const relays = new Map()
+  // Two numbers name one message: the group Session's event seq (what a conversation row
+  // carries) and the room log's own seq (what the topic tools and the ledger store). A row
+  // gets the room's number too, matched once per line, so a caller never has to guess which
+  // space a seq came from.
+  const used = new Set()
+  const roomSeqOf = (who, text, time) => {
+    const line = lines.find(entry => !used.has(entry.seq) && entry.who === who && entry.text === text
+      && (time === null || time === undefined || entry.time === undefined || Math.abs(entry.time - time) < 2000))
+    if (line === undefined) return undefined
+    used.add(line.seq)
+    return line.seq
+  }
   for (const event of events) {
     const seq = event.seq
     if (event.type === 'user/message') {
@@ -111,7 +123,9 @@ export function roomItems(events, rowsOf = () => []) {
       if (source?.kind === 'user') {
         const imageBlocks = content.filter(block => block?.type === 'image' && block.attachment !== undefined)
         const imageRefs = imageBlocks.map(block => ({ attachmentId: block.attachment.attachmentId, mime: mediaOf(block.attachment), name: block.attachment.name }))
-        items.push({ id: `${seq}`, kind: 'user', text: textOf(content), ...(imageBlocks.length > 0 ? { images: imageBlocks.length, imageRefs } : {}), time: event.time ?? null })
+        const text = textOf(content)
+        const roomSeq = roomSeqOf('User', text, event.time ?? null)
+        items.push({ id: `${seq}`, kind: 'user', text, ...(imageBlocks.length > 0 ? { images: imageBlocks.length, imageRefs } : {}), ...(roomSeq === undefined ? {} : { roomSeq }), time: event.time ?? null })
       } else if (source?.kind === 'schedule') {
         items.push({ id: `${seq}`, kind: 'event', event: 'schedule', text: reminderText(textOf(content)), time: event.time ?? null })
       } else if (source?.kind === SOURCE_KIND && source.role === 'post') {
@@ -119,9 +133,11 @@ export function roomItems(events, rowsOf = () => []) {
         // picked-up work, stopped work or finished work is an event of the round it opens.
         if (source.logged !== undefined || source.failed !== undefined || source.resumed === true || source.stopped === true || source.done === true) continue
         const file = source.length === undefined ? undefined : content.find(block => block?.type === 'file')?.attachment
+        const said = textOf(content).replace(POST_HEADER, '')
+        const roomSeq = roomSeqOf(source.senderName ?? null, said, event.time ?? null)
         items.push({
           id: `${seq}`, kind: 'bot', botId: source.senderSessionId ?? null, name: source.senderName ?? null,
-          text: textOf(content).replace(POST_HEADER, ''), time: event.time ?? null,
+          text: said, ...(roomSeq === undefined ? {} : { roomSeq }), time: event.time ?? null,
           ...(file ? { whole: { length: source.length, file } } : {}),
         })
       }
@@ -294,7 +310,7 @@ export function install(rt) {
       maxMessages: ROOM_PAGE,
     }, AbortSignal.timeout(HISTORY_TIMEOUT_MS))
     const events = page.records.map(record => record.event)
-    const { items, open } = roomItems(events, range => rt.groupRows?.(room.id, range.from, range.to, range.anchor) ?? [])
+    const { items, open } = roomItems(events, range => rt.groupRows?.(room.id, range.from, range.to, range.anchor) ?? [], room.log ?? [])
     if (body.steps === true) await rt.applySteps?.(items, events, part.sessionId)
     const running = [...rt.roomProgress.entries()].filter(([, round]) => round.roomId === room.id)
     // The newest page shows what the running round has said so far, where its call sits.
