@@ -182,6 +182,30 @@ body[data-bt-goal] [class*="_scroll"] > [class*="_column"]{padding-top:calc(84px
 会替换工作树里的 `client.js`，已打开的页面由 `dsh-client-hmr` 自动换入；若没自动刷新，
 让用户按一次 **Cmd+R** 即可——**不需要重启 App，也不需要重装**。
 
+### 窗口位置：现算、显示器感知、没有持久化（2026-11-13）
+
+出现「窗口跑到另一块屏」时，先怀疑**外部操作**（AX / 脚本 / 别的实例），不要怀疑我们的恢复逻辑。
+
+- DS Bot 的 userData（`~/Library/Application Support/DS Bot/`）里只有 `start-frame.json`
+  （`themeSource` / `motion`），**没有任何坐标文件**；`main-window-state.json` 是
+  `~/Library/Application Support/dsh-desktop/` 下的，那是 CuoCuo（Electron app name `dsh-desktop`），
+  不是 DS Bot。判断归属别猜：`lsof -n | grep main-window-state.json` 看是哪个进程。
+- 主窗矩形是现算的（`app/src/start-window.mjs`）：
+  ```js
+  mainBounds() {
+    if (!this.#open()) return centred(clampInto({ x: 0, y: 0, ...MAIN_SIZE }, screen.getPrimaryDisplay().workArea), …)
+    const start = this.#window.getNormalBounds()
+    return mainRect(start, screen.getDisplayMatching(start).workArea)   // 跟着窗口所在那块屏
+  }
+  mainRect(start, area) { … return clampInto({ … }, area) }             // 夹进那块屏的 workArea
+  ```
+  单测见 `app/test/start-window.test.mjs`（含负坐标工作区的用例）。
+- **不要给窗口加坐标持久化。** 那会引入「存屏内局部坐标 + 换屏后按另一块屏重放」的 bug：
+  `(-1920,-51) + (0,30) = (-1920,-21)` 就是这么算出来的（CuoCuo / DSH Desktop 踩过）。
+- 要坐实「谁在什么时候搬了窗口」，只能靠巡检日志
+  （`test-channel/bin/dgqa-window-watch.sh` → `~/.ds-bot-test/bot/test-runs/window-watch.log`，
+  每 30 秒记一次，只记录不处置；取的必须是**面积最大的那个窗口**，别取到小弹层）。
+
 ## 真机收口方案（群问题卡，一次打完）
 
 前提：`groupQuestionsSync` 与卡片渲染在 **host + client**，所以「群里出卡」要**装了新包的 App** 才看得见；
