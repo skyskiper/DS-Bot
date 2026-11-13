@@ -231,8 +231,8 @@ such as `<account>` or `/path/to/...` are fine.
 ## Version numbers
 
 This fork carries its own version, so the update check does not offer an upstream 0.3.x
-release over it. The version is `0.4.0-YYYYMMDDHHMM`: a fixed stamp from the moment of the
-commit, never generated during a build.
+release over it. The version is a plain `0.4.N`, raised for each installed build
+(`0.4.1` today): a number people can read off the app, not a stamp only a hash can settle.
 
 Change it in all of these, with the same string:
 
@@ -240,8 +240,8 @@ Change it in all of these, with the same string:
   its update check read;
 - the two root `version` entries in `app/package-lock.json` and
   `ds-bot/package-lock.json`, which mirror those files;
-- `app/electron-builder.yml`: `mac.bundleShortVersion` (numbers and dots only, `0.4.0`) and
-  `mac.bundleVersion` (the same stamp, `202611121135`).
+- `app/electron-builder.yml`: `mac.bundleShortVersion` (numbers and dots only, `0.4.1`) and
+  `mac.bundleVersion` (the build's stamp, `YYYYMMDDHHMM`, e.g. `202611130900`).
 
 macOS wants numbers only in `CFBundleShortVersionString`, so a prerelease version cannot go
 into the plist as it is: electron-builder writes the package version there unless
