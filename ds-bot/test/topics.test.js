@@ -441,3 +441,26 @@ test('a message joins several topics with one primary, and leaving a topic takes
   assert.deepEqual(capped.dropped, [1], 'and the answer says which one was left out')
   assert.equal(book().items[4].messages.filter(seq => seq === said.seq).length, 1, 'idempotent')
 })
+
+// The admin's own note: where a topic stands and what comes next, shown on its card and
+// in its window, with the older notes kept in the audit rather than overwritten silently.
+test('a topic keeps its newest standing note, and the older ones stay in the audit', async (t) => {
+  const { tool, room, stop } = await start()
+  t.after(stop)
+  await tool('topic_record', { title: '动效' })
+  const item = () => room().topics.items[1]
+  await tool('topic_state', { num: 1, state: 'active', note: '动效已提交，卡在数帧' })
+  assert.equal(item().note.text, '动效已提交，卡在数帧')
+  assert.equal(item().note.by, 'Chief')
+  assert.ok(Number.isInteger(item().note.at))
+  await tool('topic_state', { num: 1, state: 'active', note: '下一版重抽落点后 1.2s' })
+  assert.equal(item().note.text, '下一版重抽落点后 1.2s', 'only the newest note is shown')
+  assert.equal(item().events.filter(event => event.kind === 'note').length, 2, 'both notes are kept in the audit')
+  // A change without a note leaves the standing one alone.
+  await tool('topic_state', { num: 1, state: 'active', why: 'no note here' })
+  assert.equal(item().note.text, '下一版重抽落点后 1.2s')
+  // An old topic with no note does not break.
+  await tool('topic_record', { title: '旧话题' })
+  await tool('topic_state', { num: 2, state: 'active' })
+  assert.equal(room().topics.items[2].note, undefined)
+})

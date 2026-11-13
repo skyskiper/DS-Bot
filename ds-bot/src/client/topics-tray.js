@@ -6,7 +6,7 @@ import { createElement as h, useCallback, useEffect, useRef, useState } from 're
 import { call } from './api.js'
 import { useEscape } from './overlay-hooks.js'
 import { t } from './i18n.js'
-import { TRAY_MAX, cardMeta, chipsHeight, chipsOf, landedIn, shortTitle, threadTitle } from './topics-view.js'
+import { TRAY_MAX, cardLine, chipsHeight, chipsOf, landedIn, shortTitle, threadTitle, timeAgo } from './topics-view.js'
 
 const TOPIC_COLORS = ['var(--bt-topic-1)', 'var(--bt-topic-2)', 'var(--bt-topic-3)']
 export const topicColor = num => TOPIC_COLORS[(Math.max(1, Number(num) || 1) - 1) % TOPIC_COLORS.length]
@@ -147,7 +147,7 @@ export function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary
         h('span', { className: 'bt-topics-tcard-head' },
           h('span', { className: 'bt-topics-tcard-num' }, `#${item.num}`),
           h('span', { className: 'bt-topics-tcard-title' }, shortTitle(item.title))),
-        h('span', { className: 'bt-topics-tcard-meta' }, cardMeta(item, Date.now(), primary))))
+        h('span', { className: 'bt-topics-tcard-meta' }, cardLine(item, Date.now(), primary))))
     })),
     h('div', { className: 'bt-topics-stack-foot' },
       h('span', { className: 'bt-topics-stack-count' }, t('{count} in flight', { count: cards.length })),
@@ -157,7 +157,7 @@ export function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary
 // A topic's recent messages, floating beside the card that opened it. Live: the newest page
 // is re-read while it is open, and it only scrolls itself when the user is already at the
 // bottom. Older pages come from the same endpoint with `before`.
-export function TopicPopover({ roomId, target, anchor, onClose }) {
+export function TopicPopover({ roomId, target, anchor, onClose, note }) {
   const [page, setPage] = useState({ items: [], hasMore: false, loading: true, error: '' })
   const [atBottom, setAtBottom] = useState(true)
   const [fresh, setFresh] = useState(false)
@@ -243,6 +243,9 @@ export function TopicPopover({ roomId, target, anchor, onClose }) {
     h('span', { className: 'bt-topics-pop-title' }, threadTitle(undefined, target)),
     h('span', { className: 'bt-topics-pop-meta' }, t('{count} messages', { count: page.items.length })),
     h('button', { type: 'button', className: 'bt-topics-pop-x', 'aria-label': t('Close'), title: t('Close'), onClick: onClose }, '×')),
+  note === undefined || note.text === undefined || note.text === ''
+    ? null
+    : h('div', { className: 'bt-topics-pop-note' }, `${note.text} · ${t('updated {when}', { when: timeAgo(note.at) })}`),
   page.hasMore
     ? h('button', { type: 'button', className: 'bt-soft bt-soft-sm bt-topics-pop-more', onClick: () => { void fetchPage(page.items[0]?.seq) } }, t('Load earlier'))
     : null,
@@ -382,7 +385,7 @@ export function TopicsDock({ useRoster, useSessions }) {
       }),
     fly !== null && fly !== undefined ? h(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
     cardNum !== undefined && cardAnchor !== null
-      ? h(TopicPopover, { roomId: room.id, target: { num: cardNum }, anchor: cardAnchor, onClose: () => setCardNum(undefined) })
+      ? h(TopicPopover, { roomId: room.id, target: { num: cardNum }, anchor: cardAnchor, note: book?.items?.[cardNum]?.note, onClose: () => setCardNum(undefined) })
       : null)
 }
 
@@ -441,6 +444,8 @@ export const TOPICS_TRAY_CSS = `
 .bt-topics-pop-head-bar{display:flex;align-items:center;gap:6px;height:44px;flex:none;padding:0 12px;border-bottom:1px solid var(--bt-tray-divider)}
 .bt-topics-pop-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--bt-ink)}
 .bt-topics-pop-meta{flex:none;font-size:10px;color:var(--bt-ink-3);margin-left:auto}
+/* the topic's standing note, above its messages */
+.bt-topics-pop-note{padding:6px 12px;font-size:10.5px;line-height:15px;color:var(--bt-ink-2);border-bottom:1px solid var(--bt-tray-divider)}
 .bt-topics-pop-x{flex:none;width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--bt-ink-3);font-size:14px;line-height:1;cursor:pointer}
 .bt-topics-pop-x:hover{background:var(--bt-hover);color:var(--bt-ink)}
 .bt-topics-pop-more{margin:6px 12px 0;align-self:flex-start}

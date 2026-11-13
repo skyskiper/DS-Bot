@@ -13516,6 +13516,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "位满 · 等 {count} 个话题结束",
     "Reopen now ▸": "可重开 ▸",
     "also in": "也属",
+    "updated {when}": "更新于 {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 个话题正在活跃，等空出位置再重开。",
     "Nothing is lost; the number stays.": "不会丢，编号不变。"
   },
@@ -13558,6 +13559,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "位滿 · 等 {count} 個話題結束",
     "Reopen now ▸": "可重開 ▸",
     "also in": "也屬",
+    "updated {when}": "更新於 {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 個話題正在活躍，等空出位置再重開。",
     "Nothing is lost; the number stays.": "不會丟，編號不變。",
     "→ Recorded as #{num}": "→ 記為 #{num}",
@@ -13602,6 +13604,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "満席 · {count} 件の終了待ち",
     "Reopen now ▸": "今すぐ再開 ▸",
     "also in": "にも属する",
+    "updated {when}": "更新: {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} 件が進行中です。空きが出たら再開してください。",
     "Nothing is lost; the number stays.": "失われません。番号も変わりません。",
     "→ Recorded as #{num}": "→ #{num} として記録",
@@ -13646,6 +13649,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "만석 · {count}개 종료 대기",
     "Reopen now ▸": "지금 다시 열기 ▸",
     "also in": "포함",
+    "updated {when}": "업데이트 {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count}개 주제가 진행 중입니다. 자리가 나면 다시 열어 주세요.",
     "Nothing is lost; the number stays.": "사라지지 않습니다. 번호도 그대로입니다.",
     "→ Recorded as #{num}": "→ #{num}(으)로 기록됨",
@@ -13690,6 +13694,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "Lleno · esperando a que termine {count}",
     "Reopen now ▸": "Reabrir ahora ▸",
     "also in": "también en",
+    "updated {when}": "actualizado {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "Ya hay {count} temas activos. Reábrelo cuando se libere un sitio.",
     "Nothing is lost; the number stays.": "Nada se pierde; el número no cambia.",
     "→ Recorded as #{num}": "→ Registrado como #{num}",
@@ -13734,6 +13739,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "Complet · en attente de {count} fin",
     "Reopen now ▸": "Rouvrir maintenant ▸",
     "also in": "aussi dans",
+    "updated {when}": "mis à jour {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} sujets sont déjà actifs. Rouvrez-le dès qu'une place se libère.",
     "Nothing is lost; the number stays.": "Rien n'est perdu ; le numéro ne change pas.",
     "→ Recorded as #{num}": "→ Enregistré comme #{num}",
@@ -13778,6 +13784,7 @@ var TOPIC_COPY = {
     "Full · waiting for {count} to end": "Voll · wartet auf {count} Ende",
     "Reopen now ▸": "Jetzt wieder öffnen ▸",
     "also in": "auch in",
+    "updated {when}": "aktualisiert {when}",
     "{count} topics are already active. Reopen it once a seat frees.": "{count} Themen sind bereits aktiv. Öffne es wieder, sobald ein Platz frei wird.",
     "Nothing is lost; the number stays.": "Nichts geht verloren; die Nummer bleibt.",
     "→ Recorded as #{num}": "→ Erfasst als #{num}",
@@ -38701,6 +38708,7 @@ var landedIn = (before, after) => {
   }
   return void 0;
 };
+var cardLine = (item, now = Date.now(), primary = void 0) => item?.note?.text !== void 0 && item.note.text !== "" ? `${item.note.text} · ${timeAgo(item.note.at, now)}` : cardMeta(item, now, primary);
 var cardMeta = (item, now = Date.now(), primary = void 0) => {
   const subs = Object.values(item?.subs ?? {}).filter((sub) => sub.state !== "archived").length;
   const messages = primary === void 0 ? messageCountOf(item) : countPrimary(item, primary);
@@ -38803,7 +38811,7 @@ function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = [], arc
       (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("{count} topics are already active. Reopen it once a seat frees.", { count: active.length })),
       (0, import_react62.createElement)("div", { className: "bt-topics-warn-line" }, t("Nothing is lost; the number stays."))
     ) : null,
-    section(t("Active"), active.map((item) => row(item, cardMeta(item, Date.now(), book?.primary)))),
+    section(t("Active"), active.map((item) => row(item, cardLine(item, Date.now(), book?.primary)))),
     queued.length > 0 ? section(t("Queued"), queued.map((item) => row(item, t("Queued")))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.
@@ -43110,7 +43118,7 @@ function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary }) {
             (0, import_react71.createElement)("span", { className: "bt-topics-tcard-num" }, `#${item.num}`),
             (0, import_react71.createElement)("span", { className: "bt-topics-tcard-title" }, shortTitle(item.title))
           ),
-          (0, import_react71.createElement)("span", { className: "bt-topics-tcard-meta" }, cardMeta(item, Date.now(), primary))
+          (0, import_react71.createElement)("span", { className: "bt-topics-tcard-meta" }, cardLine(item, Date.now(), primary))
         )
       );
     })),
@@ -43122,7 +43130,7 @@ function TopicsStack({ activeNum, onPick, onCollapse, cards = [], primary }) {
     )
   );
 }
-function TopicPopover({ roomId, target, anchor, onClose }) {
+function TopicPopover({ roomId, target, anchor, onClose, note }) {
   const [page, setPage] = (0, import_react71.useState)({ items: [], hasMore: false, loading: true, error: "" });
   const [atBottom, setAtBottom] = (0, import_react71.useState)(true);
   const [fresh, setFresh] = (0, import_react71.useState)(false);
@@ -43217,6 +43225,7 @@ function TopicPopover({ roomId, target, anchor, onClose }) {
       (0, import_react71.createElement)("span", { className: "bt-topics-pop-meta" }, t("{count} messages", { count: page.items.length })),
       (0, import_react71.createElement)("button", { type: "button", className: "bt-topics-pop-x", "aria-label": t("Close"), title: t("Close"), onClick: onClose }, "×")
     ),
+    note === void 0 || note.text === void 0 || note.text === "" ? null : (0, import_react71.createElement)("div", { className: "bt-topics-pop-note" }, `${note.text} · ${t("updated {when}", { when: timeAgo(note.at) })}`),
     page.hasMore ? (0, import_react71.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm bt-topics-pop-more", onClick: () => {
       void fetchPage(page.items[0]?.seq);
     } }, t("Load earlier")) : null,
@@ -43350,7 +43359,7 @@ function TopicsDock({ useRoster, useSessions }) {
       onExpand: () => setExpanded(true)
     }),
     fly !== null && fly !== void 0 ? (0, import_react71.createElement)(FlySlip, { key: fly.id, from: fly.from, to: fly.to, name: fly.name, text: fly.text, num: fly.num, onArrived: arrive }) : null,
-    cardNum !== void 0 && cardAnchor !== null ? (0, import_react71.createElement)(TopicPopover, { roomId: room2.id, target: { num: cardNum }, anchor: cardAnchor, onClose: () => setCardNum(void 0) }) : null
+    cardNum !== void 0 && cardAnchor !== null ? (0, import_react71.createElement)(TopicPopover, { roomId: room2.id, target: { num: cardNum }, anchor: cardAnchor, note: book?.items?.[cardNum]?.note, onClose: () => setCardNum(void 0) }) : null
   );
 }
 var TOPICS_TRAY_CSS = `
@@ -43408,6 +43417,8 @@ var TOPICS_TRAY_CSS = `
 .bt-topics-pop-head-bar{display:flex;align-items:center;gap:6px;height:44px;flex:none;padding:0 12px;border-bottom:1px solid var(--bt-tray-divider)}
 .bt-topics-pop-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--bt-ink)}
 .bt-topics-pop-meta{flex:none;font-size:10px;color:var(--bt-ink-3);margin-left:auto}
+/* the topic's standing note, above its messages */
+.bt-topics-pop-note{padding:6px 12px;font-size:10.5px;line-height:15px;color:var(--bt-ink-2);border-bottom:1px solid var(--bt-tray-divider)}
 .bt-topics-pop-x{flex:none;width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--bt-ink-3);font-size:14px;line-height:1;cursor:pointer}
 .bt-topics-pop-x:hover{background:var(--bt-hover);color:var(--bt-ink)}
 .bt-topics-pop-more{margin:6px 12px 0;align-self:flex-start}

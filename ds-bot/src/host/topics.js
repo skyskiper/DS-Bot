@@ -217,6 +217,12 @@ export function install(rt) {
   rt.turnTopicSet = (room, bot, num) => { rt.turnTopics.set(turnKey(room, bot), num) }
   rt.turnTopicClear = (room, bot) => { rt.turnTopics.delete(turnKey(room, bot)) }
   rt.turnTopicOf = (room, bot) => rt.turnTopics.get(turnKey(room, bot))
+  // Take the declaration, once: whichever writer lands the reply first spends it.
+  rt.takeTurnTopic = (room, bot) => {
+    const num = rt.turnTopics.get(turnKey(room, bot))
+    if (num !== undefined) rt.turnTopics.delete(turnKey(room, bot))
+    return num
+  }
 
   // A reply that lands in the topic its turn declared joins it straight away, instead of
   // waiting in #Other for the next turn to move it.
@@ -308,11 +314,19 @@ export function install(rt) {
     group: { type: 'string' },
     num: { type: 'number', required: true },
     state: { type: 'string', enum: TOPIC_STATES, required: true },
+    note: { type: 'string', description: 'One line: where this topic stands and what comes next; the card shows it' },
     why: { type: 'string' },
   }, (args, { room, bot }) => {
     const book = bookOf(room)
     const item = book.items[args.num]
     if (item === undefined) return `There is no topic #${args.num}.`
+    // A one-line standing note — where this stands and what comes next — kept beside the
+    // state so a card can show it. Only the newest is kept; the older ones stay in events.
+    const note = typeof args.note === 'string' && args.note.trim() !== '' ? args.note.trim() : undefined
+    if (note !== undefined) {
+      item.note = { text: note, at: now(), by: bot?.name }
+      item.events.push({ at: now(), kind: 'note', by: bot?.name, text: note })
+    }
     const next = String(args.state)
     if (!TOPIC_STATES.includes(next)) return `State must be one of ${TOPIC_STATES.join(', ')}.`
     if (item.state === 'archived' && next !== 'active') return `#${item.num} is archived; reopen it first.`

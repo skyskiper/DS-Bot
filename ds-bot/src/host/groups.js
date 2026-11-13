@@ -711,14 +711,13 @@ export function install(rt) {
   }
 
   // A member's message in the round, for the members after it and the user. The turn's
-  // final answer is the one the topic declaration belongs to; its progress lines are not.
-  const postInRound = (room, member, text, duration, { final = false } = {}) => {
+  // A message the turn said belongs to a topic is landed there; its progress lines are not.
+  const postInRound = (room, member, text, duration, { final = false, progress = false } = {}) => {
     const line = say(room, { who: member.name, botId: member.id, text, ...(duration === undefined ? {} : { duration }) })
-    if (final) {
-      const declared = rt.turnTopicOf?.(room, member)
+    if (final || !progress) {
+      const declared = rt.takeTurnTopic?.(room, member)
       if (declared !== undefined) {
         rt.attachTopicLine?.(room, line.seq, declared, member.name)
-        rt.turnTopicClear?.(room, member)
       }
     }
     void rt.save().catch(() => {})
@@ -786,7 +785,7 @@ export function install(rt) {
         const step = stripOwnName(member.name, raw)
         if (isPass(step)) return
         said.push(step)
-        postInRound(room, member, step, Date.now() - startedAt)
+        postInRound(room, member, step, Date.now() - startedAt, { progress: true })
         heard(step)
       }
       touch()
@@ -1717,7 +1716,11 @@ export function install(rt) {
         say(room, { who: sender.name, botId: sender.id, kind, text: '' })
       } else {
         const line = [text, ...files.map(fileLine)].filter(Boolean).join('\n')
-        say(room, { who: sender.name, botId: sender.id, text: line, ...(files.length > 0 ? { files } : {}) })
+        const written = say(room, { who: sender.name, botId: sender.id, text: line, ...(files.length > 0 ? { files } : {}) })
+        if (extra.progress !== true) {
+          const declared = rt.takeTurnTopic?.(room, sender)
+          if (declared !== undefined) rt.attachTopicLine?.(room, written.seq, declared, sender.name)
+        }
         if (extra.batch !== undefined && line !== '') recordResult(extra.batch, sender.name, room.seq)
       }
       callPost(room, running, sender, text, extra)

@@ -142,6 +142,12 @@ export const landedIn = (before, after) => {
 }
 
 // `3 subtopics · 12 messages · just now`, or `No messages yet` for a topic with nothing in it.
+// The line a card shows under its title: the topic's own standing note when it has one,
+// otherwise what is in it.
+export const cardLine = (item, now = Date.now(), primary = undefined) => (item?.note?.text !== undefined && item.note.text !== ''
+  ? `${item.note.text} · ${timeAgo(item.note.at, now)}`
+  : cardMeta(item, now, primary))
+
 export const cardMeta = (item, now = Date.now(), primary = undefined) => {
   const subs = Object.values(item?.subs ?? {}).filter(sub => sub.state !== 'archived').length
   // A message in several topics counts for its primary one only; the others show it

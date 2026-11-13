@@ -1882,7 +1882,7 @@ const TOPIC_COPY = {
     'just now': '刚刚', '{count}s ago': '{count} 秒前', '{count}m ago': '{count} 分钟前', '{count}h ago': '{count} 小时前',
     '{count} subtopics': '{count} 子话题', '{count} messages': '{count} 条', '{count} in flight': '{count} 在办',
     'Close': '关闭', 'Back': '返回', 'Move to a topic': '改判到', 'Keep in #Other': '留在 #Other', '· End ·': '· 到底了 ·',
-    'Live · follows the newest': '实时 · 自动滚到底', 'New messages': '新消息', 'Requesting…': '申请中…', 'Reopen requested': '已申请重开', 'A seat is free': '有位置了', 'Full · waiting for {count} to end': '位满 · 等 {count} 个话题结束', 'Reopen now ▸': '可重开 ▸', 'also in': '也属',
+    'Live · follows the newest': '实时 · 自动滚到底', 'New messages': '新消息', 'Requesting…': '申请中…', 'Reopen requested': '已申请重开', 'A seat is free': '有位置了', 'Full · waiting for {count} to end': '位满 · 等 {count} 个话题结束', 'Reopen now ▸': '可重开 ▸', 'also in': '也属', 'updated {when}': '更新于 {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count} 个话题正在活跃，等空出位置再重开。', 'Nothing is lost; the number stays.': '不会丢，编号不变。',
   },
   'zh-TW': {
@@ -1891,7 +1891,7 @@ const TOPIC_COPY = {
     'just now': '剛剛', '{count}s ago': '{count} 秒前', '{count}m ago': '{count} 分鐘前', '{count}h ago': '{count} 小時前',
     '{count} subtopics': '{count} 子話題', '{count} messages': '{count} 條', '{count} in flight': '{count} 在辦',
     'Close': '關閉', 'Back': '返回', 'Move to a topic': '改判到', 'Keep in #Other': '留在 #Other', '· End ·': '· 到底了 ·',
-    'Live · follows the newest': '即時 · 自動滾到底', 'New messages': '新訊息', 'Requesting…': '申請中…', 'Reopen requested': '已申請重開', 'A seat is free': '有位置了', 'Full · waiting for {count} to end': '位滿 · 等 {count} 個話題結束', 'Reopen now ▸': '可重開 ▸', 'also in': '也屬',
+    'Live · follows the newest': '即時 · 自動滾到底', 'New messages': '新訊息', 'Requesting…': '申請中…', 'Reopen requested': '已申請重開', 'A seat is free': '有位置了', 'Full · waiting for {count} to end': '位滿 · 等 {count} 個話題結束', 'Reopen now ▸': '可重開 ▸', 'also in': '也屬', 'updated {when}': '更新於 {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count} 個話題正在活躍，等空出位置再重開。', 'Nothing is lost; the number stays.': '不會丟，編號不變。', '→ Recorded as #{num}': '→ 記為 #{num}', '→ #{num} replaces #{old}': '→ #{num}，替換 #{old}',
   },
   ja: {
@@ -1899,7 +1899,7 @@ const TOPIC_COPY = {
     'Unclassified': '未分類', 'Active': '進行中', 'Archived': 'アーカイブ', 'Reopen': '再開', 'Reopen queued': '再開を申請中 · 待機', 'Cancel': 'キャンセル', 'No topics yet': 'グループで一言話すと、管理が自動で分類します', 'Today': '今日', 'No messages in this topic': 'このトピックにはまだメッセージがありません', 'text unavailable': 'テキストなし', 'unclassified': '未分類', 'Collapse': '折りたたむ', 'Expand': '展開', 'Queued': '待機', 'just now': 'たった今', '{count}s ago': '{count}秒前', '{count}m ago': '{count}分前', '{count}h ago': '{count}時間前',
     '{count} subtopics': '{count} サブトピック', '{count} messages': '{count} 件', '{count} in flight': '{count} 件進行中',
     'Close': '閉じる', 'Back': '戻る', 'Move to a topic': 'トピックへ移動', 'Keep in #Other': '#Other に残す', '· End ·': '· ここまで ·',
-    'Live · follows the newest': 'ライブ · 最新に追従', 'New messages': '新着', 'Requesting…': '申請中…', 'Reopen requested': '再開を申請済み', 'A seat is free': '空きがあります', 'Full · waiting for {count} to end': '満席 · {count} 件の終了待ち', 'Reopen now ▸': '今すぐ再開 ▸', 'also in': 'にも属する',
+    'Live · follows the newest': 'ライブ · 最新に追従', 'New messages': '新着', 'Requesting…': '申請中…', 'Reopen requested': '再開を申請済み', 'A seat is free': '空きがあります', 'Full · waiting for {count} to end': '満席 · {count} 件の終了待ち', 'Reopen now ▸': '今すぐ再開 ▸', 'also in': 'にも属する', 'updated {when}': '更新: {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count} 件が進行中です。空きが出たら再開してください。', 'Nothing is lost; the number stays.': '失われません。番号も変わりません。', '→ Recorded as #{num}': '→ #{num} として記録', '→ #{num} replaces #{old}': '→ #{num} が #{old} を置き換え',
   },
   ko: {
@@ -1907,7 +1907,7 @@ const TOPIC_COPY = {
     'Unclassified': '미분류', 'Active': '진행 중', 'Archived': '보관됨', 'Reopen': '다시 열기', 'Reopen queued': '재개 요청됨 · 대기', 'Cancel': '취소', 'No topics yet': '그룹에서 한마디 하면 관리자가 자동으로 분류합니다', 'Today': '오늘', 'No messages in this topic': '이 주제에는 아직 메시지가 없습니다', 'text unavailable': '텍스트 없음', 'unclassified': '미분류', 'Collapse': '접기', 'Expand': '펼치기', 'Queued': '대기', 'just now': '방금', '{count}s ago': '{count}초 전', '{count}m ago': '{count}분 전', '{count}h ago': '{count}시간 전',
     '{count} subtopics': '하위 주제 {count}개', '{count} messages': '{count}개', '{count} in flight': '{count}개 진행 중',
     'Close': '닫기', 'Back': '뒤로', 'Move to a topic': '주제로 이동', 'Keep in #Other': '#Other에 두기', '· End ·': '· 끝 ·',
-    'Live · follows the newest': '실시간 · 최신으로', 'New messages': '새 메시지', 'Requesting…': '요청 중…', 'Reopen requested': '다시 열기 요청됨', 'A seat is free': '자리가 났습니다', 'Full · waiting for {count} to end': '만석 · {count}개 종료 대기', 'Reopen now ▸': '지금 다시 열기 ▸', 'also in': '포함',
+    'Live · follows the newest': '실시간 · 최신으로', 'New messages': '새 메시지', 'Requesting…': '요청 중…', 'Reopen requested': '다시 열기 요청됨', 'A seat is free': '자리가 났습니다', 'Full · waiting for {count} to end': '만석 · {count}개 종료 대기', 'Reopen now ▸': '지금 다시 열기 ▸', 'also in': '포함', 'updated {when}': '업데이트 {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count}개 주제가 진행 중입니다. 자리가 나면 다시 열어 주세요.', 'Nothing is lost; the number stays.': '사라지지 않습니다. 번호도 그대로입니다.', '→ Recorded as #{num}': '→ #{num}(으)로 기록됨', '→ #{num} replaces #{old}': '→ #{num}이(가) #{old}을(를) 대체',
   },
   es: {
@@ -1915,7 +1915,7 @@ const TOPIC_COPY = {
     'Unclassified': 'Sin clasificar', 'Active': 'Activos', 'Archived': 'Archivados', 'Reopen': 'Reabrir', 'Reopen queued': 'Reapertura en cola', 'Cancel': 'Cancelar', 'No topics yet': 'Di algo en el grupo y el administrador lo clasificará', 'Today': 'Hoy', 'No messages in this topic': 'Este tema aún no tiene mensajes', 'text unavailable': 'Texto no disponible', 'unclassified': 'sin clasificar', 'Collapse': 'Contraer', 'Expand': 'Expandir', 'Queued': 'En cola', 'just now': 'ahora mismo', '{count}s ago': 'hace {count} s', '{count}m ago': 'hace {count} min', '{count}h ago': 'hace {count} h',
     '{count} subtopics': '{count} subtemas', '{count} messages': '{count} mensajes', '{count} in flight': '{count} en curso',
     'Close': 'Cerrar', 'Back': 'Atrás', 'Move to a topic': 'Mover al tema', 'Keep in #Other': 'Mantener en #Other', '· End ·': '· Fin ·',
-    'Live · follows the newest': 'En vivo · sigue lo último', 'New messages': 'Mensajes nuevos', 'Requesting…': 'Solicitando…', 'Reopen requested': 'Reapertura solicitada', 'A seat is free': 'Hay un sitio libre', 'Full · waiting for {count} to end': 'Lleno · esperando a que termine {count}', 'Reopen now ▸': 'Reabrir ahora ▸', 'also in': 'también en',
+    'Live · follows the newest': 'En vivo · sigue lo último', 'New messages': 'Mensajes nuevos', 'Requesting…': 'Solicitando…', 'Reopen requested': 'Reapertura solicitada', 'A seat is free': 'Hay un sitio libre', 'Full · waiting for {count} to end': 'Lleno · esperando a que termine {count}', 'Reopen now ▸': 'Reabrir ahora ▸', 'also in': 'también en', 'updated {when}': 'actualizado {when}',
     '{count} topics are already active. Reopen it once a seat frees.': 'Ya hay {count} temas activos. Reábrelo cuando se libere un sitio.', 'Nothing is lost; the number stays.': 'Nada se pierde; el número no cambia.', '→ Recorded as #{num}': '→ Registrado como #{num}', '→ #{num} replaces #{old}': '→ #{num} sustituye a #{old}',
   },
   fr: {
@@ -1923,7 +1923,7 @@ const TOPIC_COPY = {
     'Unclassified': 'Non classé', 'Active': 'Actifs', 'Archived': 'Archivés', 'Reopen': 'Rouvrir', 'Reopen queued': 'Réouverture en attente', 'Cancel': 'Annuler', 'No topics yet': 'Dites un mot dans le groupe, l\'admin le classera', 'Today': "Aujourd'hui", 'No messages in this topic': 'Ce sujet n\'a pas encore de messages', 'text unavailable': 'Texte indisponible', 'unclassified': 'non classé', 'Collapse': 'Réduire', 'Expand': 'Développer', 'Queued': 'En attente', 'just now': "à l'instant", '{count}s ago': 'il y a {count} s', '{count}m ago': 'il y a {count} min', '{count}h ago': 'il y a {count} h',
     '{count} subtopics': '{count} sous-sujets', '{count} messages': '{count} messages', '{count} in flight': '{count} en cours',
     'Close': 'Fermer', 'Back': 'Retour', 'Move to a topic': 'Déplacer vers un sujet', 'Keep in #Other': 'Garder dans #Other', '· End ·': '· Fin ·',
-    'Live · follows the newest': 'En direct · suit le plus récent', 'New messages': "Nouveaux messages", 'Requesting…': 'Demande…', 'Reopen requested': 'Réouverture demandée', 'A seat is free': 'Une place est libre', 'Full · waiting for {count} to end': 'Complet · en attente de {count} fin', 'Reopen now ▸': 'Rouvrir maintenant ▸', 'also in': 'aussi dans',
+    'Live · follows the newest': 'En direct · suit le plus récent', 'New messages': "Nouveaux messages", 'Requesting…': 'Demande…', 'Reopen requested': 'Réouverture demandée', 'A seat is free': 'Une place est libre', 'Full · waiting for {count} to end': 'Complet · en attente de {count} fin', 'Reopen now ▸': 'Rouvrir maintenant ▸', 'also in': 'aussi dans', 'updated {when}': 'mis à jour {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count} sujets sont déjà actifs. Rouvrez-le dès qu\'une place se libère.', 'Nothing is lost; the number stays.': 'Rien n\'est perdu ; le numéro ne change pas.', '→ Recorded as #{num}': '→ Enregistré comme #{num}', '→ #{num} replaces #{old}': '→ #{num} remplace #{old}',
   },
   de: {
@@ -1931,7 +1931,7 @@ const TOPIC_COPY = {
     'Unclassified': 'Nicht zugeordnet', 'Active': 'Aktiv', 'Archived': 'Archiviert', 'Reopen': 'Wieder öffnen', 'Reopen queued': 'Wiederöffnung vorgemerkt', 'Cancel': 'Abbrechen', 'No topics yet': 'Sag ein Wort in der Gruppe, der Admin ordnet es zu', 'Today': 'Heute', 'No messages in this topic': 'Dieses Thema hat noch keine Nachrichten', 'text unavailable': 'Text nicht verfügbar', 'unclassified': 'nicht zugeordnet', 'Collapse': 'Einklappen', 'Expand': 'Ausklappen', 'Queued': 'Wartend', 'just now': 'gerade eben', '{count}s ago': 'vor {count} s', '{count}m ago': 'vor {count} min', '{count}h ago': 'vor {count} h',
     '{count} subtopics': '{count} Unterthemen', '{count} messages': '{count} Nachrichten', '{count} in flight': '{count} in Arbeit',
     'Close': 'Schließen', 'Back': 'Zurück', 'Move to a topic': 'Zu einem Thema verschieben', 'Keep in #Other': 'In #Other lassen', '· End ·': '· Ende ·',
-    'Live · follows the newest': 'Live · folgt dem Neuesten', 'New messages': 'Neue Nachrichten', 'Requesting…': 'Wird angefragt…', 'Reopen requested': 'Wiederöffnung angefragt', 'A seat is free': 'Ein Platz ist frei', 'Full · waiting for {count} to end': 'Voll · wartet auf {count} Ende', 'Reopen now ▸': 'Jetzt wieder öffnen ▸', 'also in': 'auch in',
+    'Live · follows the newest': 'Live · folgt dem Neuesten', 'New messages': 'Neue Nachrichten', 'Requesting…': 'Wird angefragt…', 'Reopen requested': 'Wiederöffnung angefragt', 'A seat is free': 'Ein Platz ist frei', 'Full · waiting for {count} to end': 'Voll · wartet auf {count} Ende', 'Reopen now ▸': 'Jetzt wieder öffnen ▸', 'also in': 'auch in', 'updated {when}': 'aktualisiert {when}',
     '{count} topics are already active. Reopen it once a seat frees.': '{count} Themen sind bereits aktiv. Öffne es wieder, sobald ein Platz frei wird.', 'Nothing is lost; the number stays.': 'Nichts geht verloren; die Nummer bleibt.', '→ Recorded as #{num}': '→ Erfasst als #{num}', '→ #{num} replaces #{old}': '→ #{num} ersetzt #{old}',
   },
 }

@@ -3,7 +3,7 @@
 import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import { call } from './api.js'
 import { t } from './i18n.js'
-import { cardMeta, entryLabel, moveTargets, promotedAtOf, shortTitle, threadTitle } from './topics-view.js'
+import { cardLine, entryLabel, moveTargets, promotedAtOf, shortTitle, threadTitle } from './topics-view.js'
 
 // D2/D23: one 36px row under the group's name — up to three dots for the active topics, the
 // counts, and a chevron. #Other is not counted here; it is a row of the list.
@@ -53,7 +53,7 @@ export function TopicList({ book, onOpen, onReopen, onCancelReopen, reopening = 
         h('div', { className: 'bt-topics-warn-line' }, t('{count} topics are already active. Reopen it once a seat frees.', { count: active.length })),
         h('div', { className: 'bt-topics-warn-line' }, t('Nothing is lost; the number stays.')))
       : null,
-    section(t('Active'), active.map(item => row(item, cardMeta(item, Date.now(), book?.primary)))),
+    section(t('Active'), active.map(item => row(item, cardLine(item, Date.now(), book?.primary)))),
     queued.length > 0 ? section(t('Queued'), queued.map(item => row(item, t('Queued')))) : null,
     // Twelve archived rows pushed the active ones off the screen — the fault the strip was
     // meant to fix — so they fold into one line that opens in place.
