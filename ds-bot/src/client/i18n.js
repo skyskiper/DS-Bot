@@ -1731,6 +1731,7 @@ const HOST_ZH = {
   'Exit filter': '退出过滤',
   'Tasks': '任务',
   'Hide': '收起',
+  'Filtered: {task} · {count} messages': '过滤中：{task} · {count} 条消息',
   'Items': '事项',
   'Earlier · {count} items': '更早 · {count} 个事项',
   'waits for your answer': '等你回答',
@@ -1884,6 +1885,7 @@ const FORK_COPY = {
   'Exit filter': 'Exit filter',
   'Tasks': 'Tasks',
   'Hide': 'Hide',
+  'Filtered: {task} · {count} messages': 'Filtered: {task} · {count} messages',
 }
 const withForkCopy = dict => { for (const [key, copy] of Object.entries(FORK_COPY)) dict[key] ??= copy; return dict }
 

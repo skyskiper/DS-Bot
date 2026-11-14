@@ -13339,6 +13339,7 @@ var HOST_ZH = {
   "Exit filter": "退出过滤",
   "Tasks": "任务",
   "Hide": "收起",
+  "Filtered: {task} · {count} messages": "过滤中：{task} · {count} 条消息",
   "Items": "事项",
   "Earlier · {count} items": "更早 · {count} 个事项",
   "waits for your answer": "等你回答",
@@ -13482,7 +13483,8 @@ var FORK_COPY = {
   "{count} messages": "{count} messages",
   "Exit filter": "Exit filter",
   "Tasks": "Tasks",
-  "Hide": "Hide"
+  "Hide": "Hide",
+  "Filtered: {task} · {count} messages": "Filtered: {task} · {count} messages"
 };
 var withForkCopy = (dict) => {
   for (const [key, copy2] of Object.entries(FORK_COPY)) dict[key] ??= copy2;
@@ -25425,7 +25427,7 @@ var annotationLine = (read) => {
 };
 var keeps = (read, num2) => num2 === void 0 ? true : read?.task?.num === num2;
 var taskTitle = (task) => task === void 0 || task.num === void 0 ? "" : typeof task.name === "string" && task.name !== "" ? `#${task.num} ${task.name}` : `#${task.num}`;
-var filterLabel = (task, count) => task === void 0 ? "" : `${t("Filtered")}: #${task.num} ${task.progress ?? task.say ?? ""} · ${t("{count} messages", { count })}`.replace("  ", " ");
+var filterLabel = (task, count) => task === void 0 ? "" : t("Filtered: {task} · {count} messages", { task: taskTitle(task), count });
 
 // src/client/annotations-ui.js
 var import_react30 = require("react");
@@ -42173,8 +42175,9 @@ function TaskDock({ sessionId, useRoster }) {
     chosen2 === void 0 ? null : (0, import_react70.createElement)(
       "div",
       { className: "bt-tasks-bar" },
-      (0, import_react70.createElement)("span", { className: "bt-tasks-bar-text" }, `${t("Filtered")}: ${taskTitle(picked ?? { num: chosen2 })} · ${t("{count} messages", { count: countOf(view?.reads, chosen2) })}`),
-      (0, import_react70.createElement)("button", { type: "button", className: "bt-tasks-exit", onClick: () => setTaskFilter(roomId, void 0) }, t("Exit filter"), (0, import_react70.createElement)("span", { "aria-hidden": true }, "×"))
+      (0, import_react70.createElement)("span", { className: "bt-tasks-bar-text" }, filterLabel(picked ?? { num: chosen2 }, countOf(view?.reads, chosen2))),
+      (0, import_react70.createElement)("span", { className: "bt-tasks-bar-rule", "aria-hidden": true }, "｜"),
+      (0, import_react70.createElement)("button", { type: "button", className: "bt-tasks-exit", onClick: () => setTaskFilter(roomId, void 0) }, t("Exit filter"), (0, import_react70.createElement)("span", { "aria-hidden": true }, " ×"))
     ),
     (0, import_react70.createElement)(
       "div",
@@ -42236,7 +42239,7 @@ function TaskPanel({ useRoster, useSessions }) {
       list.live.map((task) => row(task, chosen2 === task.num, () => pick2(task), `live-${task.num}`)),
       shownDone.length === 0 ? null : (0, import_react70.createElement)("div", { className: "bt-tasks-sep" }, t("Done")),
       shownDone.map((task) => row(task, chosen2 === task.num, () => pick2(task), `done-${task.num}`)),
-      everyDone.length > shownDone.length ? (0, import_react70.createElement)("button", { type: "button", className: "bt-tasks-more", onClick: () => setAll(true) }, `${t("Done")} ${everyDone.length} ›`) : null
+      everyDone.length > shownDone.length ? (0, import_react70.createElement)("button", { type: "button", className: "bt-tasks-more", onClick: () => setAll(true) }, `${t("Done")} ${everyDone.length - shownDone.length} ›`) : null
     )
   );
 }
@@ -42249,6 +42252,7 @@ var TASKS_CSS = `
 .bt-tasks-toggle{margin-left:auto}
 .bt-tasks-bar{display:flex;align-items:center;gap:8px;min-width:0;font-size:11px;line-height:16px;color:var(--bt-ink-2)}
 .bt-tasks-bar-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-tasks-bar-rule{flex:none;color:var(--bt-ink-3)}
 .bt-tasks-exit{flex:none;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border:0;border-radius:6px;background:color-mix(in srgb,var(--bt-ink) 6%,transparent);color:var(--bt-ink-2);font:inherit;font-size:11px;cursor:pointer}
 .bt-tasks-exit:hover{background:color-mix(in srgb,var(--bt-ink) 10%,transparent);color:var(--bt-ink)}
 .bt-tasks-panel{position:fixed;right:8px;top:72px;bottom:112px;width:232px;z-index:6;display:flex;flex-direction:column;box-sizing:border-box;padding:8px;border-radius:12px;background:var(--bt-glass-bg);border:1px solid var(--bt-glass-rim);box-shadow:var(--bt-glass-shadow);backdrop-filter:blur(18px)}

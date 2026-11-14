@@ -54,6 +54,8 @@ export const taskTitle = (task) => (task === undefined || task.num === undefined
   ? ''
   : typeof task.name === 'string' && task.name !== '' ? `#${task.num} ${task.name}` : `#${task.num}`)
 
+// `过滤中：#1 实现任务注解 · 1 条消息` — the task as the label names it, then how many
+// messages it keeps. The separator before the way out is drawn beside this.
 export const filterLabel = (task, count) => (task === undefined
   ? ''
-  : `${t('Filtered')}: #${task.num} ${task.progress ?? task.say ?? ''} · ${t('{count} messages', { count })}`.replace('  ', ' '))
+  : t('Filtered: {task} · {count} messages', { task: taskTitle(task), count }))

@@ -1,7 +1,7 @@
 // The task list of a group chat, and the chips that pick one: what is in hand, what
 // finished lately, and — when a task is picked — only that task's messages.
 import { createElement as h, useEffect, useState } from 'react'
-import { taskList, taskTitle } from './annotations-view.js'
+import { filterLabel, taskList, taskTitle } from './annotations-view.js'
 import { useRoomReads, useTaskFilter, setTaskFilter } from './annotations-ui.js'
 import { t } from './i18n.js'
 
@@ -54,8 +54,9 @@ export function TaskDock({ sessionId, useRoster }) {
   const picked = chosen === undefined ? undefined : taskList(view?.reads ?? {}, { recent: 999 }).done.concat(list.live).find(task => task.num === chosen)
   return h('div', { className: 'bt-tasks-dock' },
     chosen === undefined ? null : h('div', { className: 'bt-tasks-bar' },
-      h('span', { className: 'bt-tasks-bar-text' }, `${t('Filtered')}: ${taskTitle(picked ?? { num: chosen })} · ${t('{count} messages', { count: countOf(view?.reads, chosen) })}`),
-      h('button', { type: 'button', className: 'bt-tasks-exit', onClick: () => setTaskFilter(roomId, undefined) }, t('Exit filter'), h('span', { 'aria-hidden': true }, '×'))),
+      h('span', { className: 'bt-tasks-bar-text' }, filterLabel(picked ?? { num: chosen }, countOf(view?.reads, chosen))),
+      h('span', { className: 'bt-tasks-bar-rule', 'aria-hidden': true }, '｜'),
+      h('button', { type: 'button', className: 'bt-tasks-exit', onClick: () => setTaskFilter(roomId, undefined) }, t('Exit filter'), h('span', { 'aria-hidden': true }, ' ×'))),
     h('div', { className: 'bt-tasks-chips' },
       list.live.map(task => chip(task, chosen === task.num, () => setTaskFilter(roomId, chosen === task.num ? undefined : task.num), `chip-${task.num}`)),
       h('button', {
@@ -98,7 +99,7 @@ export function TaskPanel({ useRoster, useSessions }) {
       shownDone.length === 0 ? null : h('div', { className: 'bt-tasks-sep' }, t('Done')),
       shownDone.map(task => row(task, chosen === task.num, () => pick(task), `done-${task.num}`)),
       everyDone.length > shownDone.length
-        ? h('button', { type: 'button', className: 'bt-tasks-more', onClick: () => setAll(true) }, `${t('Done')} ${everyDone.length} ›`)
+        ? h('button', { type: 'button', className: 'bt-tasks-more', onClick: () => setAll(true) }, `${t('Done')} ${everyDone.length - shownDone.length} ›`)
         : null))
 }
 
@@ -111,6 +112,7 @@ export const TASKS_CSS = `
 .bt-tasks-toggle{margin-left:auto}
 .bt-tasks-bar{display:flex;align-items:center;gap:8px;min-width:0;font-size:11px;line-height:16px;color:var(--bt-ink-2)}
 .bt-tasks-bar-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-tasks-bar-rule{flex:none;color:var(--bt-ink-3)}
 .bt-tasks-exit{flex:none;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border:0;border-radius:6px;background:color-mix(in srgb,var(--bt-ink) 6%,transparent);color:var(--bt-ink-2);font:inherit;font-size:11px;cursor:pointer}
 .bt-tasks-exit:hover{background:color-mix(in srgb,var(--bt-ink) 10%,transparent);color:var(--bt-ink)}
 .bt-tasks-panel{position:fixed;right:8px;top:72px;bottom:112px;width:232px;z-index:6;display:flex;flex-direction:column;box-sizing:border-box;padding:8px;border-radius:12px;background:var(--bt-glass-bg);border:1px solid var(--bt-glass-rim);box-shadow:var(--bt-glass-shadow);backdrop-filter:blur(18px)}
