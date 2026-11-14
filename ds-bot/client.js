@@ -26308,7 +26308,8 @@ var viaOf = (source) => typeof source?.rpcId === "string" && source.rpcId.starts
 // src/client/user-message.js
 var import_react34 = require("react");
 var ui = __toESM(require("@deepseek-ai/dsh-client-ui-primitives"), 1);
-var canDrawUserMessages = () => typeof ui.projectUserText === "function";
+var TEXT_LABELS = { code: { copyLabel: t("Copy"), copiedLabel: t("Copied") }, footnotes: t("Footnotes") };
+var userText = (text, referenceLabels, skillNames, references) => typeof ui.projectUserText === "function" ? ui.projectUserText(text, referenceLabels, skillNames, "skill", references) : (0, import_react34.createElement)(import_dsh_client_ui_primitives.MarkdownText, { text, labels: TEXT_LABELS });
 function contentParts(content) {
   const texts2 = [];
   const attachments = [];
@@ -26343,7 +26344,7 @@ function UserText({ text, bots, referenceLabels, skillNames, references, actions
     { key: index, type: "button", className: "bt-umention", title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
     (0, import_react34.createElement)(BotMark, { bot: part.bot, size: 16 }),
     part.label
-  ) : (0, import_react34.createElement)(import_react34.Fragment, { key: index }, ui.projectUserText(part.text, referenceLabels, skillNames, "skill", references)));
+  ) : (0, import_react34.createElement)(import_react34.Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references)));
 }
 function Attachments({ attachments, sessionId, seq, actions, renderMessageImages }) {
   const images = attachments.filter((block) => block.type === "image");
@@ -43699,7 +43700,9 @@ function apply(ctx) {
     // A Bot chat leaves DSH's context lines (tool updates, injected context) out; a Bot
     // message spliced in mid-turn gets an event line from the step that reads it instead.
     () => shadow("conversation.chat.node", { key: "context", priority: BOT_PRIORITY, locale: "chat" }, CellEmpty),
-    ...canDrawUserMessages() ? ["user", "steering"].map((key) => () => shadow("conversation.chat.node", { key, priority: BOT_PRIORITY, locale: "chat", inject: face }, UserMessageCell)) : [],
+    // The user's own row is ours, so the admin's reading has somewhere to sit under it.
+    // `steering` stays with the shell: it is a different row and nothing sits under it yet.
+    () => shadow("conversation.chat.node", { key: "user", priority: BOT_PRIORITY, locale: "chat", inject: face }, UserMessageCell),
     () => shadow("conversation.input.permission", { priority: BOT_PRIORITY }, Nothing),
     () => shadow("conversation.input.plan", { priority: BOT_PRIORITY }, Nothing),
     // The composer carries no model picker or run statistics; a Bot's model lives

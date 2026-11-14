@@ -1,4 +1,5 @@
 import { createElement as h, Fragment, useEffect, useRef, useState } from 'react'
+import { MarkdownText } from './dsh-primitives.js'
 import { imageClickHandler, MessageImages } from './image-viewer.js'
 import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import { imPlatform } from '../shared/im-platforms.js'
@@ -17,8 +18,13 @@ import { useFold } from './fold.js'
 // are cut out first, by the rule the group host calls them with; DSH's own drawing
 // keeps everything else (files, conversation references, skills).
 
-// DSH releases without the text projection keep their own bubble.
-export const canDrawUserMessages = () => typeof ui.projectUserText === 'function'
+// DS Bot draws the user's own bubble: DSH's text projection, where the release has one,
+// and its Markdown renderer where it does not — the row is ours so the annotation under
+// it has somewhere to go.
+const TEXT_LABELS = { code: { copyLabel: t('Copy'), copiedLabel: t('Copied') }, footnotes: t('Footnotes') }
+const userText = (text, referenceLabels, skillNames, references) => (typeof ui.projectUserText === 'function'
+  ? ui.projectUserText(text, referenceLabels, skillNames, 'skill', references)
+  : h(MarkdownText, { text, labels: TEXT_LABELS }))
 
 export function contentParts(content) {
   const texts = []
@@ -58,7 +64,7 @@ function UserText({ text, bots, referenceLabels, skillNames, references, actions
   return userTextParts(text, bots, referenceLabels).map((part, index) => (part.bot
     ? h('button', { key: index, type: 'button', className: 'bt-umention', title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
       h(BotMark, { bot: part.bot, size: 16 }), part.label)
-    : h(Fragment, { key: index }, ui.projectUserText(part.text, referenceLabels, skillNames, 'skill', references))))
+    : h(Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references))))
 }
 
 // A message's images are drawn here rather than by the shell's gallery, so opening one

@@ -24,7 +24,7 @@ runInNewContext(bundle.outputFiles[0].text, {
     return platform[name]
   },
 })
-const { userTextParts, mentionableBots, canDrawUserMessages, contentParts } = module.exports
+const { userTextParts, mentionableBots, contentParts, UserMessageCell } = module.exports
 const plain = value => JSON.parse(JSON.stringify(value))
 
 const called = text => mentionSpans(text, bots).map(span => (span.all ? '@all' : span.bot.name))
@@ -79,8 +79,9 @@ test('the user bubble keeps the text around a mention, and a group only calls it
   assert.deepEqual(plain(mentionableBots(roster, 'r').map(bot => bot.id)), ['c', 'k'])
   assert.equal(mentionableBots(roster, 'a').length, 4)
   assert.equal(mentionableBots(roster, 'elsewhere').length, 0)
-  // Without DSH's text projection the plugin leaves the bubble to DSH.
-  assert.equal(canDrawUserMessages(), false)
+  // The bubble is the plugin's own row either way: without DSH's text projection the
+  // text goes through the Markdown renderer instead, so an annotation has somewhere to sit.
+  assert.equal(typeof UserMessageCell, 'function')
 })
 
 test('a Bot name is something "@" can call without a second reading', () => {
