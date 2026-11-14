@@ -106,3 +106,9 @@ test('the user text keeps what was typed: stars stay, line breaks stay, and a li
   assert.deepEqual(plain(runs), [{ text: '**x** 见 ' }, { url: 'https://a.dev/b' }, { text: ' 好' }])
   assert.deepEqual(plain(module.exports.textRuns('没有链接\n两行')), [{ text: '没有链接\n两行' }])
 })
+
+test('a file the user picked stays a tag that opens, apart from a Bot mention', () => {
+  const parts = module.exports.richParts('看 @a/b.md 和 @Chief 见 https://a.dev', bots, ['a/b.md'])
+  assert.deepEqual(plain(parts.map(part => (part.ref !== undefined ? `ref:${part.ref}` : part.bot ? `bot:${part.bot.id}` : `text`))), ['text', 'ref:a/b.md', 'text', 'bot:c', 'text'])
+  assert.equal(plain(module.exports.richParts('没有引用', bots, [])).length, 1)
+})

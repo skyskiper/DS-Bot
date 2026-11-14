@@ -2,7 +2,7 @@ import { createElement as h, Fragment, useEffect, useRef, useState } from 'react
 import { imageClickHandler, MessageImages } from './image-viewer.js'
 import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import { imPlatform } from '../shared/im-platforms.js'
-import { mentionSpans } from '../shared/mentions.js'
+import { mentionSpans, referenceSpans } from '../shared/mentions.js'
 import { BotMark } from './mark.js'
 import { CheckIcon, CopyIcon } from './icons.js'
 import { dateLocale, t } from './i18n.js'
@@ -74,11 +74,43 @@ export function userTextParts(text, bots, referenceLabels = []) {
   return parts
 }
 
+// Runs of text, Bot mentions and the files and skills the message refers to, in order.
+// A reference is what the user picked with "@": it stays a tag that opens, not plain words.
+export function richParts(text, bots, referenceLabels = [], skillNames = []) {
+  const spans = [
+    ...mentionSpans(text, bots, { references: referenceLabels }).map(span => ({ ...span })),
+    ...referenceSpans(text, referenceLabels).map(span => ({ ...span, ref: true })),
+  ].sort((a, b) => a.start - b.start)
+  const parts = []
+  let cursor = 0
+  for (const span of spans) {
+    if (span.start < cursor) continue
+    if (span.start > cursor) parts.push({ text: text.slice(cursor, span.start) })
+    if (span.ref) parts.push({ ref: span.label, skill: skillNames.includes(span.label) })
+    else if (span.bot) parts.push({ bot: span.bot, label: text.slice(span.start + 1, span.end) })
+    cursor = span.end
+  }
+  if (cursor < text.length) parts.push({ text: text.slice(cursor) })
+  return parts
+}
+
 function UserText({ text, bots, referenceLabels, skillNames, references, actions }) {
-  return userTextParts(text, bots, referenceLabels).map((part, index) => (part.bot
-    ? h('button', { key: index, type: 'button', className: 'bt-umention', title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
-      h(BotMark, { bot: part.bot, size: 16 }), part.label)
-    : h(Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references))))
+  return richParts(text, bots, referenceLabels, skillNames).map((part, index) => {
+    if (part.bot) {
+      return h('button', { key: index, type: 'button', className: 'bt-umention', title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
+        h(BotMark, { bot: part.bot, size: 16 }), part.label)
+    }
+    if (part.ref !== undefined) {
+      const open = () => {
+        try {
+          if (part.skill) actions.openSkill?.(part.ref)
+          else references?.openFile?.(part.ref)
+        } catch { /* a host without the verb leaves the tag unopened */ }
+      }
+      return h('button', { key: index, type: 'button', className: 'bt-uref', title: `@${part.ref}`, onClick: open }, `@${part.ref}`)
+    }
+    return h(Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references))
+  })
 }
 
 // A message's images are drawn here rather than by the shell's gallery, so opening one
@@ -154,7 +186,10 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
         control ? h('div', { className: 'bt-fold-body' }, body) : body,
         control,
         rest.map((block, index) => (ui.JsonBlock ? h(ui.JsonBlock, { key: index, label: t('Content'), payload: block }) : null))) : null,
-      referenceLabels.length > 0 ? h('div', { className: 'bt-urefs' }, t('Referenced {labels}', { labels: referenceLabels.join(t(', ')) })) : null,
+      // A reference the text already shows as a tag is not listed again below it.
+      referenceLabels.length > 0 && !richParts(text, mentionableBots(roster, sessionId), referenceLabels, data.skillNames ?? []).some(part => part.ref !== undefined)
+        ? h('div', { className: 'bt-urefs' }, t('Referenced {labels}', { labels: referenceLabels.join(t(', ')) }))
+        : null,
       (sentAt || via) ? h('div', { className: 'bt-utime', title: clockLabel(data.time) }, ...(via ? [h(ViaTag, { key: 'via', via })] : []), sentAt) : null,
       // In a group the admin's reading of this message rides under it. The read is filed
       // under the group log's seq; the row knows the Session's, the moment and who spoke,
@@ -181,6 +216,8 @@ export const USER_MESSAGE_CSS = `
 .bt-ufile-name{font-size:14px;line-height:22px;font-weight:500;color:var(--bt-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-ufile-meta{font-size:12px;line-height:15px;color:var(--bt-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-urefs{font-size:13px;line-height:18px;color:var(--bt-ink-3)}
+.bt-uref{display:inline;padding:0 4px;margin:0 1px;border:0;border-radius:6px;background:color-mix(in srgb,currentColor 12%,transparent);color:inherit;font:inherit;line-height:inherit;cursor:pointer}
+.bt-uref:hover{background:color-mix(in srgb,currentColor 20%,transparent)}
 .bt-uvia{display:inline-block;margin-right:6px;padding:0 6px;border-radius:6px;background:var(--bt-hover);color:var(--bt-ink-3);font-size:11px;line-height:16px;vertical-align:1px}
 .bt-utools{display:flex;flex:none;gap:2px;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s}
 .bt-umsg:hover .bt-utools,.bt-umsg:focus-within .bt-utools{opacity:1;visibility:visible}

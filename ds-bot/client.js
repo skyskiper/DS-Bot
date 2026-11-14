@@ -26351,13 +26351,45 @@ function userTextParts(text, bots, referenceLabels = []) {
   if (cursor < text.length) parts.push({ text: text.slice(cursor) });
   return parts;
 }
+function richParts(text, bots, referenceLabels = [], skillNames = []) {
+  const spans = [
+    ...mentionSpans(text, bots, { references: referenceLabels }).map((span) => ({ ...span })),
+    ...referenceSpans(text, referenceLabels).map((span) => ({ ...span, ref: true }))
+  ].sort((a, b) => a.start - b.start);
+  const parts = [];
+  let cursor = 0;
+  for (const span of spans) {
+    if (span.start < cursor) continue;
+    if (span.start > cursor) parts.push({ text: text.slice(cursor, span.start) });
+    if (span.ref) parts.push({ ref: span.label, skill: skillNames.includes(span.label) });
+    else if (span.bot) parts.push({ bot: span.bot, label: text.slice(span.start + 1, span.end) });
+    cursor = span.end;
+  }
+  if (cursor < text.length) parts.push({ text: text.slice(cursor) });
+  return parts;
+}
 function UserText({ text, bots, referenceLabels, skillNames, references, actions }) {
-  return userTextParts(text, bots, referenceLabels).map((part, index) => part.bot ? (0, import_react34.createElement)(
-    "button",
-    { key: index, type: "button", className: "bt-umention", title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
-    (0, import_react34.createElement)(BotMark, { bot: part.bot, size: 16 }),
-    part.label
-  ) : (0, import_react34.createElement)(import_react34.Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references)));
+  return richParts(text, bots, referenceLabels, skillNames).map((part, index) => {
+    if (part.bot) {
+      return (0, import_react34.createElement)(
+        "button",
+        { key: index, type: "button", className: "bt-umention", title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
+        (0, import_react34.createElement)(BotMark, { bot: part.bot, size: 16 }),
+        part.label
+      );
+    }
+    if (part.ref !== void 0) {
+      const open = () => {
+        try {
+          if (part.skill) actions.openSkill?.(part.ref);
+          else references?.openFile?.(part.ref);
+        } catch {
+        }
+      };
+      return (0, import_react34.createElement)("button", { key: index, type: "button", className: "bt-uref", title: `@${part.ref}`, onClick: open }, `@${part.ref}`);
+    }
+    return (0, import_react34.createElement)(import_react34.Fragment, { key: index }, userText(part.text, referenceLabels, skillNames, references));
+  });
 }
 function Attachments({ attachments, sessionId, seq, actions, renderMessageImages }) {
   const images = attachments.filter((block) => block.type === "image");
@@ -26441,7 +26473,8 @@ function UserMessageCell({ node, sessionId, useRoster, actions, renderMessageIma
         control,
         rest.map((block, index) => ui.JsonBlock ? (0, import_react34.createElement)(ui.JsonBlock, { key: index, label: t("Content"), payload: block }) : null)
       ) : null,
-      referenceLabels.length > 0 ? (0, import_react34.createElement)("div", { className: "bt-urefs" }, t("Referenced {labels}", { labels: referenceLabels.join(t(", ")) })) : null,
+      // A reference the text already shows as a tag is not listed again below it.
+      referenceLabels.length > 0 && !richParts(text, mentionableBots(roster, sessionId), referenceLabels, data.skillNames ?? []).some((part) => part.ref !== void 0) ? (0, import_react34.createElement)("div", { className: "bt-urefs" }, t("Referenced {labels}", { labels: referenceLabels.join(t(", ")) })) : null,
       sentAt || via ? (0, import_react34.createElement)("div", { className: "bt-utime", title: clockLabel(data.time) }, ...via ? [(0, import_react34.createElement)(ViaTag, { key: "via", via })] : [], sentAt) : null,
       // In a group the admin's reading of this message rides under it. The read is filed
       // under the group log's seq; the row knows the Session's, the moment and who spoke,
@@ -26467,6 +26500,8 @@ var USER_MESSAGE_CSS = `
 .bt-ufile-name{font-size:14px;line-height:22px;font-weight:500;color:var(--bt-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-ufile-meta{font-size:12px;line-height:15px;color:var(--bt-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-urefs{font-size:13px;line-height:18px;color:var(--bt-ink-3)}
+.bt-uref{display:inline;padding:0 4px;margin:0 1px;border:0;border-radius:6px;background:color-mix(in srgb,currentColor 12%,transparent);color:inherit;font:inherit;line-height:inherit;cursor:pointer}
+.bt-uref:hover{background:color-mix(in srgb,currentColor 20%,transparent)}
 .bt-uvia{display:inline-block;margin-right:6px;padding:0 6px;border-radius:6px;background:var(--bt-hover);color:var(--bt-ink-3);font-size:11px;line-height:16px;vertical-align:1px}
 .bt-utools{display:flex;flex:none;gap:2px;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s}
 .bt-umsg:hover .bt-utools,.bt-umsg:focus-within .bt-utools{opacity:1;visibility:visible}
