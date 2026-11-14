@@ -26308,8 +26308,21 @@ var viaOf = (source) => typeof source?.rpcId === "string" && source.rpcId.starts
 // src/client/user-message.js
 var import_react34 = require("react");
 var ui = __toESM(require("@deepseek-ai/dsh-client-ui-primitives"), 1);
-var TEXT_LABELS = { code: { copyLabel: t("Copy"), copiedLabel: t("Copied") }, footnotes: t("Footnotes") };
-var userText = (text, referenceLabels, skillNames, references) => typeof ui.projectUserText === "function" ? ui.projectUserText(text, referenceLabels, skillNames, "skill", references) : (0, import_react34.createElement)(import_dsh_client_ui_primitives.MarkdownText, { text, labels: TEXT_LABELS });
+var URL_RUN = /(https?:\/\/[^\s<>"']+)/g;
+var runsOf = (text) => {
+  const runs = [];
+  let last = 0;
+  for (const match of text.matchAll(URL_RUN)) {
+    if (match.index > last) runs.push({ text: text.slice(last, match.index) });
+    runs.push({ url: match[0] });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) runs.push({ text: text.slice(last) });
+  return runs;
+};
+var textRuns = (text) => runsOf(text);
+var plainRuns = (text) => runsOf(text).map((run2, index) => run2.url === void 0 ? (0, import_react34.createElement)(import_react34.Fragment, { key: index }, run2.text) : (0, import_react34.createElement)("a", { key: index, href: run2.url, target: "_blank", rel: "noreferrer" }, run2.url));
+var userText = (text, referenceLabels, skillNames, references) => typeof ui.projectUserText === "function" ? ui.projectUserText(text, referenceLabels, skillNames, "skill", references) : plainRuns(text);
 function contentParts(content) {
   const texts2 = [];
   const attachments = [];

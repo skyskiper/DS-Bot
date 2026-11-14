@@ -1,5 +1,4 @@
 import { createElement as h, Fragment, useEffect, useRef, useState } from 'react'
-import { MarkdownText } from './dsh-primitives.js'
 import { imageClickHandler, MessageImages } from './image-viewer.js'
 import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import { imPlatform } from '../shared/im-platforms.js'
@@ -18,13 +17,28 @@ import { useFold } from './fold.js'
 // are cut out first, by the rule the group host calls them with; DSH's own drawing
 // keeps everything else (files, conversation references, skills).
 
-// DS Bot draws the user's own bubble: DSH's text projection, where the release has one,
-// and its Markdown renderer where it does not — the row is ours so the annotation under
-// it has somewhere to go.
-const TEXT_LABELS = { code: { copyLabel: t('Copy'), copiedLabel: t('Copied') }, footnotes: t('Footnotes') }
+// DS Bot draws the user's own bubble. What the user typed is plain text, not a document:
+// `**x**` stays `**x**`. What is kept is a link that opens and the line breaks they wrote;
+// nothing else is interpreted.
+const URL_RUN = /(https?:\/\/[^\s<>"']+)/g
+const runsOf = (text) => {
+  const runs = []
+  let last = 0
+  for (const match of text.matchAll(URL_RUN)) {
+    if (match.index > last) runs.push({ text: text.slice(last, match.index) })
+    runs.push({ url: match[0] })
+    last = match.index + match[0].length
+  }
+  if (last < text.length) runs.push({ text: text.slice(last) })
+  return runs
+}
+export const textRuns = text => runsOf(text)
+const plainRuns = text => runsOf(text).map((run, index) => (run.url === undefined
+  ? h(Fragment, { key: index }, run.text)
+  : h('a', { key: index, href: run.url, target: '_blank', rel: 'noreferrer' }, run.url)))
 const userText = (text, referenceLabels, skillNames, references) => (typeof ui.projectUserText === 'function'
   ? ui.projectUserText(text, referenceLabels, skillNames, 'skill', references)
-  : h(MarkdownText, { text, labels: TEXT_LABELS }))
+  : plainRuns(text))
 
 export function contentParts(content) {
   const texts = []

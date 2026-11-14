@@ -100,3 +100,9 @@ test('a group log line of a Bot named like the user never reads as the user', ()
   assert.equal(speakerOf({ who: 'you', botId: 'b', text: 'hi' }), 'Bot "you"')
   assert.equal(speakerOf({ who: 'Writer', botId: 'b', text: 'hi' }), 'Writer')
 })
+
+test('the user text keeps what was typed: stars stay, line breaks stay, and a link opens', () => {
+  const runs = module.exports.textRuns('**x** 见 https://a.dev/b 好')
+  assert.deepEqual(plain(runs), [{ text: '**x** 见 ' }, { url: 'https://a.dev/b' }, { text: ' 好' }])
+  assert.deepEqual(plain(module.exports.textRuns('没有链接\n两行')), [{ text: '没有链接\n两行' }])
+})
