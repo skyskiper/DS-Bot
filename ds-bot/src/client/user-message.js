@@ -136,12 +136,14 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
         rest.map((block, index) => (ui.JsonBlock ? h(ui.JsonBlock, { key: index, label: t('Content'), payload: block }) : null))) : null,
       referenceLabels.length > 0 ? h('div', { className: 'bt-urefs' }, t('Referenced {labels}', { labels: referenceLabels.join(t(', ')) })) : null,
       (sentAt || via) ? h('div', { className: 'bt-utime', title: clockLabel(data.time) }, ...(via ? [h(ViaTag, { key: 'via', via })] : []), sentAt) : null,
-      // In a group the admin's reading of this message rides under it, by the Session's seq.
-      roster.roomsById[sessionId] !== undefined ? h(Annotated, { roomId: sessionId, sessionSeq: data.seq, align: 'end' }) : null),
+      // In a group the admin's reading of this message rides under it. The read is filed
+      // under the group log's seq; the row knows the Session's, the moment and who spoke,
+      // so it finds the line even when the two numbers do not meet.
+      h(Annotated, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: 'User', align: 'end' })),
     text === '' ? null : h('div', { className: 'bt-utools', 'data-open': toolsOpen || undefined }, h(CopyButton, { text })))
   // A task picked in this group shows only its own messages; the rest wait until it is
   // let go, so the same page can read one thread at a time.
-  return roster.roomsById[sessionId] === undefined ? cell : h(Filtered, { roomId: sessionId, sessionSeq: data.seq }, cell)
+  return h(Filtered, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: 'User' }, cell)
 }
 
 export const USER_MESSAGE_CSS = `

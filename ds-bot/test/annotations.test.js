@@ -130,3 +130,17 @@ test('a read under no message is dropped, and a seq that is no message is refuse
   assert.equal(rt.dropStrayReads('r1'), true)
   assert.deepEqual(Object.keys(room().reads), ['1'])
 })
+
+test('reopen and why travel inside the task, and a reopened task keeps its history', async (t) => {
+  const { tool, room, stop } = await start()
+  t.after(stop)
+  await tool('annotate', { seq: 1, task: { num: 1, name: 'ship it', status: 'in_progress' } })
+  await tool('annotate', { seq: 2, task: { num: 1, status: 'completed', result: { ok: true, summary: 'shipped' } } })
+  const refused = await tool('annotate', { seq: 2, task: { num: 1, status: 'in_progress' } })
+  assert.match(String(refused), /reopen it first/)
+  const reopened = await tool('annotate', { seq: 2, task: { num: 1, status: 'in_progress', reopen: true, why: 'the user still sees no line under their message' } })
+  assert.match(String(reopened), /in_progress/)
+  assert.equal(projectTasks(room()).find(entry => entry.num === 1).status, 'in_progress')
+  assert.equal(room().reads['2'].why, 'the user still sees no line under their message')
+  assert.equal(room().reads['2'].task.reopen, undefined, 'how to write it is not part of the task')
+})

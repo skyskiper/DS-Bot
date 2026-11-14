@@ -368,7 +368,15 @@ export function install(rt) {
           if (room === undefined) return ok(null)
           rt.dropStrayReads?.(room.id)
           await rt.indexReadLines?.(room.id)
-          return ok({ reads: room.reads ?? {}, index: room.readsIndex ?? {} })
+          // Who said what and when, for the rows a client cannot name by a number: the
+          // page falls back to the closest line when a row carries no seq it can match.
+          const log = room.log ?? []
+          const lines = {}
+          for (const seq of Object.keys(room.reads ?? {})) {
+            const line = log.find(entry => entry.seq === Number(seq))
+            if (line !== undefined) lines[seq] = { who: line.who, time: line.time }
+          }
+          return ok({ reads: room.reads ?? {}, index: room.readsIndex ?? {}, lines })
         }
         case 'create-bot': {
           await rt.bootstrap()

@@ -350,7 +350,8 @@ Web Animations / `setInterval` 采样在 Electron **隐藏窗口**下被 Chromiu
   - 过滤条文案逐字：`过滤中：#N 任务名 · M 条消息 ｜ 退出过滤 ×`（全角冒号与 `｜`，退出按钮同一行），文案在 i18n 的 `'Filtered: {task} · {count} messages'`。
   - 过滤状态存在 `annotations-ui.js`（`setTaskFilter`/`useTaskFilter`），消息行用 `Filtered` 包住：选中某任务时只留该任务的注解消息，无归属消息一律不显示；chip 与右栏行同时高亮。
   - 注意：DSH 没有「右栏」可注入的 slot（只有 `shell.overlay`），所以这里是贴右边固定定位的面板，不是真右栏；以后 DSH 提供右栏 slot 再迁。
-- 四检：`npm run build` ok、`build-client --check` CLIENT_OK、`npm run lint` 80 warnings 0 errors、`npm test` 2305 中 2301 pass / 1 基线红（`computer.test.js` 的 provider mounts，因为本机有 computer-use helper 路径）/ 3 skipped。A4/A6 需在测试 App（有 CDP）上数 DOM，真 App 只做只读截图。
+- 用户消息下的注解行：`UserMessageCell` 里挂 `Annotated`，取数三级回退——`roomSeq`（轮内行自带）→ `readsIndex[会话 seq]` → `room-reads` 新下发的 `lines`（每条 read 对应的 who/time）里取「同一发言人、时间最近（≤2 秒）」的一条。所以某一行即使拿不到能对上的 seq，也能找到自己的注解。`Filtered` 用同一套回退。
+- 四检：`npm run build` ok、`build-client --check` CLIENT_OK、`npm run lint` 80 warnings 0 errors、`npm test` 2306 中 2302 pass / 1 基线红（`computer.test.js` 的 provider mounts，因为本机有 computer-use helper 路径）/ 3 skipped。A4/A6 需在测试 App（有 CDP）上数 DOM，真 App 只做只读截图。
 
 ## 硬规则（违反会被打回）
 

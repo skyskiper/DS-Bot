@@ -101,6 +101,7 @@ const taskOf = (input) => {
     result = { ok, summary }
   }
   if (status === 'completed' && result === undefined) return { error: 'A completed task says what came of it: give result {ok, summary}.' }
+  const why = typeof input.why === 'string' && input.why.trim() !== '' ? input.why.trim().slice(0, 200) : undefined
   return {
     task: {
       num,
@@ -110,6 +111,8 @@ const taskOf = (input) => {
       ...(say === undefined ? {} : { say }),
       ...(result === undefined ? {} : { result }),
     },
+    ...(why === undefined ? {} : { why }),
+    reopen: input.reopen === true,
   }
 }
 
@@ -148,6 +151,9 @@ export function install(rt) {
     dropStrayReads(room)
     const parsed = taskOf(task)
     if (parsed?.error !== undefined) return parsed
+    // `reopen` is a fact about this write, not about the task: the task object may carry
+    // it next to a why, and the tool's own argument keeps working for callers that use it.
+    const reopened = reopen === true || parsed?.reopen === true
     const reads = readsOf(room)
     const key = String(seq)
     const at = Date.now()
@@ -157,7 +163,7 @@ export function install(rt) {
       const current = projectTasks(room).find(entry => entry.num === next.num)
       // A finished task stays finished: only an explicit reopen moves it back, so a later
       // annotation cannot quietly undo a delivered result.
-      if (current?.status === 'completed' && next.status !== 'completed' && reopen !== true) {
+      if (current?.status === 'completed' && next.status !== 'completed' && !reopened) {
         return { error: `Task #${next.num} is completed; reopen it first (reopen: true).` }
       }
     }
@@ -165,6 +171,7 @@ export function install(rt) {
       ...(previous ?? {}),
       ...(typeof think === 'string' && think.trim() !== '' ? { think: think.trim() } : {}),
       ...(next === undefined ? {} : { task: { ...(previous?.task ?? {}), ...next } }),
+      ...(parsed?.why === undefined ? {} : { why: parsed.why }),
       by,
       at,
     }
@@ -206,7 +213,7 @@ export function install(rt) {
       think: { type: 'string', description: 'One line: what you make of the message and what you will do about it' },
       task: {
         type: 'object',
-        description: 'The task it belongs to: {num, name?, status?, progress?, say?, result?}. Only a status moves the task list',
+        description: 'The task it belongs to: {num, name?, status?, progress?, say?, result?, reopen?, why?}. Only a status moves the task list',
         properties: {
           num: { type: 'number', description: 'The task number' },
           name: { type: 'string', description: 'What the task is called, in two to six words; the list and the label show it' },
@@ -214,6 +221,8 @@ export function install(rt) {
           progress: { type: 'string', description: 'Where it stands, in one line' },
           say: { type: 'string', description: 'What you are about to do about it' },
           result: { type: 'object', description: 'Only for completed: {ok: true|false, summary: one line}', properties: { ok: { type: 'boolean' }, summary: { type: 'string' } }, additionalProperties: false },
+          reopen: { type: 'boolean', description: 'Move a completed task back to work; may sit here instead of beside seq' },
+          why: { type: 'string', description: 'Why the state changed, in one line; kept with the annotation' },
         },
         additionalProperties: false,
       },
@@ -243,7 +252,7 @@ export function install(rt) {
       group: { type: 'string', description: 'Exact group chat name; leave it out when calling from that group\'s own Session' },
       text: { type: 'string', required: true, description: 'What to say in the group' },
       think: { type: 'string', description: 'One line of reasoning, shown under the message' },
-      task: { type: 'object', description: 'The task this message belongs to: {num, name?, status?, progress?, say?, result?}', properties: { num: { type: 'number' }, name: { type: 'string' }, status: { type: 'string', enum: TASK_STATES }, progress: { type: 'string' }, say: { type: 'string' }, result: { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' } }, additionalProperties: false } }, additionalProperties: false },
+      task: { type: 'object', description: 'The task this message belongs to: {num, name?, status?, progress?, say?, result?, reopen?, why?}', properties: { num: { type: 'number' }, name: { type: 'string' }, status: { type: 'string', enum: TASK_STATES }, progress: { type: 'string' }, say: { type: 'string' }, result: { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' } }, additionalProperties: false }, reopen: { type: 'boolean', description: 'Move a completed task back to work' }, why: { type: 'string', description: 'Why the state changed, in one line' } }, additionalProperties: false },
       reopen: { type: 'boolean', description: 'Move a completed task back to work' },
     },
     output,

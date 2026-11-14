@@ -69,11 +69,26 @@ export const useRoomReads = (roomId) => {
   return roomId === undefined ? undefined : known.get(roomId)
 }
 
+// The closest line the speaker said at that moment, for a row whose number the page
+// cannot match: two numbers name one message, and a row may carry neither.
+const nearest = (view, at, who) => {
+  if (!Number.isFinite(at)) return undefined
+  let best
+  let gap = 2000
+  for (const [seq, line] of Object.entries(view.lines ?? {})) {
+    if (!Number.isFinite(line?.time)) continue
+    if (who !== undefined && line.who !== who) continue
+    const gone = Math.abs(line.time - at)
+    if (gone < gap) { gap = gone; best = seq }
+  }
+  return best
+}
+
 // The annotation under one message, from the number that message's row carries.
-export const useAnnotation = (roomId, sessionSeq, roomSeq) => {
+export const useAnnotation = (roomId, { sessionSeq, roomSeq, at, who } = {}) => {
   const view = useRoomReads(roomId)
   if (view === undefined) return undefined
-  const seq = roomSeq !== undefined ? roomSeq : view.index?.[sessionSeq]
+  const seq = roomSeq ?? view.index?.[sessionSeq] ?? nearest(view, at, who)
   return seq === undefined ? undefined : view.reads?.[seq]
 }
 
@@ -101,8 +116,8 @@ export function AnnotationLine({ read, align }) {
 
 // A row that must not draw until its group's reads are in: the line under a message is
 // part of the message, and a late one would push the chat down under the reader.
-export const Annotated = ({ roomId, sessionSeq, roomSeq, align }) => {
-  const read = useAnnotation(roomId, sessionSeq, roomSeq)
+export const Annotated = ({ roomId, sessionSeq, roomSeq, at, who, align }) => {
+  const read = useAnnotation(roomId, { sessionSeq, roomSeq, at, who })
   return h(AnnotationLine, { read, align })
 }
 
@@ -137,9 +152,9 @@ export const useTaskFilter = (roomId) => {
 
 // While a task is chosen, only its messages show; a message in no task belongs to none of
 // them and is left out, as the filter says.
-export const Filtered = ({ roomId, sessionSeq, roomSeq, children }) => {
+export const Filtered = ({ roomId, sessionSeq, roomSeq, at, who, children }) => {
   const num = useTaskFilter(roomId)
-  const read = useAnnotation(roomId, sessionSeq, roomSeq)
+  const read = useAnnotation(roomId, { sessionSeq, roomSeq, at, who })
   if (num !== undefined && read?.task?.num !== num) return null
   return children
 }

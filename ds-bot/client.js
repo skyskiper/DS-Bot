@@ -25484,10 +25484,25 @@ var useRoomReads = (roomId) => {
   }, [roomId]);
   return roomId === void 0 ? void 0 : known.get(roomId);
 };
-var useAnnotation = (roomId, sessionSeq, roomSeq) => {
+var nearest = (view, at, who) => {
+  if (!Number.isFinite(at)) return void 0;
+  let best;
+  let gap = 2e3;
+  for (const [seq, line] of Object.entries(view.lines ?? {})) {
+    if (!Number.isFinite(line?.time)) continue;
+    if (who !== void 0 && line.who !== who) continue;
+    const gone = Math.abs(line.time - at);
+    if (gone < gap) {
+      gap = gone;
+      best = seq;
+    }
+  }
+  return best;
+};
+var useAnnotation = (roomId, { sessionSeq, roomSeq, at, who } = {}) => {
   const view = useRoomReads(roomId);
   if (view === void 0) return void 0;
-  const seq = roomSeq !== void 0 ? roomSeq : view.index?.[sessionSeq];
+  const seq = roomSeq ?? view.index?.[sessionSeq] ?? nearest(view, at, who);
   return seq === void 0 ? void 0 : view.reads?.[seq];
 };
 var words = (line) => {
@@ -25512,8 +25527,8 @@ function AnnotationLine({ read, align }) {
     think === void 0 ? null : (0, import_react30.createElement)("span", { className: "bt-anno-think" }, think)
   );
 }
-var Annotated = ({ roomId, sessionSeq, roomSeq, align }) => {
-  const read = useAnnotation(roomId, sessionSeq, roomSeq);
+var Annotated = ({ roomId, sessionSeq, roomSeq, at, who, align }) => {
+  const read = useAnnotation(roomId, { sessionSeq, roomSeq, at, who });
   return (0, import_react30.createElement)(AnnotationLine, { read, align });
 };
 var chosen = /* @__PURE__ */ new Map();
@@ -25542,9 +25557,9 @@ var useTaskFilter = (roomId) => {
   }, [roomId]);
   return taskFilter(roomId);
 };
-var Filtered = ({ roomId, sessionSeq, roomSeq, children }) => {
+var Filtered = ({ roomId, sessionSeq, roomSeq, at, who, children }) => {
   const num2 = useTaskFilter(roomId);
-  const read = useAnnotation(roomId, sessionSeq, roomSeq);
+  const read = useAnnotation(roomId, { sessionSeq, roomSeq, at, who });
   if (num2 !== void 0 && read?.task?.num !== num2) return null;
   return children;
 };
@@ -26414,12 +26429,14 @@ function UserMessageCell({ node, sessionId, useRoster, actions, renderMessageIma
       ) : null,
       referenceLabels.length > 0 ? (0, import_react34.createElement)("div", { className: "bt-urefs" }, t("Referenced {labels}", { labels: referenceLabels.join(t(", ")) })) : null,
       sentAt || via ? (0, import_react34.createElement)("div", { className: "bt-utime", title: clockLabel(data.time) }, ...via ? [(0, import_react34.createElement)(ViaTag, { key: "via", via })] : [], sentAt) : null,
-      // In a group the admin's reading of this message rides under it, by the Session's seq.
-      roster.roomsById[sessionId] !== void 0 ? (0, import_react34.createElement)(Annotated, { roomId: sessionId, sessionSeq: data.seq, align: "end" }) : null
+      // In a group the admin's reading of this message rides under it. The read is filed
+      // under the group log's seq; the row knows the Session's, the moment and who spoke,
+      // so it finds the line even when the two numbers do not meet.
+      (0, import_react34.createElement)(Annotated, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: "User", align: "end" })
     ),
     text === "" ? null : (0, import_react34.createElement)("div", { className: "bt-utools", "data-open": toolsOpen || void 0 }, (0, import_react34.createElement)(CopyButton, { text }))
   );
-  return roster.roomsById[sessionId] === void 0 ? cell : (0, import_react34.createElement)(Filtered, { roomId: sessionId, sessionSeq: data.seq }, cell);
+  return (0, import_react34.createElement)(Filtered, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: "User" }, cell);
 }
 var USER_MESSAGE_CSS = `
 .bt-umsg{display:flex;flex-direction:row-reverse;align-items:center;justify-content:flex-start;gap:4px}
@@ -27149,7 +27166,7 @@ function TriggerCell({ node, sessionId, useRoster, useSessions, useTurnClock, us
         const poster = roster.byId[source.senderSessionId] ?? { id: source.senderSessionId, name: source.senderName ?? t("a Bot"), color: "gray" };
         const file = source.length === void 0 ? void 0 : (data.content ?? []).find((block) => block?.type === "file")?.attachment;
         const text = stripHeader(contentText(data.content));
-        return (0, import_react35.createElement)(Filtered, { roomId: sessionId, sessionSeq: data.seq }, (0, import_react35.createElement)(GroupMessage, {
+        return (0, import_react35.createElement)(Filtered, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: source.senderName }, (0, import_react35.createElement)(GroupMessage, {
           bot: poster,
           text: file ? stripLongNote(text) : text,
           room: room2,
@@ -27159,7 +27176,7 @@ function TriggerCell({ node, sessionId, useRoster, useSessions, useTurnClock, us
           useUi,
           time: data.time,
           whole: file ? { length: source.length, load: () => actions.fileText(file) } : void 0,
-          annotation: (0, import_react35.createElement)(Annotated, { roomId: sessionId, sessionSeq: data.seq })
+          annotation: (0, import_react35.createElement)(Annotated, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: source.senderName })
         }));
       }
       if (source.role === "report") {
@@ -27600,13 +27617,13 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
       if (reply.kind === "user") {
         return (0, import_react35.createElement)(
           Filtered,
-          { key: `user-${index}`, roomId: sessionId, roomSeq: reply.seq },
+          { key: `user-${index}`, roomId: sessionId, roomSeq: reply.seq, at: time, who: "User" },
           (0, import_react35.createElement)(
             "div",
             { className: "bt-urow" },
             (0, import_react35.createElement)("div", { className: "bt-ububble" }, (0, import_react35.createElement)(import_dsh_client_ui_primitives.MarkdownText, { text: reply.text, labels: mdLabels3(), variant: "compact" })),
             reply.via !== void 0 || Number.isFinite(time) ? (0, import_react35.createElement)("div", { className: "bt-utime", title: clockLabel(time) }, ...reply.via !== void 0 ? [(0, import_react35.createElement)(ViaTag, { key: "via", via: reply.via })] : [], Number.isFinite(time) ? messageClock(time) : null) : null,
-            (0, import_react35.createElement)(Annotated, { roomId: sessionId, roomSeq: reply.seq, align: "end" })
+            (0, import_react35.createElement)(Annotated, { roomId: sessionId, roomSeq: reply.seq, at: time, who: "User", align: "end" })
           )
         );
       }
@@ -27625,7 +27642,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
           goalEventText(reply)
         );
       }
-      return (0, import_react35.createElement)(Filtered, { key: `${reply.botId}-${index}`, roomId: sessionId, roomSeq: reply.seq }, (0, import_react35.createElement)(GroupMessage, {
+      return (0, import_react35.createElement)(Filtered, { key: `${reply.botId}-${index}`, roomId: sessionId, roomSeq: reply.seq, at: time, who: bot.name }, (0, import_react35.createElement)(GroupMessage, {
         bot,
         texts: texts2,
         room: room2,
@@ -27635,7 +27652,7 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
         useUi,
         time,
         duration,
-        annotation: (0, import_react35.createElement)(Annotated, { roomId: sessionId, roomSeq: reply.seq })
+        annotation: (0, import_react35.createElement)(Annotated, { roomId: sessionId, roomSeq: reply.seq, at: time, who: bot.name })
       }));
     }),
     pending2.map((id, at) => {

@@ -725,10 +725,10 @@ export function TriggerCell({ node, sessionId, useRoster, useSessions, useTurnCl
         const file = source.length === undefined ? undefined : (data.content ?? []).find(block => block?.type === 'file')?.attachment
         const text = stripHeader(contentText(data.content))
         // A trigger's data carries no turn; its event seq is the one durable name of this post.
-        return h(Filtered, { roomId: sessionId, sessionSeq: data.seq }, h(GroupMessage, {
+        return h(Filtered, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: source.senderName }, h(GroupMessage, {
           bot: poster, text: file ? stripLongNote(text) : text, room, roster, actions, msgKey: `${sessionId}:post:${data.seq ?? node.key}`, useUi, time: data.time,
           whole: file ? { length: source.length, load: () => actions.fileText(file) } : undefined,
-          annotation: h(Annotated, { roomId: sessionId, sessionSeq: data.seq }),
+          annotation: h(Annotated, { roomId: sessionId, sessionSeq: data.seq, at: data.time, who: source.senderName }),
         }))
       }
       if (source.role === 'report') {
@@ -1179,11 +1179,11 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
     stackReplies(replies).map(({ reply, index, texts, time, duration }) => {
       const bot = roster.byId[reply.botId] ?? { id: reply.botId, name: reply.name, color: reply.color ?? 'gray' }
       if (reply.kind === 'user') {
-        return h(Filtered, { key: `user-${index}`, roomId: sessionId, roomSeq: reply.seq },
+        return h(Filtered, { key: `user-${index}`, roomId: sessionId, roomSeq: reply.seq, at: time, who: 'User' },
           h('div', { className: 'bt-urow' },
             h('div', { className: 'bt-ububble' }, h(MarkdownText, { text: reply.text, labels: mdLabels(), variant: 'compact' })),
             (reply.via !== undefined || Number.isFinite(time)) ? h('div', { className: 'bt-utime', title: clockLabel(time) }, ...(reply.via !== undefined ? [h(ViaTag, { key: 'via', via: reply.via })] : []), Number.isFinite(time) ? messageClock(time) : null) : null,
-            h(Annotated, { roomId: sessionId, roomSeq: reply.seq, align: 'end' })))
+            h(Annotated, { roomId: sessionId, roomSeq: reply.seq, at: time, who: 'User', align: 'end' })))
       }
       if (reply.kind === 'card') {
         // A finished round is read back: its card never offers an answer the host no
@@ -1199,9 +1199,9 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
         return h('div', { key: `goal-${index}`, className: 'bt-event', title: reply.text || undefined },
           h('span', { className: 'bt-event-ico', 'aria-hidden': true }, h(GoalIcon)), goalEventText(reply))
       }
-      return h(Filtered, { key: `${reply.botId}-${index}`, roomId: sessionId, roomSeq: reply.seq }, h(GroupMessage, {
+      return h(Filtered, { key: `${reply.botId}-${index}`, roomId: sessionId, roomSeq: reply.seq, at: time, who: bot.name }, h(GroupMessage, {
         bot, texts, room, roster, actions, msgKey: callId ? `${sessionId}:${callId}:${index}` : undefined, useUi, time, duration,
-        annotation: h(Annotated, { roomId: sessionId, roomSeq: reply.seq }),
+        annotation: h(Annotated, { roomId: sessionId, roomSeq: reply.seq, at: time, who: bot.name }),
       }))
     }),
     pending.map((id, at) => {
