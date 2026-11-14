@@ -42269,6 +42269,9 @@ var TASKS_CSS = `
 .bt-tasks-exit{flex:none;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border:0;border-radius:6px;background:color-mix(in srgb,var(--bt-ink) 6%,transparent);color:var(--bt-ink-2);font:inherit;font-size:11px;cursor:pointer}
 .bt-tasks-exit:hover{background:color-mix(in srgb,var(--bt-ink) 10%,transparent);color:var(--bt-ink)}
 .bt-tasks-panel{position:fixed;right:8px;top:72px;bottom:112px;width:232px;z-index:6;display:flex;flex-direction:column;box-sizing:border-box;padding:8px;border-radius:12px;background:var(--bt-glass-bg);border:1px solid var(--bt-glass-rim);box-shadow:var(--bt-glass-shadow);backdrop-filter:blur(18px)}
+/* The chat yields the strip the list sits on, so a message aligned to the right edge is
+   not left underneath it. */
+body:has(.bt-tasks-panel) [data-chat-flow]{padding-right:248px}
 .bt-tasks-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--bt-ink)}
 .bt-tasks-close{width:20px;height:20px;border:0;border-radius:6px;background:none;color:var(--bt-ink-3);font:inherit;font-size:14px;line-height:20px;cursor:pointer}
 .bt-tasks-close:hover{background:var(--bt-hover);color:var(--bt-ink)}
