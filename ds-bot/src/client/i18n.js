@@ -1724,6 +1724,10 @@ const HOST_ZH = {
   'No answer recorded': '没有记录回答',
   'Needs you': '需我处理',
   'In progress': '进行中',
+  'Done': '已完成',
+  'Queued': '待排',
+  'Filtered': '过滤中',
+  '{count} messages': '{count} 条消息',
   'Items': '事项',
   'Earlier · {count} items': '更早 · {count} 个事项',
   'waits for your answer': '等你回答',
@@ -1870,6 +1874,10 @@ const FORK_COPY = {
   'waits for your answer': 'waits for your answer',
   'waits for your approval': 'waits for your approval',
   '{count} working': '{count} working',
+  'Done': 'Done',
+  'Queued': 'Queued',
+  'Filtered': 'Filtered',
+  '{count} messages': '{count} messages',
 }
 const withForkCopy = dict => { for (const [key, copy] of Object.entries(FORK_COPY)) dict[key] ??= copy; return dict }
 
