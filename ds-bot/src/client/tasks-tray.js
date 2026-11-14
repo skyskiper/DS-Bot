@@ -42,13 +42,12 @@ const chip = (task, active, onClick, key) => h('button', {
 }, taskTitle(task))
 
 // The chips above the input, and the line that says what they are filtering to.
-export function TaskDock({ sessionId, useRoster }) {
-  const roster = useRoster(value => value)
-  const room = roster.roomsById[sessionId]
-  const roomId = room === undefined ? undefined : sessionId
+export function TaskDock({ sessionId }) {
+  // A Session that is no group has no tasks, and the host answers an empty read set for
+  // it, so the dock asks every conversation and draws only where there is something.
+  const roomId = sessionId
   const view = useRoomReads(roomId)
   const chosen = useTaskFilter(roomId)
-  if (room === undefined) return null
   const list = taskList(view?.reads ?? {}, { recent: RECENT_DONE })
   if (list.live.length === 0 && chosen === undefined) return null
   const picked = chosen === undefined ? undefined : taskList(view?.reads ?? {}, { recent: 999 }).done.concat(list.live).find(task => task.num === chosen)
@@ -75,16 +74,14 @@ h('span', { className: 'bt-task-body' },
 
 // The list itself, at the right edge of the window: what is in hand, then the last few
 // finished ones, then the rest folded into one line that opens in place.
-export function TaskPanel({ useRoster, useSessions }) {
-  const roster = useRoster(value => value)
+export function TaskPanel({ useSessions }) {
   const current = useSessions(list => Object.values(list.byId).find(session => (session?.retainedBy?.mainView ?? 0) > 0)?.id ?? null)
-  const room = current === null ? undefined : roster.roomsById[current]
-  const roomId = room === undefined ? undefined : current
+  const roomId = current ?? undefined
   const view = useRoomReads(roomId)
   const chosen = useTaskFilter(roomId)
   const open = usePanelOpen(roomId)
   const [all, setAll] = useState(false)
-  if (room === undefined || !open) return null
+  if (!open) return null
   const list = taskList(view?.reads ?? {}, { recent: RECENT_DONE })
   const everyDone = taskList(view?.reads ?? {}, { recent: 999 }).done
   const shownDone = all ? everyDone : list.done

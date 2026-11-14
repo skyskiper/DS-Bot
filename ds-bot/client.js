@@ -42176,13 +42176,10 @@ var chip = (task, active, onClick, key) => (0, import_react70.createElement)("bu
   title: taskTitle(task),
   onClick
 }, taskTitle(task));
-function TaskDock({ sessionId, useRoster }) {
-  const roster = useRoster((value) => value);
-  const room2 = roster.roomsById[sessionId];
-  const roomId = room2 === void 0 ? void 0 : sessionId;
+function TaskDock({ sessionId }) {
+  const roomId = sessionId;
   const view = useRoomReads(roomId);
   const chosen2 = useTaskFilter(roomId);
-  if (room2 === void 0) return null;
   const list = taskList(view?.reads ?? {}, { recent: RECENT_DONE });
   if (list.live.length === 0 && chosen2 === void 0) return null;
   const picked = chosen2 === void 0 ? void 0 : taskList(view?.reads ?? {}, { recent: 999 }).done.concat(list.live).find((task) => task.num === chosen2);
@@ -42226,16 +42223,14 @@ var row = (task, active, onPick, key) => (0, import_react70.createElement)(
     (0, import_react70.createElement)("span", { className: "bt-task-note" }, [task.progress && task.name ? task.progress : void 0, task.say].filter(Boolean).join(" · ") || t("Queued"))
   )
 );
-function TaskPanel({ useRoster, useSessions }) {
-  const roster = useRoster((value) => value);
+function TaskPanel({ useSessions }) {
   const current = useSessions((list2) => Object.values(list2.byId).find((session) => (session?.retainedBy?.mainView ?? 0) > 0)?.id ?? null);
-  const room2 = current === null ? void 0 : roster.roomsById[current];
-  const roomId = room2 === void 0 ? void 0 : current;
+  const roomId = current ?? void 0;
   const view = useRoomReads(roomId);
   const chosen2 = useTaskFilter(roomId);
   const open = usePanelOpen(roomId);
   const [all, setAll] = (0, import_react70.useState)(false);
-  if (room2 === void 0 || !open) return null;
+  if (!open) return null;
   const list = taskList(view?.reads ?? {}, { recent: RECENT_DONE });
   const everyDone = taskList(view?.reads ?? {}, { recent: 999 }).done;
   const shownDone = all ? everyDone : list.done;
