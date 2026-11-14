@@ -7,7 +7,7 @@ import { BotMark } from './mark.js'
 import { CheckIcon, CopyIcon } from './icons.js'
 import { dateLocale, t } from './i18n.js'
 import { noHover } from './motion.js'
-import { Annotated } from './annotations-ui.js'
+import { Annotated, Filtered } from './annotations-ui.js'
 import { clockLabel, messageClock } from './text.js'
 import { useFold } from './fold.js'
 
@@ -127,7 +127,7 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
     if (!noHover() || event.target instanceof Element && event.target.closest('a,button,input,textarea,select,pre,code,[role=button],[role=link]')) return
     setToolsOpen(value => !value)
   }
-  return h('div', { ref: row, className: 'bt-umsg', 'data-steering': steering || undefined, onClickCapture: imageClickHandler(actions) },
+  const cell = h('div', { ref: row, className: 'bt-umsg', 'data-steering': steering || undefined, onClickCapture: imageClickHandler(actions) },
     h('div', { className: 'bt-ustack' },
       attachments.length > 0 ? h(Attachments, { attachments, sessionId, seq: data.seq, actions, renderMessageImages }) : null,
       text !== '' || rest.length > 0 ? h('div', { className: 'bt-ubody', title: clock(data.time), 'data-folded': folded || undefined, onClick: tapTools },
@@ -139,6 +139,9 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
       // In a group the admin's reading of this message rides under it, by the Session's seq.
       roster.roomsById[sessionId] !== undefined ? h(Annotated, { roomId: sessionId, sessionSeq: data.seq, align: 'end' }) : null),
     text === '' ? null : h('div', { className: 'bt-utools', 'data-open': toolsOpen || undefined }, h(CopyButton, { text })))
+  // A task picked in this group shows only its own messages; the rest wait until it is
+  // let go, so the same page can read one thread at a time.
+  return roster.roomsById[sessionId] === undefined ? cell : h(Filtered, { roomId: sessionId, sessionSeq: data.seq }, cell)
 }
 
 export const USER_MESSAGE_CSS = `

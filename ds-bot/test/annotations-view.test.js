@@ -50,3 +50,11 @@ test('a filter keeps only the messages of that task, and hides what belongs to n
   assert.equal(view.keeps(reads[11], 1), false, 'a message in no task belongs to no selection')
   assert.match(view.filterLabel({ num: 1, progress: 'drafting' }, 3), /#1 drafting/)
 })
+
+test('a task with a name shows it beside the number, and one without falls back to the number', () => {
+  assert.equal(view.taskTitle({ num: 4, name: '补话题动效' }), '#4 补话题动效')
+  assert.equal(view.taskTitle({ num: 4 }), '#4')
+  assert.equal(view.taskTitle({ num: 4, name: '' }), '#4')
+  assert.equal(view.taskTitle(undefined), '')
+  assert.equal(view.annotationLine({ task: { num: 2, name: '右栏任务列表', status: 'in_progress' } }).name, '右栏任务列表')
+})

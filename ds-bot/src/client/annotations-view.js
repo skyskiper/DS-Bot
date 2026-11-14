@@ -41,13 +41,18 @@ export const annotationLine = (read) => {
   if (think === '' && task === undefined) return undefined
   return {
     ...(think === '' ? {} : { think }),
-    ...(task === undefined || task.num === undefined ? {} : { num: task.num, status: task.status, progress: task.progress, say: task.say }),
+    ...(task === undefined || task.num === undefined ? {} : { num: task.num, name: task.name, status: task.status, progress: task.progress, say: task.say }),
   }
 }
 
 // A filter keeps the messages whose annotation names that task; a message in no task is
 // hidden while a task is selected, because it belongs to none of them.
 export const keeps = (read, num) => (num === undefined ? true : read?.task?.num === num)
+
+// `#4 补话题动效` — the number always, the name when the admin gave one.
+export const taskTitle = (task) => (task === undefined || task.num === undefined
+  ? ''
+  : typeof task.name === 'string' && task.name !== '' ? `#${task.num} ${task.name}` : `#${task.num}`)
 
 export const filterLabel = (task, count) => (task === undefined
   ? ''

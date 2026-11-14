@@ -41,6 +41,7 @@ import { GROUP_SETTINGS_CSS } from './group-settings.js'
 import { SESSION_MAP_CSS } from './session-map.js'
 import { TEAM_DRAWER_CSS } from './team-drawer.js'
 import { IMAGE_VIEWER_CSS, viewerFor } from './image-viewer.js'
+import { TASKS_CSS, TaskDock, TaskPanel } from './tasks-tray.js'
 import { GROUP_CARD_CSS } from './group-card.js'
 import { FOLDER_CSS } from './folder-menu.js'
 import { USAGE_CSS } from './usage-page.js'
@@ -1142,11 +1143,13 @@ export function apply(ctx) {
     // Desktop's "··· More"), which comes back in Agent mode.
     () => shadow('settings.launcher', { priority: BOT_PRIORITY, inject: face }, AccountLauncher),
     () => shadow('shell.overlay', { id: 'bot-computer', order: 40, inject: face }, ComputerIndicator),
+    () => shadow('shell.overlay', { id: 'bot-tasks', order: 44, inject: face }, TaskPanel),
     () => shadow('shell.overlay', { id: 'bot', order: 50, inject: () => ({ ...face(), canOpenInDsh: true }) }, Overlays),
     () => shadow('shell.overlay', { id: 'bot-signin', order: 55, inject: face }, DeepSeekSignIn),
     () => shadow('shell.overlay', { id: 'bot-toast', order: 60, inject: face }, ErrorToast),
   ]
   const installConversation = () => [
+    () => installCompiledStyles(TASKS_CSS, 'tasks'),
     () => installCompiledStyles(CONVERSATION_CSS, 'conversation'),
     () => installCompiledStyles(TURN_ERROR_CSS, 'turn-errors'),
     () => installCompiledStyles(QUEUE_CSS, 'queue'),
@@ -1193,6 +1196,9 @@ export function apply(ctx) {
         return matched
       },
     }, probeComposerTakeover(QuestionCard)),
+    // The tasks a group chat is working on, above the input: picking one shows only its
+    // messages, and the list at the right edge holds the rest.
+    () => shadow('conversation.input.dock', { id: 'bot-tasks', order: -119, inject: face }, TaskDock),
     () => shadow('conversation.input.dock', { id: 'bot-members', order: -120, inject: face }, MemberDock),
     () => shadow('conversation.input.dock', { id: 'bot-model', order: -110, inject: face }, ModelChoiceDock),
     () => shadow('conversation.input.dock', { id: 'bot-question', order: -100, inject: face }, QuestionDock),

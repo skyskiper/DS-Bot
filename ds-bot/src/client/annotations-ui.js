@@ -4,7 +4,7 @@
 // the same way. A message with no annotation draws nothing at all.
 import { createElement as h, useEffect, useState } from 'react'
 import { call } from './api.js'
-import { annotationLine, stateLabel } from './annotations-view.js'
+import { annotationLine, stateLabel, taskTitle } from './annotations-view.js'
 
 const PROGRESS_SHOWN = 24
 
@@ -78,7 +78,7 @@ export const useAnnotation = (roomId, sessionSeq, roomSeq) => {
 }
 
 const words = (line) => {
-  const parts = [`#${line.num}`]
+  const parts = [taskTitle(line)]
   if (line.status !== undefined) parts.push(stateLabel(line.status))
   const progress = typeof line.progress === 'string' ? line.progress : line.say
   if (typeof progress === 'string' && progress.trim() !== '') {
@@ -104,4 +104,42 @@ export function AnnotationLine({ read, align }) {
 export const Annotated = ({ roomId, sessionSeq, roomSeq, align }) => {
   const read = useAnnotation(roomId, sessionSeq, roomSeq)
   return h(AnnotationLine, { read, align })
+}
+
+// One task at a time shows its own messages. The choice lives here, beside the reads,
+// so a chip, the list and every message row agree without passing it down the chat.
+const chosen = new Map()
+
+export const setTaskFilter = (roomId, num) => {
+  if (roomId === undefined) return
+  const now = chosen.get(roomId)
+  if (now === num) return
+  if (num === undefined) chosen.delete(roomId)
+  else chosen.set(roomId, num)
+  announce(roomId)
+}
+
+export const taskFilter = (roomId) => (roomId === undefined ? undefined : chosen.get(roomId))
+
+export const useTaskFilter = (roomId) => {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (roomId === undefined) return undefined
+    const fn = () => bump(n => n + 1)
+    const set = listeners.get(roomId) ?? new Set()
+    set.add(fn)
+    listeners.set(roomId, set)
+    start(roomId)
+    return () => { set.delete(fn); stop(roomId) }
+  }, [roomId])
+  return taskFilter(roomId)
+}
+
+// While a task is chosen, only its messages show; a message in no task belongs to none of
+// them and is left out, as the filter says.
+export const Filtered = ({ roomId, sessionSeq, roomSeq, children }) => {
+  const num = useTaskFilter(roomId)
+  const read = useAnnotation(roomId, sessionSeq, roomSeq)
+  if (num !== undefined && read?.task?.num !== num) return null
+  return children
 }

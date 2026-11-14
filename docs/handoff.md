@@ -343,8 +343,13 @@ Web Animations / `setInterval` 采样在 Electron **隐藏窗口**下被 Chromiu
   - 渲染：三处 —— `TriggerCell`（Session 直接显示的那条 post，用会话 seq）、`UserMessageCell`（用户消息，用会话 seq）、`GroupReplies`（一轮里的 bot/用户行，用行自带的 room seq，`groups.js` 的 `rowsView` 现在给每行带上 `seq`）。没有注解就整个不渲染。
 - 顺手做的：`annotate` 拒绝 `seq<=0`；`dropStrayReads()` 把「不属于任何消息」的 read（如 seq=0）删掉，`annotate` 与 `room-reads` 都会顺手清。
 - 已知取舍：任务没有名字字段（只有 `num/status/progress/say/result`），所以标签渲染成 `#N · 状态 · 进度`；设计给的 r5 改成了 6px（`test/style-debt.test.js` 只允许 0/4/6/8/10/12/16/18/20/22/999/50% 这些圆角步进）。
-- 下一块（未做）：右栏任务列表（A6：进行中全列 + 最近完成 3 + `已完成 N ›`）；再下一块：上方 chip 行 + 按任务过滤 + 「退出过滤」（A4/A10）。数据层 `taskList`/`keeps`/`filterLabel` 已经就位，只差接进右栏与输入框 dock。
-- 四检：`npm run build` ok、`build-client --check` CLIENT_OK、`npm run lint` 80 warnings 0 errors、`npm test` 2304 中 2300 pass / 1 基线红（`computer.test.js` 的 provider mounts，因为本机有 computer-use helper 路径）/ 3 skipped。
+- 第四块（`task.name` + 任务列表 + chip + 过滤，`src/client/tasks-tray.js`）：
+  - `task.name`：`annotate`/`say` 的 `task` 可带可选 `name`（≤60 字），没有就退回 `#N`；`annotations-view.js` 的 `taskTitle()` 统一拼 `#N 任务名`。
+  - `TaskDock`（挂在 `conversation.input.dock`，order −119）：输入框上方一行 chip（22 高 / r6 / 白 4.5% 底，hover 8.5%，选中用 accent-soft），末尾一个「任务 · N」开合右栏；过滤时上面多一条「过滤中：#N 名称 · M 条消息 ｜ 退出过滤 ×」。
+  - `TaskPanel`（挂在 `shell.overlay`，order 44）：贴右边缘的列表（232 宽、`position:fixed`、玻璃底），进行中全列 + 最近完成 3 + `已完成 N ›`（点开就地展开全部完成项）；行选中用底色不用 outline。
+  - 过滤状态存在 `annotations-ui.js`（`setTaskFilter`/`useTaskFilter`），消息行用 `Filtered` 包住：选中某任务时只留该任务的注解消息，无归属消息一律不显示；chip 与右栏行同时高亮。
+  - 注意：DSH 没有「右栏」可注入的 slot（只有 `shell.overlay`），所以这里是贴右边固定定位的面板，不是真右栏；以后 DSH 提供右栏 slot 再迁。
+- 四检：`npm run build` ok、`build-client --check` CLIENT_OK、`npm run lint` 80 warnings 0 errors、`npm test` 2305 中 2301 pass / 1 基线红（`computer.test.js` 的 provider mounts，因为本机有 computer-use helper 路径）/ 3 skipped。A4/A6 需在测试 App（有 CDP）上数 DOM，真 App 只做只读截图。
 
 ## 硬规则（违反会被打回）
 

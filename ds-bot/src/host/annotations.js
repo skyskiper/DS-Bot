@@ -89,6 +89,7 @@ const taskOf = (input) => {
   if (!Number.isInteger(num) || num <= 0) return { error: 'A task needs its number: num must be a positive integer.' }
   const status = typeof input.status === 'string' ? input.status : undefined
   if (status !== undefined && !TASK_STATES.includes(status)) return { error: `Task status must be one of ${TASK_STATES.join(', ')}.` }
+  const name = typeof input.name === 'string' && input.name.trim() !== '' ? input.name.trim().slice(0, 60) : undefined
   const progress = typeof input.progress === 'string' && input.progress.trim() !== '' ? input.progress.trim() : undefined
   const say = typeof input.say === 'string' && input.say.trim() !== '' ? input.say.trim() : undefined
   let result
@@ -103,6 +104,7 @@ const taskOf = (input) => {
   return {
     task: {
       num,
+      ...(name === undefined ? {} : { name }),
       ...(status === undefined ? {} : { status }),
       ...(progress === undefined ? {} : { progress }),
       ...(say === undefined ? {} : { say }),
@@ -204,9 +206,10 @@ export function install(rt) {
       think: { type: 'string', description: 'One line: what you make of the message and what you will do about it' },
       task: {
         type: 'object',
-        description: 'The task it belongs to: {num, status?, progress?, say?, result?}. Only a status moves the task list',
+        description: 'The task it belongs to: {num, name?, status?, progress?, say?, result?}. Only a status moves the task list',
         properties: {
           num: { type: 'number', description: 'The task number' },
+          name: { type: 'string', description: 'What the task is called, in two to six words; the list and the label show it' },
           status: { type: 'string', enum: TASK_STATES, description: 'pending: waiting to start; in_progress: under way; completed: done, which needs result' },
           progress: { type: 'string', description: 'Where it stands, in one line' },
           say: { type: 'string', description: 'What you are about to do about it' },
@@ -240,7 +243,7 @@ export function install(rt) {
       group: { type: 'string', description: 'Exact group chat name; leave it out when calling from that group\'s own Session' },
       text: { type: 'string', required: true, description: 'What to say in the group' },
       think: { type: 'string', description: 'One line of reasoning, shown under the message' },
-      task: { type: 'object', description: 'The task this message belongs to: {num, status?, progress?, say?, result?}', properties: { num: { type: 'number' }, status: { type: 'string', enum: TASK_STATES }, progress: { type: 'string' }, say: { type: 'string' }, result: { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' } }, additionalProperties: false } }, additionalProperties: false },
+      task: { type: 'object', description: 'The task this message belongs to: {num, name?, status?, progress?, say?, result?}', properties: { num: { type: 'number' }, name: { type: 'string' }, status: { type: 'string', enum: TASK_STATES }, progress: { type: 'string' }, say: { type: 'string' }, result: { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' } }, additionalProperties: false } }, additionalProperties: false },
       reopen: { type: 'boolean', description: 'Move a completed task back to work' },
     },
     output,
