@@ -323,6 +323,29 @@ Web Animations / `setInterval` 采样在 Electron **隐藏窗口**下被 Chromiu
   （`app.asar/node_modules/ds-bot/client.js`），不受影响；一旦群聊改由 `app/ui` 渲染，群审批按钮会消失，
   需要先把群行渲染搬过去或复用 `RelayEvent`。
 
+## 注解系统进度（2026-11-14）
+
+任务：管理员每条群消息下挂一行「理解」，并按 `task` 投影出任务表；顺带把旧话题系统整套回退。
+
+- 分支 `feat/task-annotations`，已推 fork。
+  - `7452d1ae` host：`room.reads[seq]={think,task,by,at}`、`annotate`、`say`、`projectTasks` 投影、两条校验（`completed` 必须带 `result`；只有 `reopen` 能退回）、`test/annotations.test.js`。
+  - `325a3915` 纯数据层：`src/client/annotations-view.js`（`tasksOf`/`taskList`/`annotationLine`/`keeps`/`filterLabel`）+ `mobile.js` 给聊天行补 `roomSeq` + 四条 i18n。
+  - 第三块（本块）：**桥接 + 气泡下注解行**，见下。
+- 桥接方案（用户拍的）：内容存一份，指针存一份。
+  ```
+  room.reads[roomSeq] = { think, task, by, at }
+  room.readsIndex[sessionSeq] = roomSeq        # 只记指针，不复制内容
+  ```
+  取数：`会话 seq → readsIndex → room seq → reads`。
+  - 新消息：`turns.js` 把 Session 事件 seq 挂到队列里的群消息（`sessionSeq`），`groups.js` 的 `say()` 落盘时顺手写 `readsIndex`，之后该字段从行里去掉，行本身不带 Session 的号。
+  - 旧消息：`annotations.js` 的 `indexLines()` 按「谁+原文+±2 秒」把 Session 事件与群 log 对上（与 `mobile.js` 同一套规则），只在缺指针时跑，最多回翻 3 页。
+  - 网页端取数接口：`channel.js` 新增只读端点 `room-reads`，返回 `{reads, index}`；客户端 `src/client/annotations-ui.js` 每 15 秒内轮询一次（实际 1.5s，隐藏时 5s），同一群的行共用一个轮询。
+  - 渲染：三处 —— `TriggerCell`（Session 直接显示的那条 post，用会话 seq）、`UserMessageCell`（用户消息，用会话 seq）、`GroupReplies`（一轮里的 bot/用户行，用行自带的 room seq，`groups.js` 的 `rowsView` 现在给每行带上 `seq`）。没有注解就整个不渲染。
+- 顺手做的：`annotate` 拒绝 `seq<=0`；`dropStrayReads()` 把「不属于任何消息」的 read（如 seq=0）删掉，`annotate` 与 `room-reads` 都会顺手清。
+- 已知取舍：任务没有名字字段（只有 `num/status/progress/say/result`），所以标签渲染成 `#N · 状态 · 进度`；设计给的 r5 改成了 6px（`test/style-debt.test.js` 只允许 0/4/6/8/10/12/16/18/20/22/999/50% 这些圆角步进）。
+- 下一块（未做）：右栏任务列表（A6：进行中全列 + 最近完成 3 + `已完成 N ›`）；再下一块：上方 chip 行 + 按任务过滤 + 「退出过滤」（A4/A10）。数据层 `taskList`/`keeps`/`filterLabel` 已经就位，只差接进右栏与输入框 dock。
+- 四检：`npm run build` ok、`build-client --check` CLIENT_OK、`npm run lint` 80 warnings 0 errors、`npm test` 2304 中 2300 pass / 1 基线红（`computer.test.js` 的 provider mounts，因为本机有 computer-use helper 路径）/ 3 skipped。
+
 ## 硬规则（违反会被打回）
 
 1. 一个任务一个分支，一个 owner；不与他人共用工作树。

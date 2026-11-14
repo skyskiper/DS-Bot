@@ -3,9 +3,84 @@
 // when it is asked for, never a table of its own — so a message with no annotation is plainly
 // unhandled, and a stale task cannot drift away from the messages that made it.
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { HISTORY_TIMEOUT_MS, SOURCE_KIND } from './constants.js'
+import { textOf } from './text.js'
 import { output } from './tools.js'
 
 export const TASK_STATES = ['pending', 'in_progress', 'completed']
+
+const POST_HEADER = /^\[Group post from [^\r\n]*\]\r?\n/
+// A chat row carries the Session's event seq; an annotation is filed under the group
+// log's own seq. `say` keeps the pointer as it logs a line the Session shows; these pick
+// it up for lines logged before it did, by the one thing both sides have: who said it,
+// what was said, and when.
+const unindexedLines = (room) => {
+  const reads = room.reads ?? {}
+  const indexed = new Set(Object.values(room.readsIndex ?? {}))
+  return (room.log ?? []).filter(line => line.session === true && reads[String(line.seq)] !== undefined && !indexed.has(line.seq))
+}
+
+const saidLine = (event) => {
+  if (event?.type !== 'user/message') return undefined
+  const source = event.data?.source ?? {}
+  if (source.kind === 'user') return { who: 'User', text: textOf(event.data.content), time: event.time }
+  if (source.kind === SOURCE_KIND && source.role === 'post') return { who: source.senderName, text: textOf(event.data.content).replace(POST_HEADER, ''), time: event.time }
+  return undefined
+}
+
+// A read belongs to a message, so a key that is no message's seq is dropped rather than
+// drawn under a row that does not exist. Returns whether anything went.
+export function dropStrayReads(room) {
+  const reads = room?.reads
+  if (reads === undefined) return false
+  let dropped = false
+  for (const key of Object.keys(reads)) {
+    const seq = Number(key)
+    if (Number.isInteger(seq) && seq > 0) continue
+    delete reads[key]
+    dropped = true
+  }
+  return dropped
+}
+
+/**
+ * Point each unindexed log line at the Session event that shows it. Pages the Session's
+ * newest messages and stops as soon as every line is placed.
+ */
+export async function indexLines(rt, room) {
+  const pending = unindexedLines(room)
+  if (pending.length === 0) return 0
+  if (typeof rt.ctx?.sessionController?.page !== 'function' || typeof rt.partsOf !== 'function') return 0
+  const part = rt.partsOf(undefined, room.id).at(-1)
+  if (part === undefined) return 0
+  const index = (room.readsIndex ??= {})
+  const left = new Set(pending.map(line => line.seq))
+  const done = new Set()
+  let beforeSeq
+  for (let page = 0; page < 3 && left.size > 0; page += 1) {
+    const got = await rt.ctx.sessionController.page({
+      address: { kind: 'session', sessionId: part.sessionId },
+      ...(beforeSeq === undefined ? {} : { beforeSeq }),
+      maxMessages: 400,
+    }, AbortSignal.timeout(HISTORY_TIMEOUT_MS)).catch(() => undefined)
+    if (got === undefined || got.records.length === 0) break
+    for (const record of got.records) {
+      const said = saidLine(record.event)
+      if (said === undefined) continue
+      const hit = pending.find(line => left.has(line.seq) && line.who === said.who && line.text === said.text
+        && (line.time === undefined || said.time === undefined || Math.abs(line.time - said.time) < 2000))
+      if (hit === undefined) continue
+      left.delete(hit.seq)
+      done.add(hit.seq)
+      index[record.event.seq] = hit.seq
+    }
+    if (got.hasMore !== true) break
+    beforeSeq = got.records[0]?.event?.seq
+    if (beforeSeq === undefined) break
+  }
+  if (done.size > 0) void rt.save?.().catch?.(() => {})
+  return done.size
+}
 
 const readsOf = (room) => (room.reads ??= {})
 const taskOf = (input) => {
@@ -67,6 +142,8 @@ export function install(rt) {
   // Annotate one of the group's messages: the reasoning the user sees under it, and the task
   // it belongs to. Every write is one entry under its seq, so a message can be re-read.
   const annotate = ({ room, seq, think, task, by, reopen = false }) => {
+    if (!Number.isInteger(seq) || seq <= 0) return { error: 'Give the seq of the message you are reading, as the group shows it.' }
+    dropStrayReads(room)
     const parsed = taskOf(task)
     if (parsed?.error !== undefined) return parsed
     const reads = readsOf(room)
@@ -98,6 +175,16 @@ export function install(rt) {
     return room === undefined ? { error: 'No such group.' } : annotate({ room, seq, think, task, by, reopen })
   }
   rt.tasksOf = (roomId) => projectTasks(rt.roomOf(roomId))
+  rt.indexReadLines = (roomId) => {
+    const room = rt.roomOf(roomId)
+    return room === undefined ? Promise.resolve(0) : indexLines(rt, room)
+  }
+  rt.dropStrayReads = (roomId) => {
+    const room = rt.roomOf(roomId)
+    if (room === undefined || !dropStrayReads(room)) return false
+    void rt.save?.().catch?.(() => {})
+    return true
+  }
   rt.readsOfRoom = (roomId) => rt.roomOf(roomId)?.reads ?? {}
 
   const gate = (exec, ref) => {
@@ -138,6 +225,7 @@ export function install(rt) {
         room: gated.room, seq: Number(args?.seq), think: args?.think, task: args?.task, by: gated.bot?.name, reopen: args?.reopen === true,
       })
       if (result.error !== undefined) return result.error
+      await indexLines(rt, gated.room).catch(() => 0)
       return JSON.stringify({ seq: result.seq, ...(result.read.think === undefined ? {} : { think: result.read.think }), ...(result.read.task === undefined ? {} : { task: result.read.task }) })
     },
   }))
@@ -166,6 +254,7 @@ export function install(rt) {
       const annotated = annotate({
         room: gated.room, seq: line.seq, think: args?.think, task: args?.task, by: gated.bot?.name, reopen: args?.reopen === true,
       })
+      await indexLines(rt, gated.room).catch(() => 0)
       return JSON.stringify(annotated.error === undefined
         ? { seq: line.seq, annotated: true }
         : { seq: line.seq, annotated: false, note: `${annotated.error} The message was posted without it.` })

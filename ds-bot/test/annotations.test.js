@@ -105,3 +105,28 @@ test('say posts the message and its annotation in one call, and still posts when
   assert.match(degraded.note, /posted without it/)
   assert.ok(room().log.some(entry => entry.seq === degraded.seq && entry.text === 'done then'))
 })
+
+test('the pointer from the Session\'s seq to the log\'s is found for a line logged before it', async (t) => {
+  const seed = TEAM()
+  seed.rooms.r1.log = [{ seq: 1, who: 'User', text: '继续', time: 1000, session: true }]
+  const { tool, room, stop } = await start(seed)
+  t.after(stop)
+  // The chat row carries the Session's seq; the read is filed under the log's.
+  rt.ctx.sessionController.page = async () => ({
+    records: [{ event: { type: 'user/message', seq: 42, time: 1000, data: { source: { kind: 'user' }, content: [{ type: 'text', text: '继续' }] } } }],
+    hasMore: false,
+  })
+  await tool('annotate', { seq: 1, think: 'he says go on', task: { num: 1, status: 'in_progress' } })
+  assert.equal(room().readsIndex['42'], 1)
+})
+
+test('a read under no message is dropped, and a seq that is no message is refused', async (t) => {
+  const seed = TEAM()
+  seed.rooms.r1.reads = { 0: { think: 'written by mistake' }, 1: { think: 'kept' } }
+  const { tool, room, stop } = await start(seed)
+  t.after(stop)
+  const refused = await tool('annotate', { seq: 0, think: 'nowhere' })
+  assert.match(String(refused), /seq of the message/)
+  assert.equal(rt.dropStrayReads('r1'), true)
+  assert.deepEqual(Object.keys(room().reads), ['1'])
+})

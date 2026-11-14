@@ -285,7 +285,12 @@ export function install(rt) {
   const say = (room, line) => {
     ensureRoomLog(room)
     room.seq += 1
-    const record = { ...line, seq: room.seq, time: line.time ?? Date.now() }
+    // The Session's own number for this message, when it shows the line itself, is
+    // dropped from the line and kept as a pointer: a chat row carries the Session's
+    // seq, annotations are filed under this log's seq, and this is where they meet.
+    const { sessionSeq, ...said } = line
+    const record = { ...said, seq: room.seq, time: line.time ?? Date.now() }
+    if (Number.isInteger(sessionSeq) && sessionSeq > 0) (room.readsIndex ??= {})[sessionSeq] = record.seq
     rt.ledger.append(bookOf(room.id), record)
     // The phone link hears every line the chat will draw (mobile.js).
     rt.roomLineAdded?.(room, record)
@@ -353,8 +358,14 @@ export function install(rt) {
         : [records.slice(at + 1).find(record => record.event === 'anchor')?.from].filter(seq => seq !== undefined)
       if (next.length > 0) end = Math.min(...next) - 1
     }
-    // Not the messages the group's own Session shows itself.
-    const rows = rt.ledger.range(bookOf(roomId), from, end).filter(record => record.session !== true).map(rowOf).filter(Boolean)
+    // Not the messages the group's own Session shows itself. Each row carries the log's
+    // seq, which is what an annotation is filed under.
+    const rows = rt.ledger.range(bookOf(roomId), from, end).filter(record => record.session !== true)
+      .map((record) => {
+        const row = rowOf(record)
+        return row === undefined || record.seq === undefined ? row : { ...row, seq: record.seq }
+      })
+      .filter(Boolean)
     return { rows, open: end === undefined }
   }
   const groupRows = (roomId, from, to, anchor) => rowsView(roomId, from, to, anchor).rows
@@ -1255,7 +1266,7 @@ export function install(rt) {
         if (post.failed !== undefined) round.failed.push(sender.name)
         else if (post.resumed || post.stopped || post.done) say(room, { who: sender.name, botId: sender.id, kind: post.done ? 'done' : post.stopped ? 'stopped' : post.again ? 'cut' : 'resumed', text: '' })
         else {
-          say(room, { who: sender.name, botId: sender.id, text, ...(post.files === undefined ? {} : { files: post.files }), session: true })
+          say(room, { who: sender.name, botId: sender.id, text, ...(post.files === undefined ? {} : { files: post.files }), session: true, ...(post.sessionSeq === undefined ? {} : { sessionSeq: post.sessionSeq }) })
           if (post.batch !== undefined && text !== '') recordResult(post.batch, sender.name, room.seq)
         }
         callPost(room, round, sender, post.text ?? '', post)
@@ -1265,7 +1276,7 @@ export function install(rt) {
       if (post.botId !== undefined) continue
       // The user's message, as one the round takes in from the Session's inbox.
       const text = [post.text, ...(post.files ?? []).map(fileLine)].filter(Boolean).join('\n')
-      say(room, { who: 'User', text, ...(post.files === undefined ? {} : { files: post.files }), ...(post.via === undefined ? {} : { via: post.via }), session: true })
+      say(room, { who: 'User', text, ...(post.files === undefined ? {} : { files: post.files }), ...(post.via === undefined ? {} : { via: post.via }), session: true, ...(post.sessionSeq === undefined ? {} : { sessionSeq: post.sessionSeq }) })
       unpauseRoomIdle(room)
       round.userMessage = true
       rt.goalUserMessage?.(room.id)
@@ -1342,7 +1353,7 @@ export function install(rt) {
         ...(post.files === undefined ? {} : { files: post.files }),
         ...(post.via === undefined ? {} : { via: post.via }),
         // The group's own Session shows the message; a goal draft's trigger it hides.
-        ...(post.goal === 'draft' ? {} : { session: true }),
+        ...(post.goal === 'draft' ? {} : { session: true, ...(post.sessionSeq === undefined ? {} : { sessionSeq: post.sessionSeq }) }),
       })
       if (post.batch !== undefined && text !== '') recordResult(post.batch, who, room.seq)
     }

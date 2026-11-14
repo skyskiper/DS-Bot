@@ -1360,6 +1360,15 @@ div:has(> nav [class*="_marks"]){display:none!important}
 .bt-btw-answer p{margin:0}
 .bt-btw-fail{margin:0 0 6px;color:var(--bt-danger);font-size:13px;line-height:18px}
 @media (prefers-reduced-motion:reduce){.bt-btw-chevron{transition:none}}
+/* The admin's reading of a message: one line under it, quieter than the message itself.
+   Messages carry the content; this only answers "which task, and what came of it". */
+.bt-anno{display:flex;align-items:center;gap:5px;min-width:0;height:16px;margin:2px 0 0;font-size:10.5px;line-height:16px;color:var(--bt-ink-3);max-width:calc(var(--bt-msg-w) * 100%)}
+.bt-anno-tag{flex:none;height:16px;display:inline-flex;align-items:center;gap:4px;padding:0 5px;border-radius:6px;background:var(--bt-tag-bg);color:var(--bt-ink-2);font-size:9.5px;line-height:16px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bt-anno-think{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-anno[data-align=end]{align-self:flex-end}
+.bt-group-msg>.bt-anno{margin-left:42px}
+body[data-bt-layout=flat] .bt-group-msg>.bt-anno{margin-left:0}
+.bt-urow>.bt-anno{max-width:100%}
 `
 
 // -------------------------------------------------------------------------

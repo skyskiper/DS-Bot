@@ -7,6 +7,7 @@ import { BotMark } from './mark.js'
 import { CheckIcon, CopyIcon } from './icons.js'
 import { dateLocale, t } from './i18n.js'
 import { noHover } from './motion.js'
+import { Annotated } from './annotations-ui.js'
 import { clockLabel, messageClock } from './text.js'
 import { useFold } from './fold.js'
 
@@ -134,7 +135,9 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
         control,
         rest.map((block, index) => (ui.JsonBlock ? h(ui.JsonBlock, { key: index, label: t('Content'), payload: block }) : null))) : null,
       referenceLabels.length > 0 ? h('div', { className: 'bt-urefs' }, t('Referenced {labels}', { labels: referenceLabels.join(t(', ')) })) : null,
-      (sentAt || via) ? h('div', { className: 'bt-utime', title: clockLabel(data.time) }, ...(via ? [h(ViaTag, { key: 'via', via })] : []), sentAt) : null),
+      (sentAt || via) ? h('div', { className: 'bt-utime', title: clockLabel(data.time) }, ...(via ? [h(ViaTag, { key: 'via', via })] : []), sentAt) : null,
+      // In a group the admin's reading of this message rides under it, by the Session's seq.
+      roster.roomsById[sessionId] !== undefined ? h(Annotated, { roomId: sessionId, sessionSeq: data.seq, align: 'end' }) : null),
     text === '' ? null : h('div', { className: 'bt-utools', 'data-open': toolsOpen || undefined }, h(CopyButton, { text })))
 }
 

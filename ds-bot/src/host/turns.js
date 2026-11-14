@@ -853,6 +853,9 @@ export function install(rt) {
           queueRoomMessage(rt.roomOf(id).id, {
             text: textOf(event.data.content).replace(/^\[Group post from (?:[^\r\n]*\]\r?\n|[^\]\r\n]*\])/, ''),
             ...(files.length > 0 ? { files } : {}),
+            // The Session's own number for this message, so the group's log can name the
+            // line the chat row draws before it knows the log's number (see annotations).
+            ...(Number.isInteger(event.seq) ? { sessionSeq: event.seq } : {}),
             botId: source.senderSessionId,
             name: source.senderName,
             reportBack: source.reportBack === true,
@@ -884,6 +887,7 @@ export function install(rt) {
           // opens a round of its own; the draft ask is the user's line.
           queueRoomMessage(rt.roomOf(id).id, {
             text: textOf(event.data.content).replace(/^\[(?:[^\r\n]*\]\r?\n|[^\]\r\n]*\])/, ''),
+            ...(Number.isInteger(event.seq) ? { sessionSeq: event.seq } : {}),
             ...(source.goal !== undefined ? { goal: source.goal } : {}),
             ...(source.goalId !== undefined ? { goalId: source.goalId } : {}),
           })
@@ -911,7 +915,7 @@ export function install(rt) {
           // claims the running turn nor queues as the next one's trigger.
         } else if (source?.kind === 'schedule' && rt.roomOf(id)) {
           // A group's scheduled task reaches the group as the user's message.
-          queueRoomMessage(rt.roomOf(id).id, { text: reminderText(textOf(event.data.content)) })
+          queueRoomMessage(rt.roomOf(id).id, { text: reminderText(textOf(event.data.content)), ...(Number.isInteger(event.seq) ? { sessionSeq: event.seq } : {}) })
         } else if (source?.kind === REFERENCE_KIND && rt.roomOf(id)) {
           attachReference(roomInbox.get(rt.roomOf(id).id), source, textOf(event.data.content))
         } else if (source?.kind === 'subagent-settled') {
@@ -939,7 +943,7 @@ export function install(rt) {
             const content = Array.isArray(event.data.content) ? event.data.content : []
             const images = content.filter(block => block?.type === 'image' && !block.offloaded).map(block => block.attachment)
             const files = content.filter(block => block?.type === 'file' && block.attachment !== undefined).map(block => block.attachment)
-            queueRoomMessage(rt.roomOf(id).id, { text: textOf(event.data.content), ...(images.length > 0 ? { images } : {}), ...(files.length > 0 ? { files } : {}), ...(viaOf(source) ? { via: viaOf(source) } : {}) })
+            queueRoomMessage(rt.roomOf(id).id, { text: textOf(event.data.content), ...(images.length > 0 ? { images } : {}), ...(files.length > 0 ? { files } : {}), ...(viaOf(source) ? { via: viaOf(source) } : {}), ...(Number.isInteger(event.seq) ? { sessionSeq: event.seq } : {}) })
           }
           const own = rt.chatOwners.get(id)
           if (own !== undefined) rt.userWrote(own)
